@@ -8,5 +8,10 @@ f(
   (enclosingLayers "(((\\\"PPLUS\\\" \\\"drawing\\\") 0.25 ?coverInterior nil ?useEncLayer t ?pin nil))")
   techParams(							
     ( LEFDEF_OVERLAP_LAYER_NAME	"OVERLAP"       )		
-  ) ;techParams							
+  ) ;techParams
+  /* fdjkfsd
+  kjfjh */
+  " "
+  a[2]
+  a || { c }
 )
