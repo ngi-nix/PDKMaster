@@ -10,6 +10,7 @@ import re
 from collections import OrderedDict
 
 from modgrammar import *
+from modgrammar.extras import *
 
 grammar_whitespace_mode = "optional"
 # Include comments in whitespace
@@ -28,8 +29,7 @@ class _BaseGrammar(Grammar):
             print("{}: {}-{}".format(self.__class__.__name__, start, end))
 
 class Symbol(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    grammar = G(L("'"), WORD("a-zA-Z_", "a-zA-Z0-9"))
+    grammar = RE(r"'[a-zA-Z_][a-zA-Z0-9_]*")
 
     def grammar_elem_init(self, sessiondata):
         self.value = self.string[1:]
@@ -42,22 +42,8 @@ class Identifier(_BaseGrammar):
         self.ast = {"Identifier": self.string}
         self.value = self.string
 
-class NumberBodyDigit(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    grammar_collapse = True
-    grammar = WORD("0-9"), OPTIONAL(L("."), OPTIONAL(WORD("0-9")))
-
-class NumberBodyPoint(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    gramma_collapse = True
-    grammar = L("."), WORD("0-9")
-
 class Number(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    grammar = (
-        OPTIONAL(L("-")|L("+")), (NumberBodyDigit | NumberBodyPoint),
-        OPTIONAL(L("e"), OPTIONAL(L("-")|L("+")), WORD("0-9")),
-    )
+    grammar = RE(r"(\+|-)?([0-9]+(\.[0-9]*)?|\.[0-9]+)(e(\+|-)?[0-9]+)?")
 
     def grammar_elem_init(self, sessiondata):
         isfloat = ("." in self.string) or ("e" in self.string)
@@ -65,8 +51,7 @@ class Number(_BaseGrammar):
         self.ast = {"Number": self.value}
 
 class String(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    grammar = G(L('"'), ZERO_OR_MORE(ANY_EXCEPT('\n"\\')|(L('\\'), ANY)),L('"'), grammar_collapse=True)
+    grammar = RE(r'"([^"\\]+|\\(.|\n))*"')
 
     def grammar_elem_init(self, sessiondata):
         self.value = self.string[1:-1]
@@ -122,27 +107,19 @@ class CurlyList(_BaseGrammar):
         self.value = {"{}": [elem.value for elem in self[1]]}
         self.ast = {"CurlyList": [elem.ast for elem in self[1]]}
 
-class FunctionName(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    grammar = G(WORD("a-zA-Z", "0-9a-zA-Z_"), L('('))
-
 class Function(_BaseGrammar):
-    grammar = G(FunctionName, ZERO_OR_MORE(Item), L(')'))
+    grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\("), ZERO_OR_MORE(Item), L(')')
 
     def grammar_elem_init(self, sessiondata):
-        name = self[0][0].string[:-1]
-        self.value = {name: [elem.value for elem in self[0][1]]}
+        name = self[0].string[:-1]
+        self.value = {name: [elem.value for elem in self[1]]}
         self.ast = {"Function": {
             "name": name,
-            "args": [elem.ast for elem in self[0][1]]
+            "args": [elem.ast for elem in self[1]]
         }}
 
-class ArrayName(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
-    grammar = G(WORD("a-zA-Z", "0-9a-zA-Z_"), L('['))
-
 class ArrayElement(_BaseGrammar):
-    grammar = ArrayName, Item, L(']')
+    grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\["), Item, L(']')
 
     def grammar_elem_init(self, sessiondata):
         name = self[0].string[:-1]
