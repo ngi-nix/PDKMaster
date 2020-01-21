@@ -35,6 +35,13 @@ class Symbol(_BaseGrammar):
         self.value = self.string[1:]
         self.ast = {"Symbol": self.value}
 
+class Bool(_BaseGrammar):
+    grammar = RE("(t|nil)\b")
+
+    def grammar_elem_init(self, sessiondata):
+        self.value = self.string == "t"
+        self.ast = {"Bool": self.value}
+
 class Identifier(_BaseGrammar):
     grammar = WORD("a-zA-Z_?@", "a-zA-Z0-9_?@.")
 
@@ -79,7 +86,7 @@ class Operator(_BaseGrammar):
 class Item(_BaseGrammar):
     grammar = (
         REF("Function") | REF("ArrayElement") | REF("List") | REF("SymbolList") | REF("CurlyList") |
-        Identifier | Symbol | Number | String | Operator
+        Bool | Identifier | Symbol | Number | String | Operator
     )
 
     def grammar_elem_init(self, sessiondata):
