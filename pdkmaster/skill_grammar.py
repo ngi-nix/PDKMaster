@@ -620,9 +620,9 @@ _value4function_table.update({
 class _BaseGrammar(Grammar):
     def __init__(self, *args):
         super().__init__(*args)
-        self._start = start = args[1]
-        self._end = end = args[2]
         if _debug:
+            start = self._str_info[1]
+            end = self._str_info[2]
             print("{}: {}-{}".format(self.__class__.__name__, start, end))
 
 class Symbol(_BaseGrammar):
