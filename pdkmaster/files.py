@@ -63,6 +63,46 @@ assurafiles = (
      "AMS_C35B4_DFM.yaml"),
     (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/c35b4/c35b4/deviceInfo.rul",
      "AMS_C35B4_DevInfo.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/c35b4/notchfill/notchfill.rul",
+     "AMS_C35B4_NothFill.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/c35b4/fillmettop/c35b4_fillmettop.rul",
+     "AMS_C35B4_FillMetalTop.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/drc.rul",
+     "AMS_H35B4_DRC.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/leak.rul",
+     "AMS_H35B4_Leak_DRC.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/leak2/leak.rul",
+     "AMS_H35B4_Leak2_DRC.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/compare.rul",
+     "AMS_H35B4_LVS.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/compare_hv.rul",
+     "AMS_H35B4_HV_LVS.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/extract.rul",
+     "AMS_H35B4_Extract.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/dfm.rul",
+     "AMS_H35B4_DFM.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/deviceInfo.rul",
+     "AMS_H35B4_DevInfo.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/notchfill/notchfill.rul",
+     "AMS_H35B4_NothFill.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/h35b4/fillmettop/h35b4_fillmettop.rul",
+     "AMS_H35B4_FillMetalTop.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/drc.rul",
+     "AMS_S35D4_DRC.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/compare.rul",
+     "AMS_S35D4_LVS.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/compare_bip.rul",
+     "AMS_S35D4_Bipolar_LVS.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/extract.rul",
+     "AMS_S35D4_Extract.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/dfm.rul",
+     "AMS_S35D4_DFM.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/deviceInfo.rul",
+     "AMS_S35D4_DevInfo.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/notchfill/notchfill.rul",
+     "AMS_S35D4_NothFill.yaml"),
+    (_pdkdir+"/AMSPDK_HK_C35H35S35/assura/s35d4/fillmettop/s35d4_fillmettop.rul",
+     "AMS_S35D4_FillMetalTop.yaml"),
 # TODO:
 
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4m6/extract.rul
@@ -72,7 +112,6 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4m6/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4m6/deviceInfo.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4all/dfm.rul
-# ./AMSPDK_HK_C35H35S35/assura/c35b4/notchfill/notchfill.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4thinall/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4thinall/bind.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4thinall/drc.rul
@@ -80,7 +119,6 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4thinall/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4thinall/deviceInfo.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4o0/dfm.rul
-# ./AMSPDK_HK_C35H35S35/assura/c35b4/fillmettop/c35b4_fillmettop.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4o1/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4o1/bind.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4o1/drc.rul
@@ -121,8 +159,8 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/fillmettop/c35b4_thick_fillmettop.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/bind.rul
-# ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/drc.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/compare.rul
+# ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/drc.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/fillpattern/c35b4_thick_fillpattern.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4_thick/deviceInfo.rul
@@ -135,7 +173,6 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4z1/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/c35b4/c35b4z1/deviceInfo.rul
 
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/notchfill/notchfill.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4d3/compare_hv.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4d3/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4d3/bind.rul
@@ -144,16 +181,8 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4d3/compare.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4d3/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4d3/deviceInfo.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/compare_hv.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/bind.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/leak.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/drc.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/compare.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/leak2/leak.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/leak2/text.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/dfm.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4/deviceInfo.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4_thin/notchfill/notchfill.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4_thin/compare_hv.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4_thin/fillmettop/h35b4_thin_fillmettop.rul
@@ -174,7 +203,6 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4s1/deviceInfo.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4_thin_mim5v/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4_thin_mim5v/dfm.rul
-# ./AMSPDK_HK_C35H35S35/assura/h35b4/fillmettop/h35b4_fillmettop.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4jd/compare_hv.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4jd/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4jd/bind.rul
@@ -263,7 +291,7 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4thinall/compare.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4thinall/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/h35b4/h35b4thinall/deviceInfo.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/notchfill/notchfill.rul
+
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4h2/compare_bip.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4h2/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4h2/bind.rul
@@ -271,14 +299,7 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4h2/compare.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4h2/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4h2/deviceInfo.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/compare_bip.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/bind.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/drc.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/compare.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/dfm.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4/deviceInfo.rul
-# ./AMSPDK_HK_C35H35S35/assura/s35d4/fillmettop/s35d4_fillmettop.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4hp/compare_bip.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4hp/extract.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4hp/bind.rul
@@ -323,6 +344,7 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4m2/compare.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4m2/dfm.rul
 # ./AMSPDK_HK_C35H35S35/assura/s35d4/s35d4m2/deviceInfo.rul
+
 # ./AMSPDK_HK_C35H35S35/cds/HK_H35/TECH_H35B4_THINMET4/icc.data/icc_device.rul
 # ./AMSPDK_HK_C35H35S35/cds/HK_H35/TECH_H35B4_THINMET4/icc.data/icc_block.rul
 # ./AMSPDK_HK_C35H35S35/cds/HK_H35/TECH_H35B4_VHV/icc.data/icc_device.rul
@@ -342,15 +364,7 @@ assurafiles = (
 # ./AMSPDK_HK_C35H35S35/cds/HK_C35/TECH_C35B4/icc.data/icc_block.rul
 # ./AMSPDK_HK_C35H35S35/cds/HK_C35/TECH_C35B3/icc.data/icc_device.rul
 # ./AMSPDK_HK_C35H35S35/cds/HK_C35/TECH_C35B3/icc.data/icc_block.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3l3/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3all/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3s3/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3c0/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3c3/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35a3b0/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3o1/extview.rul
-# ./AMSPDK_HK_C35H35S35/pvs/c35b3/c35b3c1/extview.rul
+
 # ./AMSPDK_HK_C35H35S35/pvs/c35b4/c35b4m6/extview.rul
 # ./AMSPDK_HK_C35H35S35/pvs/c35b4/c35b4thinall/extview.rul
 # ./AMSPDK_HK_C35H35S35/pvs/c35b4/c35b4o1/extview.rul
