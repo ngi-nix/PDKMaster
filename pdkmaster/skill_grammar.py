@@ -28,7 +28,7 @@ _debug = False
 # A set of functions will be added for each type of SKILL file supported.
 #
 _value4function_table = {}
-
+_dont_convert_list = []
 
 #
 # Technology file support functions
@@ -612,6 +612,7 @@ _value4function_table.update({
     # "cumulativeMetalAntenna": _tffunc_prop_cumulative_value,
     # "cumulativeViaAntenna": _tffunc_prop_cumulative_value,
 })
+_dont_convert_list += ["currentDensity"]
 
 
 #
@@ -696,8 +697,31 @@ class List(_BaseGrammar):
     grammar = L("("), ZERO_OR_MORE(Item), L(")")
 
     def grammar_elem_init(self, sessiondata):
-        self.value = [elem.value for elem in self[1]]
-        self.ast = {"List": [elem.ast for elem in self[1]]}
+        # Convert list to function if name of first identifier is in _value4function_table
+        # and not in the _dont_convert_list
+        isfunction = (
+            (len(self[1].elements) > 0)
+            and (type(self[1][0].value) is str)
+            and (self[1][0].value in _value4function_table)
+            and (self[1][0].value not in _dont_convert_list)
+        )
+        if not isfunction:
+            self.value = [elem.value for elem in self[1]]
+            self.ast = {"List": [elem.ast for elem in self[1]]}
+        else:
+            name = self[1][0].value
+            elems = [elem.value for elem in self[1].elements[1:]]
+            func = _value4function_table[name]
+            if type(func) == tuple:
+                func, kwargs = func
+            else:
+                kwargs = {}
+            self.value = {name: func(elems, functionname=name, **kwargs)}
+
+            self.ast = {"ListFunction": {
+                "name": name,
+                "args": [elem.ast for elem in self[1].elements[1:]],
+            }}
 
 class SymbolList(_BaseGrammar):
     grammar = L("'("), ZERO_OR_MORE(Item), L(")")
