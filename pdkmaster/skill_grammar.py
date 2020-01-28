@@ -664,37 +664,79 @@ class String(_BaseGrammar):
         self.value = self.string[1:-1]
         self.ast = {"String": self.value}
 
-class OperatorSymbol(_BaseGrammar):
+class PrefixOperator(_BaseGrammar):
     grammar_whitespace_mode = "explicit"
-    grammar_collapse = True
+    grammar = L("!") | RE(r"\+(?!(\+|[0-9]))") | RE(r"\-(?!(\-|[0-9]))")
+
+class PostfixOperator(_BaseGrammar):
+    grammar_whitespace_mode = "explicit"
+    grammar = L("++") | L("--")
+
+class BinaryOperator(_BaseGrammar):
+    grammar_whitespace_mode = "explicit"
     grammar = (
-        L("=") | L(":") | L("!") | L("<") | L(">") | L("<=") | L(">=") | L("==") | L("!=") | L("<>") |
-        L("+") | L("-") | L("*") | L("/") | L("++") | L("--") |
+        L("=") | L(":") | L("<") | L(">") | L("<=") | L(">=") | L("==") | L("!=") | L("<>") |
+        RE(r"\+(?!(\+|[0-9]))") | RE(r"\-(?!(\-|[0-9]))") |
+        L("*") | L("/") |
         L("&") | L("|") | L("&&") | L("||") |
-        L(",") |
-        L("->") | L("~>")
+        L(",")
     )
 
-class Operator(_BaseGrammar):
+class FieldOperator(_BaseGrammar):
     grammar_whitespace_mode = "explicit"
-    grammar = OperatorSymbol, NOT_FOLLOWED_BY(OperatorSymbol)
+    grammar = L("->") | L("~>")
 
-    def grammar_elem_init(self, sessiondata):
-        self.ast = {"Operator": self.string}
-        self.value = self.string
-
-class Item(_BaseGrammar):
+class ItemBase(_BaseGrammar):
+    grammar_whitespace_mode = "explicit"
     grammar = (
         REF("Function") | REF("ArrayElement") | REF("List") | REF("SymbolList") | REF("CurlyList") |
-        Bool | Identifier | Symbol | Number | String | Operator
-    )
+        Bool | Identifier | Symbol | Number | String
+    ), ZERO_OR_MORE(FieldOperator, Identifier)
 
     def grammar_elem_init(self, sessiondata):
-        self.ast = self[0].ast
-        self.value = self[0].value
+        if len(self[1]) == 0:
+            ast = self[0].ast
+            value = self[0].value
+        else:
+            ast = [self[0].ast]
+            value = [self[0].value]
+            for op, ident in self[1]:
+                ast += [op.string, ident.ast]
+                value += [op.string, ident.value]
+        self.ast = {"ItemBase": ast}
+        self.value = value
+
+class Item(_BaseGrammar):
+    grammar = ZERO_OR_MORE(PrefixOperator), ItemBase, ZERO_OR_MORE(PostfixOperator)
+
+    def grammar_elem_init(self, sessiondata):
+        if len(self[0]) == 0 and len(self[2]) == 0:
+            ast = self[1].ast
+            value = self[1].value
+        else:
+            ast = [*[op.string for op in self[0]], self[1].ast, *[op.string for op in self[2]]]
+            value = [*[op.string for op in self[0]], self[1].value, *[op.string for op in self[2]]]
+        self.ast = {"Item": ast}
+        self.value = value
+
+class Expression(_BaseGrammar):
+    grammar = Item, ZERO_OR_MORE(BinaryOperator, Item)
+
+    def grammar_elem_init(self, sessiondata):
+        if len(self[1]) == 0:
+            ast = self[0].ast
+            value = self[0].value
+        else:
+            ast = [self[0].ast]
+            value = [self[0].value]
+            for op, item in self[1]:
+                ast += [op.string, item.ast]
+                value += [op.string, item.value]
+        self.ast = {"Expression": ast}
+        self.value = value
 
 class List(_BaseGrammar):
-    grammar = L("("), ZERO_OR_MORE(Item), L(")")
+    grammar = L("("), ZERO_OR_MORE(Expression), L(")")
 
     def grammar_elem_init(self, sessiondata):
         # Convert list to function if name of first identifier is in _value4function_table
@@ -724,21 +766,21 @@ class List(_BaseGrammar):
             }}
 
 class SymbolList(_BaseGrammar):
-    grammar = L("'("), ZERO_OR_MORE(Item), L(")")
+    grammar = L("'("), ZERO_OR_MORE(Expression), L(")")
 
     def grammar_elem_init(self, sessiondata):
         self.value = [elem.value for elem in self[1]]
         self.ast = {"SymbolList": [elem.ast for elem in self[1]]}
 
 class CurlyList(_BaseGrammar):
-    grammar = L("{"), ZERO_OR_MORE(Item), L("}")
+    grammar = L("{"), ZERO_OR_MORE(Expression), L("}")
 
     def grammar_elem_init(self, sessiondata):
         self.value = {"{}": [elem.value for elem in self[1]]}
         self.ast = {"CurlyList": [elem.ast for elem in self[1]]}
 
 class Function(_BaseGrammar):
-    grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\("), ZERO_OR_MORE(Item), L(')')
+    grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\("), ZERO_OR_MORE(Expression), L(')')
 
     def grammar_elem_init(self, sessiondata):
         name = self[0].string[:-1]
@@ -760,7 +802,7 @@ class Function(_BaseGrammar):
         }}
 
 class ArrayElement(_BaseGrammar):
-    grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\["), Item, L(']')
+    grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\["), Expression, L(']')
 
     def grammar_elem_init(self, sessiondata):
         name = self[0].string[:-1]
@@ -771,7 +813,7 @@ class ArrayElement(_BaseGrammar):
         }}
 
 class SkillFile(_BaseGrammar):
-    grammar = G(ONE_OR_MORE(Item), OPTIONAL(WHITESPACE))
+    grammar = G(ONE_OR_MORE(Expression), OPTIONAL(WHITESPACE))
 
     def grammar_elem_init(self, sessiondata):
         self.ast = {"SkillFile": [elem.ast for elem in self[0][0]]}
