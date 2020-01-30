@@ -12,7 +12,7 @@ from collections import OrderedDict
 from modgrammar import *
 from modgrammar.extras import *
 
-grammar_whitespace_mode = "optional"
+grammar_whitespace_mode = "explicit"
 # Include comments in whitespace
 grammar_whitespace = re.compile(r'(\s+|;.*?\n|/\*(.|\n)*?\*/)+')
 
@@ -824,7 +824,6 @@ class Symbol(_BaseGrammar):
         self.ast = {"Symbol": self.value}
 
 class Bool(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
     grammar = L("t")|L("nil"), NOT_FOLLOWED_BY(WORD("a-zA-Z0-9_"))
 
     def grammar_elem_init(self, sessiondata):
@@ -832,7 +831,6 @@ class Bool(_BaseGrammar):
         self.ast = {"Bool": self.value}
 
 class Identifier(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
     grammar = WORD("a-zA-Z_?@", "a-zA-Z0-9_?@."), NOT_FOLLOWED_BY(L("("))
 
     def grammar_elem_init(self, sessiondata):
@@ -859,11 +857,9 @@ class PrefixOperator(_BaseGrammar):
     grammar = L("!") | RE(r"\+(?!(\+|[0-9]))") | RE(r"\-(?!(\-|[0-9]))")
 
 class PostfixOperator(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
     grammar = L("++") | L("--")
 
 class BinaryOperator(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
     grammar = (
         L("=") | L(":") | L("<") | L(">") | L("<=") | L(">=") | L("==") | L("!=") | L("<>") |
         RE(r"\+(?!(\+|[0-9]))") | RE(r"\-(?!(\-|[0-9]))") |
@@ -873,15 +869,16 @@ class BinaryOperator(_BaseGrammar):
     )
 
 class FieldOperator(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
     grammar = L("->") | L("~>")
 
 class ItemBase(_BaseGrammar):
-    grammar_whitespace_mode = "explicit"
     grammar = (
-        REF("Function") | REF("ArrayElement") | REF("List") | REF("SymbolList") | REF("CurlyList") |
-        Bool | Identifier | Symbol | Number | String
-    ), ZERO_OR_MORE(FieldOperator, Identifier)
+        (
+            REF("Function") | REF("ArrayElement") | REF("List") | REF("SymbolList") | REF("CurlyList") |
+            Bool | Identifier | Symbol | Number | String
+        ),
+        ZERO_OR_MORE(OPTIONAL(WHITESPACE), FieldOperator, OPTIONAL(WHITESPACE), Identifier),
+    )
 
     def grammar_elem_init(self, sessiondata):
         if len(self[1]) == 0:
@@ -890,13 +887,14 @@ class ItemBase(_BaseGrammar):
         else:
             ast = [self[0].ast]
             value = [self[0].value]
-            for op, ident in self[1]:
+            for _, op, _, ident in self[1]:
                 ast += [op.string, ident.ast]
                 value += [op.string, ident.value]
         self.ast = {"ItemBase": ast}
         self.value = value
 
 class Item(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = ZERO_OR_MORE(PrefixOperator), ItemBase, ZERO_OR_MORE(PostfixOperator)
 
     def grammar_elem_init(self, sessiondata):
@@ -910,6 +908,7 @@ class Item(_BaseGrammar):
         self.value = value
 
 class Expression(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = Item, ZERO_OR_MORE(BinaryOperator, Item)
 
     def grammar_elem_init(self, sessiondata):
@@ -926,6 +925,7 @@ class Expression(_BaseGrammar):
         self.value = value
 
 class List(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = L("("), ZERO_OR_MORE(Expression), L(")")
 
     def grammar_elem_init(self, sessiondata):
@@ -956,6 +956,7 @@ class List(_BaseGrammar):
             }}
 
 class SymbolList(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = L("'("), ZERO_OR_MORE(Expression), L(")")
 
     def grammar_elem_init(self, sessiondata):
@@ -963,6 +964,7 @@ class SymbolList(_BaseGrammar):
         self.ast = {"SymbolList": [elem.ast for elem in self[1]]}
 
 class CurlyList(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = L("{"), ZERO_OR_MORE(Expression), L("}")
 
     def grammar_elem_init(self, sessiondata):
@@ -970,6 +972,7 @@ class CurlyList(_BaseGrammar):
         self.ast = {"CurlyList": [elem.ast for elem in self[1]]}
 
 class Function(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\("), ZERO_OR_MORE(Expression), L(')')
 
     def grammar_elem_init(self, sessiondata):
@@ -992,6 +995,7 @@ class Function(_BaseGrammar):
         }}
 
 class ArrayElement(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\["), Expression, L(']')
 
     def grammar_elem_init(self, sessiondata):
@@ -1003,6 +1007,7 @@ class ArrayElement(_BaseGrammar):
         }}
 
 class SkillFile(_BaseGrammar):
+    grammar_whitespace_mode = "optional"
     grammar = G(ONE_OR_MORE(Expression), OPTIONAL(WHITESPACE))
 
     def grammar_elem_init(self, sessiondata):
