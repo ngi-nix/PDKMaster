@@ -838,7 +838,7 @@ class Identifier(_BaseGrammar):
         self.value = self.string
 
 class Number(_BaseGrammar):
-    grammar = RE(r"(\+|-)?([0-9]+(\.[0-9]*)?|\.[0-9]+)(e(\+|-)?[0-9]+)?")
+    grammar = RE(r"(\+|\-)?([0-9]+(\.[0-9]*)?|\.[0-9]+)(e(\+|-)?[0-9]+)?")
 
     def grammar_elem_init(self, sessiondata):
         isfloat = ("." in self.string) or ("e" in self.string)
