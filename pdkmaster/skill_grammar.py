@@ -898,7 +898,7 @@ class Item(_BaseGrammar):
     grammar = ZERO_OR_MORE(PrefixOperator), ItemBase, ZERO_OR_MORE(PostfixOperator)
 
     def grammar_elem_init(self, sessiondata):
-        if len(self[0]) == 0 and len(self[2]) == 0:
+        if len(self[0].elements) == 0 and len(self[2].elements) == 0:
             ast = self[1].ast
             value = self[1].value
         else:
@@ -912,7 +912,7 @@ class Expression(_BaseGrammar):
     grammar = Item, ZERO_OR_MORE(BinaryOperator, Item)
 
     def grammar_elem_init(self, sessiondata):
-        if len(self[1]) == 0:
+        if len(self[1].elements) == 0:
             ast = self[0].ast
             value = self[0].value
         else:
