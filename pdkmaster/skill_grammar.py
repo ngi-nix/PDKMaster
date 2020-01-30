@@ -30,6 +30,81 @@ _debug = False
 _value4function_table = {}
 _dont_convert_list = []
 
+
+#
+# SKILL builtin functions
+#
+def _skill_let(elems, **kwargs):
+    return {
+        "vars": elems[0],
+        "statements": elems[1],
+    }
+
+def _skill_for(elems, **kwargs):
+    assert len(elems) > 3
+    return {
+        "var": elems[0],
+        "begin": elems[1],
+        "end": elems[2],
+        "statements": elems[3:],
+    }
+
+def _skill_foreach(elems, **kwargs):
+    assert len(elems) > 2
+    return {
+        "var": elems[0],
+        "list": elems[1],
+        "statements": elems[2:],
+    }
+
+def _skill_if(elems, **kwargs):
+    thenidx = None
+    elseidx = None
+    for i, item in enumerate(elems):
+        if type(item) is str:
+            if item == "then":
+                thenidx = i
+            if item == "else":
+                elseidx = i
+    cond = elems[0]
+    while isinstance(cond, list) and len(cond) == 1:
+        cond = cond[0]
+    value = {"cond": cond}
+    if thenidx is not None:
+        assert thenidx == 1
+        value["then"] = elems[thenidx+1:elseidx]
+        if elseidx is not None:
+            value["else"] = elems[elseidx+1:]
+    else:
+        assert elseidx is None
+        assert 2 <= len(elems) <= 3
+        value["then"] = elems[1]
+        if len(elems) > 2:
+            value["else"] = elems[2]
+
+    return value
+
+def _skill_when(elems, **kwargs):
+    assert len(elems) > 1
+    cond = elems[0]
+    while isinstance(cond, list) and len(cond) == 1:
+        cond = cond[0]
+
+    return {
+        "cond": cond,
+        "then": elems[1:],
+    }
+
+_value4function_table.update({
+    "let": _skill_let,
+    "prog": _skill_let, # Dont make distinction in return() handling
+    "for": _skill_for,
+    "foreach": _skill_foreach,
+    "if": _skill_if,
+    "when": _skill_when,
+})
+
+
 #
 # Technology file support functions
 #
@@ -723,7 +798,11 @@ def _assfunc_drcExtractRules(elems, *, top=True, unknownfuncs=set(), **kwars):
             for funcname, args in elem.items():
                 if funcname not in _known_funcs:
                     unknownfuncs.add(funcname)
-                _scan4unknownfuncs(args)
+                if funcname in ("if", "let", "for", "foreach"):
+                    for _, args2 in args.items():
+                        _scan4unknownfuncs(args2)
+                elif funcname not in _dont_scan:
+                    _scan4unknownfuncs(args)
         elif isinstance(elem, list):
             for v in elem:
                 _scan4unknownfuncs(v)
@@ -750,28 +829,23 @@ def _assfunc_drcExtractRules(elems, *, top=True, unknownfuncs=set(), **kwars):
                             "args": args,
                             "body": subvalue["statements"],
                         }
-                elif key in ("if", "ivIf"):
-                    thenidx = None
-                    elseidx = None
-                    for i, item in enumerate(body):
-                        if type(item) is str:
-                            if item == "then":
-                                thenidx = i
-                            if item == "else":
-                                elseidx = i
-                    assert thenidx is not None, "only then syntax supported for if"
-                    d = {
-                        "cond": body[:thenidx],
-                        "then": _assfunc_drcExtractRules(body[thenidx+1:elseidx], top=False, unknownfuncs=unknownfuncs)
-                    }
+                elif key in ("if", "ivIf", "when"):
+                    d = dict(
+                        (
+                            key,
+                            statements if key == "cond" else _assfunc_drcExtractRules(
+                                statements, top=False, unknownfuncs=unknownfuncs
+                            )
+                        ) for key, statements in body.items()
+                    )
                     assert "procedures" not in d["then"]
-                    if elseidx is not None:
-                        d["else"] = _assfunc_drcExtractRules(body[elseidx+1:], top=False, unknownfuncs=unknownfuncs)
+                    if "else" in d:
                         assert "procedures" not in d["else"]
-                    value["statements"].append({"if": d})
-                elif key == "let":
-                    d = {"vars": body[0]}
-                    d.update(_assfunc_drcExtractRules(body[1:], top=False, unknownfuncs=unknownfuncs))
+                    value["statements"].append({"if": d}) # Convert all to if
+                elif key in ("let", "prog"):
+                    d = {"vars": body["vars"]}
+                    d.update(_assfunc_drcExtractRules(body["statements"], top=False, unknownfuncs=unknownfuncs))
+                    value["statements"].append({"let": d})
                 else:
                     if key not in _dont_scan:
                         _scan4unknownfuncs(elem)
@@ -801,6 +875,7 @@ def _assfunc_drcExtractRules(elems, *, top=True, unknownfuncs=set(), **kwars):
 _value4function_table.update({
     "layerDefs": _assfunc_layerDefs,
     "drcExtractRules": _assfunc_drcExtractRules,
+    "ivIf": _skill_if, # Treat as if alias
     #TODO: avCompareRules
 })
 
