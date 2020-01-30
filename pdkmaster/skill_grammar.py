@@ -852,9 +852,17 @@ class String(_BaseGrammar):
         self.value = self.string[1:-1]
         self.ast = {"String": self.value}
 
-class PrefixOperator(_BaseGrammar):
+class SignSymbol(_BaseGrammar):
+    # +/- followed by a digit
     grammar_whitespace_mode = "explicit"
-    grammar = L("!") | RE(r"\+(?!(\+|[0-9]))") | RE(r"\-(?!(\-|[0-9]))")
+    grammar = RE(r"[\+\-](?=[0-9])")
+
+class SignOperator(_BaseGrammar):
+    # +/- not followed by a digit
+    grammar = RE(r"[\+\-](?![\+\-0-9])")
+
+class PrefixOperator(_BaseGrammar):
+    grammar = L("!") | RE(r"\+(?!\+)") | RE(r"\-(?!-)")
 
 class PostfixOperator(_BaseGrammar):
     grammar = L("++") | L("--")
@@ -862,7 +870,7 @@ class PostfixOperator(_BaseGrammar):
 class BinaryOperator(_BaseGrammar):
     grammar = (
         L("=") | L(":") | L("<") | L(">") | L("<=") | L(">=") | L("==") | L("!=") | L("<>") |
-        RE(r"\+(?!(\+|[0-9]))") | RE(r"\-(?!(\-|[0-9]))") |
+        SignOperator |
         L("*") | L("/") |
         L("&") | L("|") | L("&&") | L("||") |
         L(",")
@@ -878,16 +886,20 @@ class ItemBase(_BaseGrammar):
             Bool | Identifier | Symbol | Number | String
         ),
         ZERO_OR_MORE(OPTIONAL(WHITESPACE), FieldOperator, OPTIONAL(WHITESPACE), Identifier),
+        ZERO_OR_MORE(SignSymbol, REF("ItemBase")),
     )
 
     def grammar_elem_init(self, sessiondata):
-        if len(self[1]) == 0:
+        if (len(self[1].elements) + len(self[2].elements)) == 0:
             ast = self[0].ast
             value = self[0].value
         else:
             ast = [self[0].ast]
             value = [self[0].value]
             for _, op, _, ident in self[1]:
+                ast += [op.string, ident.ast]
+                value += [op.string, ident.value]
+            for op, ident in self[2]:
                 ast += [op.string, ident.ast]
                 value += [op.string, ident.value]
         self.ast = {"ItemBase": ast}
@@ -904,6 +916,16 @@ class Item(_BaseGrammar):
         else:
             ast = [*[op.string for op in self[0]], self[1].ast, *[op.string for op in self[2]]]
             value = [*[op.string for op in self[0]], self[1].value, *[op.string for op in self[2]]]
+            # Collapse a sign with a number
+            for i in range(len(value)-1):
+                v = value[i]
+                v2 = value[i+1]
+                # Join sign with number
+                if (v in ("+", "-")) and isinstance(v2, (int, float)):
+                    value[i:i+2] = [v2 if v == "+" else -v2]
+                    if len(value) == 1:
+                        value = value[0]
+                    break
         self.ast = {"Item": ast}
         self.value = value
 
