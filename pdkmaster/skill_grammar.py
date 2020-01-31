@@ -1105,8 +1105,8 @@ class ArrayElement(_BaseGrammar):
 
 class SkillFile(_BaseGrammar):
     grammar_whitespace_mode = "optional"
-    grammar = G(ONE_OR_MORE(Expression), OPTIONAL(WHITESPACE))
+    grammar = ONE_OR_MORE(Expression), OPTIONAL(WHITESPACE)
 
     def grammar_elem_init(self, sessiondata):
-        self.ast = {"SkillFile": [elem.ast for elem in self[0][0]]}
-        self.value = {"SkillFile": [elem.value for elem in self[0][0]]}
+        self.ast = {"SkillFile": [elem.ast for elem in self[0]]}
+        self.value = {"SkillFile": [elem.value for elem in self[0]]}
