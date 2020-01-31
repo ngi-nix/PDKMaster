@@ -25,10 +25,174 @@ _debug = False
 
 
 #
-# Data support functions
-# Function value generation lookup table
+# Script interpretation support class
 #
+class SkillContext:
+    def __init__(self, *, parent=None):
+        self.parent = parent
+        self.variables = {}
+        self.procedures = {}
+        self.called = {}
 
+    def get_root(self):
+        root = self
+        while root.parent is not None:
+            root = root.parent
+        return root
+
+    def add_var(self, assign):
+        """Add variable with initial value to current context"""
+        assert isinstance(assign, dict) and len(assign) == 1
+        self.variables.update(assign)
+
+    def update_var(self, assign):
+        """Update variable value
+
+        If variable does not exist in the context tree it will be added to the top
+        context."""
+        assert isinstance(assign, dict) and len(assign) == 1
+        name = next(iter(assign))
+        context = self
+        while (context.parent is not None) and (name not in context.variables):
+            context = context.parent
+        context.variables.update(assign)
+
+    def get_var(self, name):
+        """Get value of a variable name.
+
+        This will search the whole context tree and return the corresponding value.
+        If variable is not found the name will be returned"""
+        if name in self.variables:
+            return self.variables[name]
+        elif self.parent is not None:
+            return self.parent.get_var(name)
+        else:
+            return name
+
+    def get_procedure(self, name):
+        """Get the procedure with a certain name"""
+        if name in self.procedures:
+            return self.procedures[name]
+        elif self.parent is not None:
+            return self.parent.get_procedure(name)
+        else:
+            return None
+
+    def add_procedures(self, procedures):
+        double = set(self.procedures.keys()).intersection(set(procedures.keys()))
+        if double:
+            raise ValueError(f"procedures {double} already present")
+
+        self.procedures.update(procedures)
+
+class SkillInterpreter:
+    def __init__(self):
+        self.callbacks = {
+            "setq": (self.interpret_setq, {}),
+            "let": (self.interpret_let, {}),
+        }
+
+    def register_callback(self, name, func, *, force_register=False, **kwargs):
+        if not isinstance(name, str):
+            raise TypeError("name has to be a string")
+        if (name in self.callbacks) and not force_register:
+            raise ValueError(f"callback '{name}' already registered")
+        if not callable(func):
+            raise TypeError("func has to callable")
+
+        self.callbacks[name] = (func, kwargs)
+
+    def __call__(self, *, expr, context=None):
+        if context is None:
+            context = SkillContext()
+        ret = None
+
+        if isinstance(expr, list):
+            if len(expr) == 0:
+                ret = False
+            elif len(expr) > 1 and expr[0] == "!":
+                arg = self(expr = expr[1:], context=context)
+                if isinstance(arg, bool):
+                    ret = not arg
+                else:
+                    ret = ['!', arg]
+            elif (len(expr) >= 3) and (expr[1] in ('=', "==", "<", "<=", ">", ">=")):
+                op = expr[1]
+                if op == '=':
+                    subexpr = expr[2] if len(expr) == 3 else expr[2:]
+                    func, kwargs = self.callbacks["setq"]
+                    ret = func(context, [expr[0], subexpr], **kwargs)
+                elif expr[1] in ("==", "<", "<=", ">", ">="):
+                    left = self(expr=expr[0], context=context)
+                    right = self(expr=expr[2:])
+                    if (isinstance(left, (int, float))
+                        and isinstance(right, (int, float))
+                       ):
+                        if op == "==":
+                            ret = (left == right)
+                        elif op == "<":
+                            ret = (left < right)
+                        elif op == "<=":
+                            ret = (left <= right)
+                        elif op == ">":
+                            ret = (left > right)
+                        elif op == ">=":
+                            ret = (left >= right)
+                        else:
+                            raise AssertionError("Internal error")
+                    else:
+                        ret = [left, op, right]
+                else:
+                    raise AssertionError("Internal error")
+            else:
+                for subexpr in expr:
+                    ret = self(expr=subexpr, context=context)
+
+        elif isinstance(expr, dict):
+            assert len(expr) == 1
+            for key, body in expr.items():
+                if key == "when":
+                    key = "if"
+
+                try:
+                    func, kwargs = self.callbacks[key]
+                except KeyError:
+                    ret = "FUNCCALL:{}".format(key)
+                else:
+                    ret = func(context, body, **kwargs)
+
+                called = context.get_root().called
+                try:
+                    called[key] += 1
+                except KeyError:
+                    called[key] = 1
+        elif isinstance(expr, str):
+            ret = context.get_var(expr)
+        else:
+            ret = expr
+        
+        return ret
+
+    def interpret_setq(self, context, args):
+        assert isinstance(args, list) and (len(args) == 2) and isinstance(args[0], str)
+        ret = self(expr=args[1], context=context)
+        context.update_var({args[0]: ret})
+
+        return ret
+
+    def interpret_let(self, context, args):
+        subcontext = SkillContext(parent=context)
+        for var in args["vars"]:
+            initvalue = None
+            if isinstance(var, list):
+                assert(1 <= len(var) <= 2)
+                if len(var) > 1:
+                    initvalue = self(context, var[1])
+            var = var[0]
+            assert isinstance(var, str)
+            subcontext.add_var({var: initvalue})
+            
+        return self(args["statements"], context=subcontext)
 
 #
 # SKILL builtin functions
