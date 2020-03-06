@@ -3,3 +3,7 @@
 *.yaml
 *.pyc
 __pychache__
+*files.txt
+
+.ipynb_checkpoints
+.vscode
