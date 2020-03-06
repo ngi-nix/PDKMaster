@@ -96,7 +96,7 @@ def _prop_cumulative_value(elems, *, functionname, **kwargs):
         elif functionname == "cumulativeViaAntenna":
             cond += ".cumulative_via"
         else:
-            raise Exception("unhandled name '{}'".format(name))
+            raise Exception("unhandled name '{}'".format(functionname))
         d[cond] = v[1]
         if len(v) > 2:
             d[cond + "." + v[2]] = True if len(v) == 3 else v[3]

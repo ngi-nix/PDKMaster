@@ -12,4 +12,4 @@ for skillfile, yamlfile in all_files:
         text = f.read()
 
     # Just check is parsing works
-    SkillFile.parser().parse_string(text)
+    SkillFile.parse_string(text)

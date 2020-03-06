@@ -9,8 +9,12 @@ Assura rules etc. This parser may parse invalid SKILL scripts.
 import re
 from collections import OrderedDict
 
-from modgrammar import *
-from modgrammar.extras import *
+__all__ = ["SkillContext", "SkillFile"]
+
+from modgrammar import (
+    Grammar, L, NOT_FOLLOWED_BY, WORD, REF, OPTIONAL, WHITESPACE, ZERO_OR_MORE, ONE_OR_MORE,
+)
+from modgrammar.extras import RE
 
 grammar_whitespace_mode = "explicit"
 # Include comments in whitespace
