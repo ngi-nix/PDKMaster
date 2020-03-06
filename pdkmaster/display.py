@@ -1,5 +1,6 @@
-from skill_grammar import SkillFile
+from .skill_grammar import SkillFile
 
+__all__ = ["DisplayFile"]
 
 #
 # Grammar

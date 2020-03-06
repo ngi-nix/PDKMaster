@@ -3,7 +3,8 @@
 import sys
 import yaml
 
-import skill_grammar
+from pdkmaster import SkillFile
+import pdkmaster.skill_grammar as skill_grammar
 import modgrammar.debugging
 
 # Override debug
@@ -16,8 +17,7 @@ debug = None
 debug_flags = None
 # debug = True
 # debug_flags = modgrammar.debugging.DEBUG_ALL
-p = skill_grammar.SkillFile.parser(debug=debug, debug_flags=debug_flags)
-skillfile = p.parse_string(text)
+skillfile = SkillFile.parse_string(text)
 
 # for it in skillfile.value["SkillFile"]:
 #     for name, _ in it.items():

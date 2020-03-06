@@ -3,10 +3,7 @@
 import yaml
 
 from files import techfiles, assurafiles, ilfiles, displayfiles
-from skill_grammar import SkillFile
-from tf import TechFile
-from assura import AssuraFile
-from display import DisplayFile
+from pdkmaster import SkillFile, TechFile, AssuraFile, DisplayFile
 
 # techfiles
 for techfile, yamlfile in techfiles:
