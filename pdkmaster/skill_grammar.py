@@ -94,6 +94,16 @@ def _skill_when(elems, **kwargs):
         "then": elems[1:],
     }
 
+def _skill_functionlist(elems, **kwargs):
+    """A list of functions with value converted to a dict with the function names as keys"""
+    
+    value = {}
+    for elem in elems:
+        assert isinstance(elem, dict) and len(elem) == 1
+        value.update(elem)
+
+    return value
+
 _builtins = {
     "let": _skill_let,
     "prog": _skill_let, # Dont make distinction in return() handling
