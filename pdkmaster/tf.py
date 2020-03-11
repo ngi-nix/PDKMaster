@@ -1,4 +1,4 @@
-from .skill_grammar import SkillFile
+from .skill_grammar import SkillFile, _skill_functionlist
 
 __all__ = ["TechFile"]
 
@@ -332,6 +332,41 @@ def _constraintGroups(elems, **kwargs):
             start = 2
         for constraint in v[start:]:
             constraints.update(constraint)
+
+        # Convert spacings, orderedSpacings, spacingTables, routingGrids, antennaModels -> rules
+        layerrules = constraints.pop("spacings", {})
+
+        # Add specified groups, optionally transforming the rule name
+        def _add_table(name):
+            if name.endswith(".ref"):
+                name[-4:] = ".table.ref"
+            else:
+                name += ".table"
+            return name
+        group_spec = [
+            ("orderedSpacings", lambda name: name),
+            ("electrical", lambda name: name),
+            ("spacingTables", _add_table),
+            ("routingGrids", lambda name: "routing."+name),
+        ]
+        for subgroupname, nametrans in group_spec:
+            for layer, addrules in constraints.pop(subgroupname, {}).items():
+                rules = layerrules.get(layer, {})
+                rules.update({nametrans(rulename): data for rulename, data in addrules.items()})
+                layerrules[layer] = rules
+
+        # Add antennaModels -> rules; append antenna model name if not default
+        for modelname, models in constraints.pop("antennaModels", {}).items():
+            modelsuffix = "" if modelname == "default" else "."+modelname
+                
+            for layer, arules in models.items():
+                rules = layerrules.get(layer, {})
+                rules.update({rulename+modelsuffix: data for rulename, data in arules.items()})
+                layerrules[layer] = rules
+
+        if layerrules:
+            constraints["rules"] = layerrules
+        
         ret[groupname] = constraints
 
     return ret
@@ -352,13 +387,6 @@ def _techDerivedLayers(elems, **kwargs):
                 "layer": _get_combinedlayername([v[2][0], v[2][2]]),
                 "operation": v[2][1],
             }
-
-    return ret
-
-def _equivalentLayers(elems, **kwargs):
-    ret = {}
-    for layer1, layer2 in elems:
-        ret[_get_layername(layer1)] = _get_layername(layer2)
 
     return ret
 
@@ -545,6 +573,68 @@ def _spacingRules(elems, **kwargs):
 
     return ret
 
+def _layerDefinitions(elems, **kwargs):
+    class _LookupExtend():
+        def __init__(self, data):
+            self.data = data
+            self.newidx = -1
+        
+        def __getitem__(self, item):
+            try:
+                return self.data[item]
+            except KeyError:
+                self.data[item] = value = {"number": self.newidx}
+                self.newidx -= 1
+                return value
+
+    d_elems = {}
+    for elem in elems:
+        assert isinstance(elem, dict) and len(elem) == 1
+        d_elems.update(elem)
+
+    techlayers = _LookupExtend(d_elems.pop("techLayers"))
+    techpurposes = _LookupExtend(d_elems.pop("techPurposes"))
+    techlayerpurposes = d_elems.pop("techLayerPurposePriorities")
+    techdisplays = d_elems.pop("techDisplays")
+    techlayerproperties = d_elems.pop("techLayerProperties", {})
+    assert set(techlayerpurposes) == set(techdisplays.keys())
+
+    def _layerpurpose2value(name):
+        lname, pname = name.split('.')
+        ldata = techlayers[lname]
+        labbr = ldata.get("abbreviation")
+        if labbr == lname:
+            labbr = None
+        pdata = techpurposes[pname]
+        pabbr = pdata.get("abbreviation")
+        if pabbr == pname:
+            pabbr = None
+
+        aliases = []
+        if pname == "drawing":
+            aliases.append(lname)
+        if labbr and (labbr != lname):
+            aliases.append(".".join((labbr, pname)))
+            if pabbr and (pabbr != pname):
+                aliases.append(".".join((labbr, pabbr)))
+        if pabbr and (pabbr != pname):
+            aliases.append(".".join((lname, pabbr)))
+
+        value = {
+            "name": name,
+            "aliases": aliases,
+            "layer": ldata["number"],
+            "purpose": pdata["number"],
+        }
+        value.update(techdisplays[name])
+        for name_it in [name] + aliases:
+            value.update(techlayerproperties.pop(name_it, {}))
+        return value
+
+    d_elems["layers"] = [_layerpurpose2value(layerpurpose) for layerpurpose in techlayerpurposes]
+    assert len(techlayerproperties) == 0, "Remaining layerproperties: {}".format(list(techlayerproperties.keys()))
+    return d_elems
+
 _value4function_table = {
     "techLayerPurposePriorities": _layers,
     "interconnect": _prop_value,
@@ -567,18 +657,20 @@ _value4function_table = {
     "techDisplays": _techDisplays,
     "standardViaDefs": _standardViaDefs,
     "customViaDefs": _customViaDefs,
+    "viaDefs": _skill_functionlist,
     "spacingTables": _spacingTables,
     "viaSpecs": _viaSpecs,
     "antennaModels": _antennaModels,
     "constraintGroups": _constraintGroups,
     "techDerivedLayers": _techDerivedLayers,
-    "equivalentLayers": _equivalentLayers,
     "functions": _functions,
     "multipartPathTemplates": _multipartPathTemplates,
     "streamLayers": _streamLayers,
     "layerFunctions": _layerFunctions,
     "spacingRules": _spacingRules,
     "orderedSpacingRules": _spacingRules,
+    "layerRules": _skill_functionlist,
+    "layerDefinitions": _layerDefinitions,
     # Following functions are not directly converted but done inside antennaModels function
     # "antenna": _prop_layers_value_optextra,
     # "cumulativeMetalAntenna": _prop_cumulative_value,
@@ -593,7 +685,52 @@ class TechFile(SkillFile):
     def grammar_elem_init(self, sessiondata):
         super().grammar_elem_init(sessiondata)
         self.ast = {"TechFile": self.ast["SkillFile"]}
-        self.value = {"TechFile": self.value["SkillFile"]}
+        newvalue = {}
+
+        layerrules = {}
+        for v in self.value["SkillFile"]:
+            if ("layerDefinitions" in v) and ("layers" in v["layerDefinitions"]):
+                layers = v["layerDefinitions"].pop("layers")
+                layers_idx = {layer["name"]: layer for layer in layers}
+                for alias_idx in [{alias: layer for alias in layer["aliases"]} for layer in layers]:
+                    layers_idx.update(alias_idx)
+                newvalue["layers"] = {
+                    "list": layers,
+                }
+                # Add remaining fields if present
+                if v["layerDefinitions"]:
+                    newvalue.update(v)
+            elif ("layerRules" in v):
+                assert len(v) == 1
+                layerrules = v["layerRules"]
+            else:
+                newvalue.update(v)
+
+        # Process layerrules
+        # Filter out empty fields
+        layerrules = dict(filter(lambda item: item[1], layerrules.items()))
+        if "equivalentLayers" in layerrules:
+            newvalue["layers"]["equivalent"] = layerrules.pop("equivalentLayers")
+        for layername, fdata in layerrules.pop("functions", {}).items():
+            layers_idx[layername].update(fdata)
+        for layername, direction in layerrules.pop("routingDirections", {}).items():
+            layers_idx[layername]["direction"] = direction
+        if layerrules:
+            newvalue.update({"layerRules": layerrules})
+
+        # Add connects section based on via section
+        try:
+            defs = newvalue["viaDefs"]["standardViaDefs"]
+        except KeyError:
+            pass
+        else:
+            newvalue["connects"] = list({
+                "{}:{}:{}".format(
+                    viadef["layer1"]["name"], viadef["via"]["name"], viadef["layer2"]["name"]
+                ) for viadef in defs
+            })
+
+        self.value = newvalue
 
     @classmethod
     def parse_string(cls, text):
