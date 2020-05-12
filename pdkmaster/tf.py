@@ -331,7 +331,11 @@ def _constraintGroups(elems, **kwargs):
         else:
             start = 2
         for constraint in v[start:]:
-            constraints.update(constraint)
+            for rulename, rules in constraint.items():
+                if rulename in constraints:
+                    constraints[rulename].update(rules)
+                else:
+                    constraints[rulename] = rules
 
         # Convert spacings, orderedSpacings, spacingTables, routingGrids, antennaModels -> rules
         layerrules = constraints.pop("spacings", {})
