@@ -355,6 +355,10 @@ def _constraintGroups(elems, **kwargs):
         ]
         for subgroupname, nametrans in group_spec:
             for layer, addrules in constraints.pop(subgroupname, {}).items():
+                # Remove minEnclosure if exist minOppExtension with same minimal enclosure
+                if ((subgroupname == "orderedSpacings") and ("minEnclosure" in addrules) and ("minOppExtension" in addrules)):
+                    if addrules["minEnclosure"] == addrules["minOppExtension"][0]:
+                        addrules.pop("minEnclosure")
                 rules = layerrules.get(layer, {})
                 rules.update({nametrans(rulename): data for rulename, data in addrules.items()})
                 layerrules[layer] = rules
