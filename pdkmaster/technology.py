@@ -1,4 +1,4 @@
-from . import property_ as prop, condition as cond, layer, device as dev
+from . import property_ as prop, condition as cond, mask, primitive as prim
 
 __all__ = ["Technology"]
 
@@ -10,10 +10,10 @@ class Technology:
         self.name = name
         self.grid = prop.Property(name + ".grid")
         self._constraints = cond.Conditions()
-        self._layers = layers = layer.Layers()
-        self._devices = dev.Devices()
+        self._masks = masks = mask.Masks()
+        self._primitives = prim.Primitives()
 
-        layers += layer.Layer("wafer")
+        masks += mask.Mask("wafer")
 
     @property
     def constraints(self):
@@ -24,18 +24,18 @@ class Technology:
             raise AttributeError("You can update constraints attribute only with '+=' operator")
 
     @property
-    def layers(self):
-        return self._layers
-    @layers.setter
-    def layers(self, v):
-        if v != self._layers:
+    def masks(self):
+        return self._masks
+    @masks.setter
+    def masks(self, v):
+        if v != self._masks:
             raise AttributeError("You can update constraints attribute only with '+=' operator")
 
     @property
-    def devices(self):
-        return self._devices
-    @devices.setter
-    def devices(self, v):
-        if v != self._devices:
-            raise AttributeError("You can update devices attribute only with '+=' operator")
+    def primitives(self):
+        return self._primitives
+    @primitives.setter
+    def primitives(self, v):
+        if v != self._primitives:
+            raise AttributeError("You can update primitives attribute only with '+=' operator")
 

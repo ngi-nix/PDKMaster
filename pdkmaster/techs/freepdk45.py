@@ -1,4 +1,4 @@
-from .. import technology as tech, layer, device as dev
+from .. import technology as tech, mask, primitive as prim
 
 __all__ = ["technology"]
 
@@ -9,19 +9,18 @@ class _FreePDK45(tech.Technology):
         self.constraints += (self.grid == 0.0025)
 
         # Wiki: Layers
-        self.layers += [layer.Layer(name) for name in [
+        self.masks += [mask.Mask(name) for name in [
             "active", "nwell", "pwell", "nimplant", "pimplant", "sblock",
             "vthl", "vthg", "vthh", "thkox", "poly", "contact",
             "metal1", "via1", "metal2", "via2", "metal3", "via3", "metal4", "via4", "metal5", "via5",
             "metal6", "via6", "metal7", "via7", "metal8", "via8", "metal9", "via9", "metal10",
         ]]
-        lrs = self.layers
+        lrs = self.masks
 
         wells = [lrs.nwell, lrs.pwell]
         transimplants = [lrs.nimplant, lrs.pimplant]
         
         # TODO: same net rules
-        # TODO: layer needs to be covered by other layer
         # TODO: assymetric enclosure of contact/vias
         # TODO: Find out what Implant.2 is supposed to mean
         #       ""
@@ -162,7 +161,7 @@ class _FreePDK45(tech.Technology):
         # Space Tables
         # TODO: spacing as function of width/length
         # Made tables more consistent than in the wiki pages.
-        # for layers, space_table in [
+        # for masks, space_table in [
         #     ((lrs.metal1, lrs.metal2, lrs.metal3), (
         #         (0.090, 0.900, 0.090), # Metal1.5/MetalInt.5
         #         (0.270, 0.300, 0.270), # Metal1.6/MetalInt.6
@@ -187,39 +186,39 @@ class _FreePDK45(tech.Technology):
         #         (1.500, 4.000, 1.500), # MetalG.9
         #     )),
         # ]:
-        #     for lay in layers:            
+        #     for msk in masks:            
         #         self.constraints += [
-        #             lay.select(metal1.width >= width, metal1.length >= length).space_to(lay) >= space
+        #             msk.select(metal1.width >= width, metal1.length >= length).space_to(msk) >= space
         #             for width, length, space in space_table
         #         ]
 
         mosfets = [
-            dev.MOSFET("nmos_vtl",
+            prim.MOSFET("nmos_vtl",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.nimplant, lrs.vthl), well=lrs.pwell,
             ),
-            dev.MOSFET("pmos_vtl",
+            prim.MOSFET("pmos_vtl",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.pimplant, lrs.vthl), well=lrs.nwell
             ),
-            dev.MOSFET("nmos_vtg",
+            prim.MOSFET("nmos_vtg",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.nimplant, lrs.vthg), well=lrs.pwell,
             ),
-            dev.MOSFET("pmos_vtg",
+            prim.MOSFET("pmos_vtg",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.pimplant, lrs.vthg), well=lrs.nwell
             ),
-            dev.MOSFET("nmos_vth",
+            prim.MOSFET("nmos_vth",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.nimplant, lrs.vthh), well=lrs.pwell,
             ),
-            dev.MOSFET("pmos_vth",
+            prim.MOSFET("pmos_vth",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.pimplant, lrs.vthh), well=lrs.nwell
             ),
-            dev.MOSFET("nmos_thkox",
+            prim.MOSFET("nmos_thkox",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.nimplant, lrs.thkox), well=lrs.pwell,
             ),
-            dev.MOSFET("pmos_thkox",
+            prim.MOSFET("pmos_thkox",
                 poly=lrs.poly, active=lrs.active, implant=(lrs.pimplant, lrs.thkox), well=lrs.nwell
             ),
         ]
-        self.devices += mosfets
+        self.primitives += mosfets
         for trans in mosfets:
             try:
                 implant = trans.implant[0]
