@@ -1,6 +1,6 @@
-from .skill_grammar import SkillFile, SkillContext, _skill_if
+from .skill_grammar import SkillFile, _skill_if
 
-__all__ = ["AssuraFile", "AssuraDRC"]
+__all__ = ["AssuraFile"]
 
 #
 # Assura function support
