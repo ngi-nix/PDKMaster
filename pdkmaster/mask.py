@@ -28,20 +28,23 @@ class _DualMaskProperty(prop.Property):
         self.mask2 = mask2
         self.prop_name = name
 
-class _MaskMultiCondition(cond.Condition):
+class _MultiMaskCondition(cond.Condition):
     def __init__(self, mask, others):
-        assert (isinstance(mask, Mask) and len(others) != 0), "Internal error"
+        assert (isinstance(mask, Mask)
+                and (len(others) > 0)
+                and all(isinstance(mask, Mask) for mask in others)
+               ), "Internal error"
         super().__init__((mask, others))
 
         self.mask = mask
         self.others = others
 
     def __hash__(self):
-        return hash((self.mask, self.others))
+        return hash((self.mask, *self.others))
 
-class _InsideCondition(_MaskMultiCondition):
+class _InsideCondition(_MultiMaskCondition):
     pass
-class _OutsideCondition(_MaskMultiCondition):
+class _OutsideCondition(_MultiMaskCondition):
     pass
 
 class Mask:
