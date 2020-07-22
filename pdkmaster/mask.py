@@ -114,21 +114,30 @@ class Masks:
         return self._masks[key]
 
     def __getattr__(self, name):
-        return self._masks[name]
+        try:
+            return self._masks[name]
+        except KeyError:
+            raise AttributeError("Mask '{}' not present".format(name))
 
     def __iadd__(self, other):
         e = TypeError("Can only add 'Mask' object or an iterable of 'Mask' objects to 'Masks'")
         try:
-            for mask in other:
-                if not isinstance(mask, Mask):
-                    raise e
+            iter(other)
         except TypeError:
             if not isinstance(other, Mask):
                 raise e
-            other = (other,)
-        for mask in other:
+            masks = (other,)
+        else:
+            masks = tuple(other)
+        for mask in masks:
+            if not isinstance(mask, Mask):
+                raise e
             if mask.name in self._masks:
                 raise ValueError("Mask '{}' already exists".format(mask.name))
-        self._masks.update({mask.name: mask for mask in other})
+
+        self._masks.update({mask.name: mask for mask in masks})
         
         return self
+
+    def __iter__(self):
+        return iter(self._masks.values())

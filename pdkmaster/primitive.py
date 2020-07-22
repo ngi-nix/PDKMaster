@@ -2,7 +2,7 @@
 
 from . import property_ as prop, mask
 
-__all__ = ["Interconnect", "MOSFET"]
+__all__ = ["Interconnect", "MOSFET", "Primitives"]
 
 class _Primitive:
     def __init__(self, name):
@@ -84,21 +84,28 @@ class Primitives:
         return self._primitives[key]
 
     def __getattr__(self, name):
-        return self._primitives[name]
+        try:
+            return self._primitives[name]
+        except KeyError:
+            raise AttributeError("Primitive '{}' not present".format(name))
 
     def __iadd__(self, other):
         e = TypeError("Can only add 'Primitive' object or an iterable of 'Primitive' objects to 'Primitives'")
         try:
-            for primitive in other:
-                if not isinstance(primitive, _Primitive):
-                    raise e
+            iter(other)
         except TypeError:
-            if not isinstance(primitive, _Primitive):
+            prims = (other,)
+        else:
+            prims = tuple(other)
+        for prim in prims:
+            if not isinstance(prim, _Primitive):
                 raise e
-            other = (other,)
-        for primitive in other:
-            if primitive.name in self._primitives:
-                raise ValueError("Primitive '{}' already exists".format(primitive.name))
-        self._primitives.update({primitive.name: primitive for primitive in other})
+            if prim.name in self._primitives:
+                raise ValueError("Primitive '{}' already exists".format(prim.name))
+
+        self._primitives.update({prim.name: prim for prim in prims})
 
         return self
+
+    def __iter__(self):
+        return iter(self._primitives.values())

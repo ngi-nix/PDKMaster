@@ -28,20 +28,23 @@ class Conditions:
     def __init__(self):
         self._conds = set()
 
-    def add(self, other):
+    def __iadd__(self, other):
         e = TypeError("other has to be of type 'Condition' or an iterable of type 'Condition'")
         try:
-            for cond in other:
-                if not isinstance(cond, Condition):
-                    raise e
-            s = set(other)
+            iter(other)
         except TypeError:
             if not isinstance(other, Condition):
                 raise e
-            s = {other}
+            conds = {other}
+        else:
+            conds = set(other)
+            for cond in conds:
+                if not isinstance(cond, Condition):
+                    raise e
 
-        self._conds.update(s)
+        self._conds.update(conds)
 
-    def __iadd__(self, other):
-        self.add(other)
         return self
+
+    def __iter__(self):
+        return iter(self._conds)
