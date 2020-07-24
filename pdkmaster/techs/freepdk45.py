@@ -1,4 +1,4 @@
-from .. import technology as tech, mask, primitive as prim
+from .. import technology as tech, mask as msk, primitive as prim
 
 __all__ = ["technology"]
 
@@ -12,7 +12,7 @@ class _FreePDK45(tech.Technology):
         self.constraints += (self.grid == 0.0025)
 
         # Wiki: Layers
-        masks += [mask.Mask(name) for name in [
+        masks += [msk.Mask(name) for name in [
             "active", "nwell", "pwell", "nimplant", "pimplant", "sblock",
             "vthl", "vthg", "vthh", "thkox", "poly", "contact",
             "metal1", "via1", "metal2", "via2", "metal3", "via3", "metal4", "via4", "metal5", "via5",

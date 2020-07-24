@@ -1,4 +1,4 @@
-from . import property_ as prop, condition as cond, mask, primitive as prim
+from . import property_ as prop, condition as cond, mask as msk, primitive as prim
 
 __all__ = ["Technology"]
 
@@ -10,10 +10,10 @@ class Technology:
         self.name = name
         self.grid = prop.Property(name + ".grid")
         self._constraints = cond.Conditions()
-        self._masks = masks = mask.Masks()
+        self._masks = masks = msk.Masks()
         self._primitives = prim.Primitives()
 
-        masks += mask.Mask("wafer")
+        masks += msk.Mask("wafer")
 
     @property
     def constraints(self):

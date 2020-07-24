@@ -1,7 +1,7 @@
 """The native technology primitives"""
 
 from textwrap import dedent
-from . import condition as cond, property_ as prop, mask, _util
+from . import condition as cond, property_ as prop, mask as msk, _util
 
 __all__ = ["Well", "Wire", "MOSFET"]
 
@@ -178,7 +178,7 @@ class Well(_WidthSpacePrimitive):
     def __init__(self, *, implant, min_space_samenet=None, **widthspace_args):
         if "name" not in widthspace_args:
             widthspace_args["name"] = implant.name
-        if not isinstance(implant, mask.Mask):
+        if not isinstance(implant, msk.Mask):
             raise TypeError("implant has to be of type 'Mask'")
         min_space_samenet = _util.i2f(min_space_samenet)
         if not ((min_space_samenet is None) or isinstance(min_space_samenet, float)):
@@ -193,9 +193,9 @@ class Wire(_WidthSpacePrimitive):
         implant=None, marker=None, connects=None,
         **widthspace_args,
     ):
-        if not isinstance(material, (mask.Mask, Wire)):
+        if not isinstance(material, (msk.Mask, Wire)):
             raise TypeError("material is not of type 'Mask' or 'Wire'")
-        if isinstance(material, mask.Mask):
+        if isinstance(material, msk.Mask):
             if "name" not in widthspace_args:
                 widthspace_args["name"] = material.name
         else: # Wire type
@@ -206,7 +206,7 @@ class Wire(_WidthSpacePrimitive):
             })
             if "name" not in widthspace_args:
                 raise TypeError("Missing keyword argument 'name' for material of type 'Wire'")
-        if not ((implant is None) or isinstance(implant, mask.Mask)):
+        if not ((implant is None) or isinstance(implant, msk.Mask)):
             raise TypeError("implant has to be 'None' type 'Mask'")
         if marker is not None:
             raise NotImplementedError("context handling for 'Wire'")
@@ -225,7 +225,7 @@ class Via(_Primitive):
         width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
         name=None
     ):
-        if not isinstance(material, mask.Mask):
+        if not isinstance(material, msk.Mask):
             raise TypeError("material is not of type 'Mask'")
 
         try:
@@ -362,7 +362,7 @@ class MOSFET(_Primitive):
         else:
             implant = tuple(implant)
         for l in implant:
-            if not isinstance(l, mask.Mask):
+            if not isinstance(l, msk.Mask):
                 raise TypeError("implant has to be of type 'Mask' or an iterable of type 'Mask'")
         if well is not None:
             try:
@@ -372,7 +372,7 @@ class MOSFET(_Primitive):
             else:
                 well = tuple(well)
             for l in well:
-                if not isinstance(l, mask.Mask):
+                if not isinstance(l, msk.Mask):
                     raise TypeError("well has to be 'None', of type 'Mask' or an iterable of type 'Mask'")
 
         if min_l is None:
