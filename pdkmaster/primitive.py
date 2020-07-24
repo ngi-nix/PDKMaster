@@ -188,9 +188,6 @@ class Well(_WidthSpacePrimitive):
         self.implant = implant
         self.min_space_samenet = self.min_space if min_space_samenet is None else min_space_samenet
 
-        self.width = _PrimitiveProperty(self, "width")
-        self.space = _PrimitiveProperty(self, "space")
-
 class Wire(_WidthSpacePrimitive):
     def __init__(self, *, material,
         implant=None, marker=None, connects=None,
