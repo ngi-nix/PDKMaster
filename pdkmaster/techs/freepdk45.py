@@ -60,6 +60,8 @@ class _FreePDK45(tech.Technology):
             (masks.active, {
                 "min_width": 0.090, # Active.1
                 "min_space": 0.080, # Active.2
+                "enclosed_by": (prims.nwell, prims.pwell), # Active.4
+                "min_enclosure": 0.055, # Active.3
             }),
             (masks.poly, {
                 "min_width": 0.050, # Poly.1
@@ -208,19 +210,11 @@ class _FreePDK45(tech.Technology):
             )
         )
         prims += vias
-        
-        self.constraints += [
-            # Wiki: Well Rules
-            masks.nimplant.overlap_with(masks.pimplant) <= 0.000, # Implant.5
-
-            # Wiki: Active Rules
-            *[masks.active.enclosed_by(well) >= 0.055 for well in wells], # Active.3
-            *[masks.active.space_to(well) >= 0.055 for well in wells], # Active.3
-            masks.active.is_inside(masks.nwell, masks.pwell), # Active.4
-
-            # Wiki: Contact Rules
-            masks.contact.space_to(masks.poly) >= 0.090, # Contact.7
-        ]
+        # extra space rules
+        spacings = (
+            prim.Spacing(primitives1=prims.contact, primitives2=prims.poly, min_space=0.090),
+        )
+        prims += spacings
 
         # transistors
         mosfets = [

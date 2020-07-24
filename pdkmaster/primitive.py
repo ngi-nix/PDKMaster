@@ -1,17 +1,32 @@
 """The native technology primitives"""
 
 from textwrap import dedent
-from . import condition as cond, property_ as prop, mask as msk, _util
+from . import _util, property_ as prop, mask as msk
 
 __all__ = ["Well", "Wire", "MOSFET"]
 
 class _Primitive:
-    def __init__(self, name):
+    def __init__(self, name, *, enclosed_by=None, min_enclosure=0.0):
         if not isinstance(name, str):
             raise TypeError("name argument of '{}' is not a string".format(self.__class__.__name__))
-        
+        if enclosed_by is not None:
+            enclosed_by = tuple(enclosed_by) if _util.is_iterable(enclosed_by) else (enclosed_by,)
+            if _util.is_iterable(min_enclosure):
+                min_enclosure = tuple(_util.i2f(minenc) for minenc in min_enclosure)
+            else:
+                min_enclosure = len(enclosed_by)*(_util.i2f(min_enclosure),)
+            if not all(isinstance(enc, _Primitive) for enc in enclosed_by):
+                raise TypeError("enclosed_by has to be of type '_Primitive' or an iterable of type '_Primitive'")
+            if not all(isinstance(enc, float) for enc in min_enclosure):
+                raise TypeError("min_enclosure has to be a float or an iterable of floats")
+            if len(enclosed_by) != len(min_enclosure):
+                raise ValueError("Wrong number of min_enclosure values given")
+
         self.name = name
 
+        if enclosed_by is not None:
+            self.enclosed_by = enclosed_by
+            self.min_enclosure = min_enclosure
 
 class _PrimitiveProperty(prop.Property):
     def __init__(self, primitive, name, *, type_=float):
@@ -19,29 +34,13 @@ class _PrimitiveProperty(prop.Property):
             raise RuntimeError("Internal error: primitive not of type 'Primitive'")
         super().__init__(primitive.name + "." + name, type_=type_)
 
-class _PrimitiveMultiCondition(cond.Condition):
-    def __init__(self, prim, others):
-        assert (isinstance(prim, _Primitive) and len(others) != 0), "Internal error"
-        super().__init__((prim, others))
-
-        self.prim = prim
-        self.others = others
-
-    def __hash__(self):
-        return hash((self.prim, self.others))
-
-class _InsideCondition(_PrimitiveMultiCondition):
-    pass
-class _OutsideCondition(_PrimitiveMultiCondition):
-    pass
-
 class Marker(_Primitive):
     pass
 
 class _WidthSpacePrimitive(_Primitive):
     def __init__(self, *,
         min_width, min_space, min_area=None, space_table=None,
-        name,
+        **primitive_args
     ):
         min_width = _util.i2f(min_width)
         min_space = _util.i2f(min_space)
@@ -79,7 +78,7 @@ class _WidthSpacePrimitive(_Primitive):
                 if not isinstance(space, float):
                     raise TypeError("second element in a space_table row has to be a float")
 
-        super().__init__(name)
+        super().__init__(**primitive_args)
         self.min_width = min_width
         self.min_space = min_space
         if min_area is not None:
@@ -96,53 +95,9 @@ class _WidthSpacePrimitive(_Primitive):
 
 
 
-    def extend_over(self, other):
-        if not isinstance(other, _Primitive):
-            raise TypeError("other has to be of type '_Primitive'")
-
-        return _DualPrimitiveProperty(self, other, "extend_over", commutative=False)
-
-    def enclosed_by(self, other):
-        if not isinstance(other, _Primitive):
-            raise TypeError("other has to be of type '_Primitive'")
-
-        return _DualPrimitiveProperty(self, other, "enclosed_by", commutative=False)
-
-    def overlap_with(self, other):
-        if not isinstance(other, _Primitive):
-            raise TypeError("other has to be of type '_Primitive'")
-
-        return _DualPrimitiveProperty(self, other, "overlap_with", commutative=True)
-
-    def is_inside(self, other, *others):
-        if isinstance(other, _Primitive):
-            prims = (other, *others)
-        else:
-            try:
-                prims = (*other, *others)
-            except:
-                raise TypeError("Outside mask not of type '_Primitive'")
-        for l in prims:
-            if not isinstance(l, _Primitive):
-                raise TypeError("Outside mask not of type '_Primitive'")
-        
-        return _InsideCondition(self, prims)
-
-    def is_outside(self, other, *others):
-        if isinstance(other, _Primitive):
-            prims = (other, *others)
-        else:
-            try:
-                prims = (*other, *others)
-            except:
-                raise TypeError("Outside mask not of type '_Primitive'")
-        for l in prims:
-            if not isinstance(l, _Primitive):
-                raise TypeError("Outside mask not of type '_Primitive'")
-        
-        return _OutsideCondition(self, prims)
-
 class Implant(_WidthSpacePrimitive):
+    # Implants are supposed to be disjoint unless they are used as combined implant
+    # MOSFET and other primitives
     def __init__(self, *, implant, **widthspace_args):
         if "name" not in widthspace_args:
             widthspace_args["name"] = implant.name
@@ -220,7 +175,7 @@ class Via(_Primitive):
     def __init__(self, *, material,
         bottom, top,
         width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
-        name=None
+        **primitive_args,
     ):
         if not isinstance(material, msk.Mask):
             raise TypeError("material is not of type 'Mask'")
@@ -295,11 +250,10 @@ class Via(_Primitive):
         if not isinstance(min_space, float):
             raise TypeError("min_space has to be a float")
 
-        if name is None:
-            name = material.name
-        if not isinstance(name, str):
-            raise TypeError("name has to be 'None' or a string")
+        if "name" not in primitive_args:
+            primitive_args["name"] = material.name
 
+        super().__init__(**primitive_args)
         self.material = material
         self.bottom = bottom
         self.top = top
@@ -307,7 +261,29 @@ class Via(_Primitive):
         self.min_space = min_space
         self.min_bottom_enclosure = min_bottom_enclosure
         self.min_top_enclosure = min_top_enclosure
-        self.name = name
+
+class Spacing(_Primitive):
+    def __init__(self, *, primitives1, primitives2, min_space):
+        primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
+        if not all(isinstance(prim, _Primitive) for prim in primitives1):
+            raise TypeError("primitives1 has to be of type '_Primitive' or an iterable of type '_Primitive'")
+        primitives2 = tuple(primitives2) if _util.is_iterable(primitives2) else (primitives2,)
+        if not all(isinstance(prim, _Primitive) for prim in primitives2):
+            raise TypeError("primitives2 has to be of type '_Primitive' or an iterable of type '_Primitive'")
+        min_space = _util.i2f(min_space)
+        if not isinstance(min_space, float):
+            raise TypeError("min_space has to be a float")
+
+        name = "spacing({})".format(",".join(
+            (
+                prims[0].name if len(prims) == 1
+                else "({})".format(",".join(prim.name for prim in prims))
+            ) for prims in (primitives1, primitives2)
+        ))
+        super().__init__(name)
+        self.primitives1 = primitives1
+        self.primitives2 = primitives2
+        self.min_space = min_space
 
 class _MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, mosfet, poly, active, min_l, min_w, min_gate_space):
