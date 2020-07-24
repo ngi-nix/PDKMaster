@@ -53,6 +53,9 @@ class _InsideCondition(_PrimitiveMultiCondition):
 class _OutsideCondition(_PrimitiveMultiCondition):
     pass
 
+class Marker(_Primitive):
+    pass
+
 class _WidthSpacePrimitive(_Primitive):
     def __init__(self, *,
         min_width, min_space, min_area=None, space_table=None,
@@ -173,38 +176,60 @@ class _WidthSpacePrimitive(_Primitive):
         
         return _OutsideCondition(self, prims)
 
-class Well(_WidthSpacePrimitive):
-    # Wells are non-overlapping by design
-    def __init__(self, *, implant, min_space_samenet=None, **widthspace_args):
+class Implant(_WidthSpacePrimitive):
+    def __init__(self, *, implant, **widthspace_args):
         if "name" not in widthspace_args:
             widthspace_args["name"] = implant.name
         if not isinstance(implant, msk.Mask):
-            raise TypeError("implant has to be of type 'Mask'")
+            raise TypeError("implant param for '{}' has to be of type 'Mask'".format(
+                self.__class__.__name__
+            ))
+
+        super().__init__(**widthspace_args)
+        self.implant = implant
+
+class Well(Implant):
+    # Wells are non-overlapping by design
+    def __init__(self, *, min_space_samenet=None, **implant_args):
         min_space_samenet = _util.i2f(min_space_samenet)
         if not ((min_space_samenet is None) or isinstance(min_space_samenet, float)):
             raise TypeError("min_space_samenet has to be 'None' or a float")
             
-        super().__init__(**widthspace_args)
-        self.implant = implant
+        super().__init__(**implant_args)
         self.min_space_samenet = self.min_space if min_space_samenet is None else min_space_samenet
 
-class Wire(_WidthSpacePrimitive):
+class Substrate(_Primitive):
+    # Wafer area not covered by wells
+    def __init__(self):
+        super().__init__("substrate")
+
+class Deposition(_WidthSpacePrimitive):
+    def __init__(self, mask, **widthspace_args):
+        if not isinstance(mask, msk.Mask):
+            raise TypeError("mask is not of type 'Mask'")
+        if "name" not in widthspace_args:
+            widthspace_args["name"] = mask.name
+
+        super().__init__(**widthspace_args)
+        self.mask = mask
+
+class Wire(Deposition):
     def __init__(self, *, material,
         implant=None, marker=None, connects=None,
-        **widthspace_args,
+        **deposition_args,
     ):
         if not isinstance(material, (msk.Mask, Wire)):
             raise TypeError("material is not of type 'Mask' or 'Wire'")
         if isinstance(material, msk.Mask):
-            if "name" not in widthspace_args:
-                widthspace_args["name"] = material.name
+            if "name" not in deposition_args:
+                deposition_args["name"] = material.name
         else: # Wire type
-            widthspace_args.update({
-                "min_width": widthspace_args.get("min_width", material.min_width),
-                "min_space": widthspace_args.get("min_space", material.min_space),
-                "min_area": widthspace_args.get("min_area", material.min_area),
+            deposition_args.update({
+                "min_width": deposition_args.get("min_width", material.min_width),
+                "min_space": deposition_args.get("min_space", material.min_space),
+                "min_area": deposition_args.get("min_area", material.min_area),
             })
-            if "name" not in widthspace_args:
+            if "name" not in deposition_args:
                 raise TypeError("Missing keyword argument 'name' for material of type 'Wire'")
         if not ((implant is None) or isinstance(implant, msk.Mask)):
             raise TypeError("implant has to be 'None' type 'Mask'")
@@ -213,7 +238,12 @@ class Wire(_WidthSpacePrimitive):
         if connects is not None:
             raise NotImplementedError("connects handling for 'Wire'")
 
-        super().__init__(**widthspace_args)
+        mask = material
+        while isinstance(mask, Wire):
+            mask = mask.material
+        assert isinstance(mask, msk.Mask), "Internal Error"
+        deposition_args["mask"] = mask
+        super().__init__(**deposition_args)
         self.material = material
         self.implant = implant
         self.marker = marker
@@ -339,7 +369,7 @@ class _MOSFETGate(_WidthSpacePrimitive):
 class MOSFET(_Primitive):
     def __init__(
         self, name, *,
-        poly, active, implant=None, well=None,
+        poly, active, implant=None, oxide=None, well,
         min_l=None, min_w=None,
         min_activepoly_space, min_sd_width,
         min_polyactive_extension, min_gateimplant_enclosure, min_gate_space=None,
@@ -362,18 +392,12 @@ class MOSFET(_Primitive):
         else:
             implant = tuple(implant)
         for l in implant:
-            if not isinstance(l, msk.Mask):
-                raise TypeError("implant has to be of type 'Mask' or an iterable of type 'Mask'")
-        if well is not None:
-            try:
-                iter(well)
-            except TypeError:
-                well = (well,)
-            else:
-                well = tuple(well)
-            for l in well:
-                if not isinstance(l, msk.Mask):
-                    raise TypeError("well has to be 'None', of type 'Mask' or an iterable of type 'Mask'")
+            if not isinstance(l, Implant):
+                raise TypeError("implant has to be of type 'Implant' or an iterable of type 'Implant'")
+        if not ((oxide is None) or (isinstance(oxide, Deposition) and not isinstance(oxide, Wire))):
+            raise TypeError("oxide has to be 'None' or of type 'Deposition'")
+        if not isinstance(well, (Well, Substrate)):
+            raise TypeError("well has to be of type 'Well' or 'Substrate'")
 
         if min_l is None:
             min_l = poly.min_width

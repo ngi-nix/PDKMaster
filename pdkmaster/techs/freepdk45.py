@@ -24,6 +24,19 @@ class _FreePDK45(tech.Technology):
         # TODO: Find out what MetalTNG.4 is supposed to mean
         #       "Minimum area of metalTNG straddling via[6-8]"
 
+        # implants
+        implants = (
+            *(
+                prim.Implant(implant=implant,
+                    min_width=0.045, # Implant.3
+                    min_space=0.045, # Implant.4
+                ) for implant in (
+                    masks.nimplant, masks.pimplant,
+                    masks.vthl, masks.vthg, masks.vthh,
+                )
+            ),
+        )
+        prims += implants
         # wells
         wells = (
             prim.Well(
@@ -34,6 +47,14 @@ class _FreePDK45(tech.Technology):
             ) for impl in (masks.nwell, masks.pwell)
         )
         prims += wells
+        # depositions
+        depositions = (
+            prim.Deposition(masks.thkox,
+                min_width=0.045, # Own rule
+                min_space=0.045, # Own rule
+            ),
+        )
+        prims += depositions
         # wires
         wires = (prim.Wire(material=mat, **wire_args) for mat, wire_args in (
             (masks.active, {
@@ -204,7 +225,7 @@ class _FreePDK45(tech.Technology):
         # transistors
         mosfets = [
             prim.MOSFET(name,
-                poly=prims.poly, active=prims.active, implant=impl, well=well,
+                poly=prims.poly, active=prims.active, implant=impl, oxide=oxide, well=well,
                 # No need for overruling min_l, min_w
                 min_activepoly_space=0.050, # Poly.5
                 min_sd_width=0.070, # Poly.4
@@ -212,15 +233,15 @@ class _FreePDK45(tech.Technology):
                 min_gateimplant_enclosure=0.070, # Implant.1
                 min_gate_space=0.140, # Poly.2
                 min_contactgate_space=0.035, # Contact.6
-            ) for name, impl, well in (
-                ("nmos_vtl", (masks.nimplant, masks.vthl), masks.pwell),
-                ("pmos_vtl", (masks.pimplant, masks.vthl), masks.nwell),
-                ("nmos_vtg", (masks.nimplant, masks.vthg), masks.pwell),
-                ("pmos_vtg", (masks.pimplant, masks.vthg), masks.nwell),
-                ("nmos_vth", (masks.nimplant, masks.vthh), masks.pwell),
-                ("pmos_vth", (masks.pimplant, masks.vthh), masks.nwell),
-                ("nmos_thkox", (masks.nimplant, masks.thkox), masks.pwell),
-                ("pmos_thkox", (masks.pimplant, masks.thkox), masks.nwell),
+            ) for name, impl, oxide, well in (
+                ("nmos_vtl", (prims.nimplant, prims.vthl), None, prims.pwell),
+                ("pmos_vtl", (prims.pimplant, prims.vthl), None, prims.nwell),
+                ("nmos_vtg", (prims.nimplant, prims.vthg), None, prims.pwell),
+                ("pmos_vtg", (prims.pimplant, prims.vthg), None, prims.nwell),
+                ("nmos_vth", (prims.nimplant, prims.vthh), None, prims.pwell),
+                ("pmos_vth", (prims.pimplant, prims.vthh), None, prims.nwell),
+                ("nmos_thkox", prims.nimplant, prims.thkox, prims.pwell),
+                ("pmos_thkox", prims.pimplant, prims.thkox, prims.nwell),
             )
         ]
         self.primitives += mosfets

@@ -10,10 +10,10 @@ class Technology:
         self.name = name
         self.grid = prop.Property(name + ".grid")
         self._constraints = cond.Conditions()
-        self._masks = masks = msk.Masks()
-        self._primitives = prim.Primitives()
+        self._masks = msk.Masks()
+        self._primitives = prims = prim.Primitives()
 
-        masks += msk.Mask("wafer")
+        prims += (prim.Marker("wafer"), prim.Substrate())
 
     @property
     def constraints(self):
