@@ -1,5 +1,7 @@
 import abc
 
+from . import _util
+
 __all__ = ["Condition", "Conditions"]
 
 class Condition(abc.ABC):
@@ -29,18 +31,10 @@ class Conditions:
         self._conds = set()
 
     def __iadd__(self, other):
-        e = TypeError("other has to be of type 'Condition' or an iterable of type 'Condition'")
-        try:
-            iter(other)
-        except TypeError:
-            if not isinstance(other, Condition):
-                raise e
-            conds = {other}
-        else:
-            conds = set(other)
-            for cond in conds:
-                if not isinstance(cond, Condition):
-                    raise e
+        conds = set(other) if _util.is_iterable(other) else {other}
+        for cond in conds:
+            if not isinstance(cond, Condition):
+                raise TypeError("other has to be of type 'Condition' or an iterable of type 'Condition'")
 
         self._conds.update(conds)
 

@@ -1,4 +1,4 @@
-from . import condition as cond, property_ as prop
+from . import _util, condition as cond, property_ as prop
 
 __all__ = ["Mask", "Masks"]
 
@@ -120,18 +120,10 @@ class Masks:
             raise AttributeError("Mask '{}' not present".format(name))
 
     def __iadd__(self, other):
-        e = TypeError("Can only add 'Mask' object or an iterable of 'Mask' objects to 'Masks'")
-        try:
-            iter(other)
-        except TypeError:
-            if not isinstance(other, Mask):
-                raise e
-            masks = (other,)
-        else:
-            masks = tuple(other)
+        masks = tuple(other) if _util.is_iterable(other) else (other,)
         for mask in masks:
             if not isinstance(mask, Mask):
-                raise e
+                raise TypeError("Can only add 'Mask' object or an iterable of 'Mask' objects to 'Masks'")
             if mask.name in self._masks:
                 raise ValueError("Mask '{}' already exists".format(mask.name))
 

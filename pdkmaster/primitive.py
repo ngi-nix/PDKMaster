@@ -88,13 +88,11 @@ class _WidthSpacePrimitive(_Primitive):
                         raise TypeError("width-space rows in space_table have to be iterable of length 2")
                 width = _util.i2f(width_space_spec[0])
                 space = _util.i2f(width_space_spec[1])
-                try:
-                    iter(width)
-                except TypeError:
-                    if not isinstance(width, float):
+                if _util.is_iterable(width):
+                    if not ((len(width) == 2) and all(isinstance(_util.i2f(w), float) for w in width)):
                         raise TypeError("first element in a space_table row has to be a float or an iterable of two floats")
                 else:
-                    if not ((len(width) == 2) and all(isinstance(_util.i2f(w), float) for w in width)):
+                    if not isinstance(width, float):
                         raise TypeError("first element in a space_table row has to be a float or an iterable of two floats")
                 if not isinstance(space, float):
                     raise TypeError("second element in a space_table row has to be a float")
@@ -109,11 +107,7 @@ class _WidthSpacePrimitive(_Primitive):
             def conv_spacetable_row(row):
                 width = _util.i2f(row[0])
                 space = _util.i2f(row[1])
-                try:
-                    iter(width)
-                except TypeError:
-                    pass
-                else:
+                if _util.is_iterable(width):
                     width = tuple(_util.i2f(w) for w in width)
                 return (width, space)
 
@@ -258,19 +252,15 @@ class Via(_Primitive):
         if not isinstance(material, msk.Mask):
             raise TypeError("material is not of type 'Mask'")
 
-        try:
-            iter(bottom)
-        except TypeError:
+        if _util.is_iterable(bottom):
+            bottom = tuple(bottom)
+            if _util.is_iterable(min_bottom_enclosure):
+                min_bottom_enclosure = tuple(min_bottom_enclosure)
+            else:
+                min_bottom_enclosure = len(bottom)*(min_bottom_enclosure,)
+        else:
             bottom = (bottom,)
             min_bottom_enclosure = (min_bottom_enclosure,)
-        else:
-            bottom = tuple(bottom)
-            try:
-                iter(min_bottom_enclosure)
-            except TypeError:
-                min_bottom_enclosure = len(bottom)*(min_bottom_enclosure,)
-            else:
-                min_bottom_enclosure = tuple(min_bottom_enclosure)
         if len(bottom) != len(min_bottom_enclosure):
             raise ValueError(
                 "min_bottom_enclosure has to be single or an iterable with same length as the bottom parameter",
@@ -293,19 +283,15 @@ class Via(_Primitive):
                         * for iterable bottom: an iterable with same length as bottom, elems have to be float or tuple of float of length 2
                         """
                     ))
-        try:
-            iter(top)
-        except TypeError:
+        if _util.is_iterable(top):
+            top = tuple(top)
+            if _util.is_iterable(min_top_enclosure):
+                min_top_enclosure = tuple(min_top_enclosure)
+            else:
+                min_top_enclosure = len(top)*(min_top_enclosure,)
+        else:
             top = (top,)
             min_top_enclosure = (min_top_enclosure,)
-        else:
-            top = tuple(top)
-            try:
-                iter(min_top_enclosure)
-            except TypeError:
-                min_top_enclosure = len(top)*(min_top_enclosure,)
-            else:
-                min_top_enclosure = tuple(min_top_enclosure)
         if len(top) != len(min_top_enclosure):
             raise ValueError(
                 "min_top_enclosure has to be single or an iterable with same length as the top parameter",
@@ -385,12 +371,8 @@ class MOSFET(_Primitive):
         if not isinstance(active, Wire):
             raise TypeError("active has to be of type 'Wire'")
         ok = True
-        try:
-            iter(implant)
-        except TypeError:
-            implant = (implant,)
-        else:
-            implant = tuple(implant)
+        
+        implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
         for l in implant:
             if not isinstance(l, Implant):
                 raise TypeError("implant has to be of type 'Implant' or an iterable of type 'Implant'")
@@ -475,12 +457,7 @@ class Primitives:
 
     def __iadd__(self, other):
         e = TypeError("Can only add 'Primitive' object or an iterable of 'Primitive' objects to 'Primitives'")
-        try:
-            iter(other)
-        except TypeError:
-            prims = (other,)
-        else:
-            prims = tuple(other)
+        prims = tuple(other) if _util.is_iterable(other) else (other,)
         for prim in prims:
             if not isinstance(prim, _Primitive):
                 raise e
