@@ -36,17 +36,13 @@ class Operators:
 Ops = Operators
 
 class Property:
-    def __init__(self, name, *aliases, type_=float):
+    def __init__(self, name, type_=float):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
-        for alias in aliases:
-            if not isinstance(alias, str):
-                raise TypeError("extra specified aliases have to be a string")
         if not isinstance(type_, type):
             raise TypeError("type_ has to be of type 'type'")
 
         self.name = name
-        self.names = frozenset((name, *aliases))
         self.type = type_
         self.dependencies = set()
 
@@ -63,5 +59,3 @@ class Property:
 
     def __hash__(self):
         return hash((self.name, self.type))
-    
-    # def add_dependency(self, property):

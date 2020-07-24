@@ -11,31 +11,13 @@ class _Primitive:
             raise TypeError("name argument of '{}' is not a string".format(self.__class__.__name__))
         
         self.name = name
-        self._connects = set()
+
 
 class _PrimitiveProperty(prop.Property):
     def __init__(self, primitive, name, *, type_=float):
         if not isinstance(primitive, _Primitive):
             raise RuntimeError("Internal error: primitive not of type 'Primitive'")
         super().__init__(primitive.name + "." + name, type_=type_)
-
-class _DualPrimitiveProperty(prop.Property):
-    def __init__(self, prim1, prim2, name, *, commutative):
-        assert (
-            isinstance(prim1, _Primitive) and isinstance(prim2, _Primitive)
-            and isinstance(name, str) and isinstance(commutative, bool)
-        ), "Internal error"
-
-        name = "{}.{}.{}".format(prim1.name, prim2.name, name)
-        if commutative:
-            alias = "{}.{}.{}".format(prim2.name, prim1.name, name)
-            super().__init__(name, alias)
-        else:
-            super().__init__(name)
-
-        self.prim1 = prim1
-        self.prim2 = prim2
-        self.prop_name = name
 
 class _PrimitiveMultiCondition(cond.Condition):
     def __init__(self, prim, others):
@@ -100,10 +82,9 @@ class _WidthSpacePrimitive(_Primitive):
         super().__init__(name)
         self.min_width = min_width
         self.min_space = min_space
-        self.min_area = min_area
-        if space_table is None:
-            space_table = ((min_width, min_space),)
-        else:
+        if min_area is not None:
+            self.min_area = min_area
+        if space_table is not None:
             def conv_spacetable_row(row):
                 width = _util.i2f(row[0])
                 space = _util.i2f(row[1])
@@ -111,18 +92,9 @@ class _WidthSpacePrimitive(_Primitive):
                     width = tuple(_util.i2f(w) for w in width)
                 return (width, space)
 
-            space_table = tuple(conv_spacetable_row(row) for row in space_table)
-        self.space_table = space_table
+            self.space_table = tuple(conv_spacetable_row(row) for row in space_table)
 
-        self.width = _PrimitiveProperty(self, "width")
-        self.space = _PrimitiveProperty(self, "space")
-        self.area = _PrimitiveProperty(self, "area")
 
-    def space_to(self, other):
-        if not isinstance(other, _Primitive):
-            raise TypeError("other has to be of type '_Primitive'")
-
-        return _DualPrimitiveProperty(self, other, "space", commutative=True)
 
     def extend_over(self, other):
         if not isinstance(other, _Primitive):
@@ -190,7 +162,8 @@ class Well(Implant):
             raise TypeError("min_space_samenet has to be 'None' or a float")
             
         super().__init__(**implant_args)
-        self.min_space_samenet = self.min_space if min_space_samenet is None else min_space_samenet
+        if min_space_samenet is not None:
+            self.min_space_samenet = min_space_samenet
 
 class Substrate(_Primitive):
     # Wafer area not covered by wells
