@@ -1,3 +1,4 @@
+import abc
 from . import _util, condition as cond, property_ as prop
 
 __all__ = ["Mask", "Masks"]
@@ -28,8 +29,12 @@ class _DualMaskProperty(prop.Property):
         self.mask2 = mask2
         self.prop_name = name
 
-class _MultiMaskCondition(cond.Condition):
+class _MultiMaskCondition(cond.Condition, abc.ABC):
+    operation = abc.abstractproperty()
+
     def __init__(self, mask, others):
+        if not isinstance(self.operation, str):
+            raise AttributeError("operation _MultMaskCondition abstract attribute has to be a string")
         assert (isinstance(mask, Mask)
                 and (len(others) > 0)
                 and all(isinstance(mask, Mask) for mask in others)
@@ -42,10 +47,16 @@ class _MultiMaskCondition(cond.Condition):
     def __hash__(self):
         return hash((self.mask, *self.others))
 
+    def __str__(self):
+        return "{}.{}({})".format(
+            str(self.mask), self.operation,
+            ",".join(str(mask) for mask in self.others),
+        )
+
 class _InsideCondition(_MultiMaskCondition):
-    pass
+    operation = "is_inside"
 class _OutsideCondition(_MultiMaskCondition):
-    pass
+    operation = "is_outside"
 
 class Mask:
     def __init__(self, name):
@@ -53,6 +64,9 @@ class Mask:
         self.width = _MaskProperty(self, "width")
         self.space = _MaskProperty(self, "space")
         self.grid = _MaskProperty(self, "grid")
+
+    def __str__(self):
+        return self.name
 
     def space_to(self, other):
         if not isinstance(other, Mask):

@@ -1,9 +1,14 @@
+import abc
 from . import condition as cond
 
 __all__ = ["Operators", "Property"]
 
-class _BinaryPropertyCondition(cond.Condition):
+class _BinaryPropertyCondition(cond.Condition, abc.ABC):
+    symbol = abc.abstractproperty()
+
     def __init__(self, *, left, right):
+        if not isinstance(self.symbol, str):
+            raise AttributeError("symbol _BinaryPropertyCondition abstract property has to be a string")
         if not isinstance(left, Property):
             raise TypeError("left value has to be of type 'Property'")
         try:
@@ -15,17 +20,20 @@ class _BinaryPropertyCondition(cond.Condition):
         self.left = left
         self.right = right
 
+    def __str__(self):
+        return "{} {} {}".format(str(self.left), self.symbol, str(self.right))
+
 class Operators:
     class Greater(_BinaryPropertyCondition):
-        pass
+        symbol = ">"
     class GreaterEqual(_BinaryPropertyCondition):
-        pass
+        symbol = ">="
     class Smaller(_BinaryPropertyCondition):
-        pass
+        symbol = "<"
     class SmallerEqual(_BinaryPropertyCondition):
-        pass
+        symbol = "<="
     class Equal(_BinaryPropertyCondition):
-        pass
+        symbol = "=="
     # Convenience assigns
     GT = Greater
     GE = GreaterEqual
@@ -56,6 +64,9 @@ class Property:
         return Ops.SmallerEqual(left=self, right=other)
     def __eq__(self, other):
         return Ops.Equal(left=self, right=other)
+
+    def __str__(self):
+        return self.name
 
     def __hash__(self):
         return hash((self.name, self.type))

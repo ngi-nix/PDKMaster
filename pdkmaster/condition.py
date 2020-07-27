@@ -21,6 +21,10 @@ class Condition(abc.ABC):
     def __hash__(self):
         return hash(self._elements)
 
+    @abc.abstractmethod
+    def __str__(self):
+        raise RuntimeError("Condition subclass needs to implement __str__() method")
+
 class _ConditionsAdd:
     def __init__(self, conds, new):
         self.conds = conds
