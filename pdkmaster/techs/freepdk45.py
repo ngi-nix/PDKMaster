@@ -3,13 +3,12 @@ from .. import technology as tech, mask as msk, primitive as prm
 __all__ = ["technology"]
 
 class _FreePDK45(tech.Technology):
-    def __init__(self):
-        super().__init__("FreePDK45")
+    name = "FreePDK45"
+    grid = 0.0025
 
-        masks = self.masks
-        prims = self.primitives
-
-        self.constraints += (self.grid == 0.0025)
+    def _init(self):
+        masks = self._masks
+        prims = self._primitives
 
         # Wiki: Layers
         masks += [msk.Mask(name) for name in [
@@ -238,6 +237,6 @@ class _FreePDK45(tech.Technology):
                 ("pmos_thkox", prims.pimplant, prims.thkox, prims.nwell),
             )
         ]
-        self.primitives += mosfets
-        
+        prims += mosfets
+
 tech = technology = _FreePDK45()

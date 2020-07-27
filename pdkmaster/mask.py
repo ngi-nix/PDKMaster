@@ -123,6 +123,7 @@ class Mask:
 class Masks:
     def __init__(self):
         self._masks = {}
+        self._frozen = False
 
     def __getitem__(self, key):
         return self._masks[key]
@@ -133,7 +134,12 @@ class Masks:
         except KeyError:
             raise AttributeError("Mask '{}' not present".format(name))
 
+    def freeze(self):
+        self._frozen = True
+
     def __iadd__(self, other):
+        if self._frozen:
+            raise ValueError("Can't add mask when frozen")
         masks = tuple(other) if _util.is_iterable(other) else (other,)
         for mask in masks:
             if not isinstance(mask, Mask):

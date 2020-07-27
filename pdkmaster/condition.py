@@ -25,16 +25,18 @@ class Condition(abc.ABC):
     def __str__(self):
         raise RuntimeError("Condition subclass needs to implement __str__() method")
 
-class _ConditionsAdd:
-    def __init__(self, conds, new):
-        self.conds = conds
-        self.new = new
-
 class Conditions:
     def __init__(self):
         self._conds = set()
+        self._frozen = False
+
+    def freeze(self):
+        self._frozen = True
 
     def __iadd__(self, other):
+        if self._frozen:
+            raise ValueError("Can't add condition when frozen")
+
         conds = set(other) if _util.is_iterable(other) else {other}
         for cond in conds:
             if not isinstance(cond, Condition):
