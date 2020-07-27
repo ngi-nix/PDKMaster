@@ -1,4 +1,4 @@
-from .. import technology as tech, mask as msk, primitive as prim
+from .. import technology as tech, mask as msk, primitive as prm
 
 __all__ = ["technology"]
 
@@ -27,7 +27,7 @@ class _FreePDK45(tech.Technology):
         # implants
         implants = (
             *(
-                prim.Implant(implant=implant,
+                prm.Implant(implant=implant,
                     min_width=0.045, # Implant.3
                     min_space=0.045, # Implant.4
                 ) for implant in (
@@ -39,7 +39,7 @@ class _FreePDK45(tech.Technology):
         prims += implants
         # wells
         wells = (
-            prim.Well(
+            prm.Well(
                 implant=impl,
                 min_width = 0.200, # Well.4
                 min_space = 0.225, # Well.2
@@ -49,14 +49,14 @@ class _FreePDK45(tech.Technology):
         prims += wells
         # depositions
         depositions = (
-            prim.Deposition(masks.thkox,
+            prm.Deposition(masks.thkox,
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),
         )
         prims += depositions
         # wires
-        wires = (prim.Wire(material=mat, **wire_args) for mat, wire_args in (
+        wires = (prm.Wire(material=mat, **wire_args) for mat, wire_args in (
             (masks.active, {
                 "min_width": 0.090, # Active.1
                 "min_space": 0.080, # Active.2
@@ -129,7 +129,7 @@ class _FreePDK45(tech.Technology):
         prims += wires
         # vias
         vias = (
-            prim.Via(**via_args) for via_args in (
+            prm.Via(**via_args) for via_args in (
                 {
                     "material": masks.contact,
                     "width": 0.065, # Contact.1
@@ -212,13 +212,13 @@ class _FreePDK45(tech.Technology):
         prims += vias
         # extra space rules
         spacings = (
-            prim.Spacing(primitives1=prims.contact, primitives2=prims.poly, min_space=0.090),
+            prm.Spacing(primitives1=prims.contact, primitives2=prims.poly, min_space=0.090),
         )
         prims += spacings
 
         # transistors
         mosfets = [
-            prim.MOSFET(name,
+            prm.MOSFET(name,
                 poly=prims.poly, active=prims.active, implant=impl, oxide=oxide, well=well,
                 # No need for overruling min_l, min_w
                 min_activepoly_space=0.050, # Poly.5

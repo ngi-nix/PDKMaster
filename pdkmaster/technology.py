@@ -1,4 +1,4 @@
-from . import property_ as prop, condition as cond, mask as msk, primitive as prim
+from . import property_ as prp, condition as cnd, mask as msk, primitive as prm
 
 __all__ = ["Technology"]
 
@@ -8,12 +8,12 @@ class Technology:
             raise TypeError("name has to be a string")
 
         self.name = name
-        self.grid = prop.Property(name + ".grid")
-        self._constraints = cond.Conditions()
+        self.grid = prp.Property(name + ".grid")
+        self._constraints = cnd.Conditions()
         self._masks = msk.Masks()
-        self._primitives = prims = prim.Primitives()
+        self._primitives = prims = prm.Primitives()
 
-        prims += (prim.Marker("wafer"), prim.Substrate())
+        prims += (prm.Marker("wafer"), prm.Substrate())
 
     @property
     def constraints(self):

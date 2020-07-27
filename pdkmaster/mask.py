@@ -1,9 +1,9 @@
 import abc
-from . import _util, condition as cond, property_ as prop
+from . import _util, condition as cnd, property_ as prp
 
 __all__ = ["Mask", "Masks"]
 
-class _MaskProperty(prop.Property):
+class _MaskProperty(prp.Property):
     def __init__(self, mask, name):
         assert (isinstance(mask, Mask) and isinstance(name, str)), "Internal error"
 
@@ -11,7 +11,7 @@ class _MaskProperty(prop.Property):
         self.mask = mask
         self.prop_name = name
 
-class _DualMaskProperty(prop.Property):
+class _DualMaskProperty(prp.Property):
     def __init__(self, mask1, mask2, name, *, commutative):
         assert (
             isinstance(mask1, Mask) and isinstance(mask2, Mask)
@@ -29,7 +29,7 @@ class _DualMaskProperty(prop.Property):
         self.mask2 = mask2
         self.prop_name = name
 
-class _MultiMaskCondition(cond.Condition, abc.ABC):
+class _MultiMaskCondition(cnd.Condition, abc.ABC):
     operation = abc.abstractproperty()
 
     def __init__(self, mask, others):

@@ -1,7 +1,7 @@
 """The native technology primitives"""
 
 from textwrap import dedent
-from . import _util, property_ as prop, mask as msk
+from . import _util, property_ as prp, mask as msk
 
 __all__ = ["Well", "Wire", "MOSFET"]
 
@@ -28,7 +28,7 @@ class _Primitive:
             self.enclosed_by = enclosed_by
             self.min_enclosure = min_enclosure
 
-class _PrimitiveProperty(prop.Property):
+class _PrimitiveProperty(prp.Property):
     def __init__(self, primitive, name, *, type_=float):
         if not isinstance(primitive, _Primitive):
             raise RuntimeError("Internal error: primitive not of type 'Primitive'")

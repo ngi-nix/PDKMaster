@@ -1,9 +1,9 @@
 import abc
-from . import condition as cond
+from . import condition as cnd
 
 __all__ = ["Operators", "Property"]
 
-class _BinaryPropertyCondition(cond.Condition, abc.ABC):
+class _BinaryPropertyCondition(cnd.Condition, abc.ABC):
     symbol = abc.abstractproperty()
 
     def __init__(self, *, left, right):
