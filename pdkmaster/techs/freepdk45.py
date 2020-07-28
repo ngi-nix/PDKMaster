@@ -55,7 +55,7 @@ class _FreePDK45(tech.Technology):
         )
         prims += depositions
         # wires
-        wires = (prm.Wire(material=mat, **wire_args) for mat, wire_args in (
+        wires = (prm.Wire(mask=mask, **wire_args) for mask, wire_args in (
             (masks.active, {
                 "min_width": 0.090, # Active.1
                 "min_space": 0.080, # Active.2
@@ -128,6 +128,15 @@ class _FreePDK45(tech.Technology):
             ),
         ))
         prims += wires
+        # taps
+        taps = (
+            prm.DerivedWire(name=name, wire=prims.active, marker=marker, connects=well)
+            for name, marker, well in (
+                ("ntap", (prims.nimplant, prims.nwell), prims.nwell),
+                ("ptap", (prims.pimplant, prims.pwell), prims.pwell),
+            )
+        )
+        prims += taps
         # vias
         vias = (
             prm.Via(**via_args) for via_args in (

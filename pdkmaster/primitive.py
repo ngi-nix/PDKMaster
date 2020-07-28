@@ -150,40 +150,59 @@ class Deposition(_WidthSpacePrimitive):
         super().__init__(_want_designmask=True, **widthspace_args)
 
 class Wire(Deposition):
-    def __init__(self, *, material,
-        implant=None, marker=None, connects=None,
-        **deposition_args,
-    ):
-        if not isinstance(material, (msk.Mask, Wire)):
-            raise TypeError("material is not of type 'Mask' or 'Wire'")
-        if isinstance(material, msk.Mask):
-            if "name" not in deposition_args:
-                deposition_args["name"] = material.name
-        else: # Wire type
-            deposition_args.update({
-                "min_width": deposition_args.get("min_width", material.min_width),
-                "min_space": deposition_args.get("min_space", material.min_space),
-                "min_area": deposition_args.get("min_area", material.min_area),
-            })
-            if "name" not in deposition_args:
-                raise TypeError("Missing keyword argument 'name' for material of type 'Wire'")
-        if not ((implant is None) or isinstance(implant, msk.Mask)):
-            raise TypeError("implant has to be 'None' type 'Mask'")
-        if marker is not None:
-            raise NotImplementedError("context handling for 'Wire'")
-        if connects is not None:
-            raise NotImplementedError("connects handling for 'Wire'")
+    # Deposition layer that also a conductor
+    pass
 
-        mask = material
-        while isinstance(mask, Wire):
-            mask = mask.material
-        assert isinstance(mask, msk.Mask), "Internal Error"
-        deposition_args["mask"] = mask
-        super().__init__(**deposition_args)
-        self.material = material
-        self.implant = implant
+class DerivedWire(_WidthSpacePrimitive):
+    def __init__(self, *, wire, marker,
+        min_enclosure=0.0, connects=None,
+        **widthspace_args,
+    ):
+        if not isinstance(wire, (Wire, DerivedWire)):
+            raise TypeError("wire has to be of type 'Wire' or 'DerivedWire'")
+        self.wire = wire
+
+        if "mask" in widthspace_args:
+            raise TypeError("DerivedWire got an unexpected keyword argument 'mask'")
+        else:
+            widthspace_args["mask"] = msk.Mask.intersect(prim.mask for prim in (wire, *marker))
+
+        if "grid" in widthspace_args:
+            raise TypeError("DerivedWire got an unexpected keyword argument 'grid'")
+
+        if "min_width" in widthspace_args:
+            if widthspace_args["min_width"] < wire.min_width:
+                raise ValueError("min_width may not be smaller than base wire min_width")
+        else:
+            widthspace_args["min_width"] = wire.min_width
+
+        if "min_space" in widthspace_args:
+            if widthspace_args["min_space"] < wire.min_space:
+                raise ValueError("min_space may not be smaller than base wire min_space")
+        else:
+            widthspace_args["min_space"] = wire.min_space
+
+        super().__init__(**widthspace_args)
+
+        if not _util.is_iterable(marker):
+            marker = (marker,)
+        if not all(isinstance(prim, (Implant, Marker)) for prim in marker):
+            raise TypeError("marker has to be of type 'Implant' or 'Marker' or an iterable of those")
         self.marker = marker
-        self.connects = connects
+
+        min_enclosure = (_util.i2f(encl) for encl in min_enclosure) if _util.is_iterable(min_enclosure) else (_util.i2f(min_enclosure),)
+        if not all(isinstance(enc, float) for enc in min_enclosure):
+            raise TypeError("min_enclosure has to be a float or an iterable of float")
+        if len(min_enclosure) == 1:
+            min_enclosure = len(marker)*min_enclosure
+        if len(min_enclosure) != len(marker):
+            raise ValueError("mismatch in number of marker and min_enclosure")
+        self.min_enclosure = min_enclosure
+
+        if connects is not None:
+            if not isinstance(connects, Well):
+                raise TypeError("connects has to be 'None' or of type 'Well'")
+            self.connects = connects
 
 class Via(_MaskPrimitive):
     def __init__(self, *,
@@ -209,8 +228,8 @@ class Via(_MaskPrimitive):
         for i in range(len(bottom)):
             wire = bottom[i]
             encl = min_bottom_enclosure[i]
-            if not isinstance(wire, Wire):
-                raise TypeError("bottom has to be of type 'Wire' or an iterable of type 'Wire'")
+            if not isinstance(wire, (Wire, DerivedWire)):
+                raise TypeError("bottom has to be of type 'Wire' or 'DerivedWire' or an iterable of those")
             if not isinstance(encl, float):
                 try:
                     ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
@@ -240,8 +259,8 @@ class Via(_MaskPrimitive):
         for i in range(len(top)):
             wire = top[i]
             encl = min_top_enclosure[i]
-            if not isinstance(wire, Wire):
-                raise TypeError("top has to be of type 'Wire' or an iterable of type 'Wire'")
+            if not isinstance(wire, (Wire, DerivedWire)):
+                raise TypeError("top has to be of type 'Wire' or 'DerivedWire' or an iterable of those")
             if not isinstance(encl, float):
                 try:
                     ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
@@ -302,12 +321,16 @@ class MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, *, name=None, poly, active, oxide=None,
         min_l=None, min_w=None, min_gate_space=None,
     ):
-        if not isinstance(poly, Wire):
-            raise TypeError("poly has to be of type 'Wire'")
+        if not isinstance(poly, (Wire, DerivedWire)):
+            raise TypeError("poly has to be of type 'Wire' or 'DerivedWire'")
+        if isinstance(poly, DerivedWire):
+            raise NotImplementedError("poly of type 'DerivedWire'")
         self.poly = poly
 
-        if not isinstance(active, Wire):
-            raise TypeError("active has to be of type 'Wire'")
+        if not isinstance(active, (Wire, DerivedWire)):
+            raise TypeError("active has to be of type 'Wire' or 'DerivedWire'")
+        if isinstance(active, DerivedWire):
+            raise NotImplementedError("active of type 'DerivedWire'")
         self.active = active
 
         prims = (poly, active)
@@ -358,7 +381,7 @@ class MOSFETGate(_WidthSpacePrimitive):
 class MOSFET(_Primitive):
     def __init__(
         self, name, *,
-        gate, implant, well=None,
+        gate, implant=None, well=None,
         min_l=None, min_w=None,
         min_activepoly_space, min_sd_width,
         min_polyactive_extension, min_gateimplant_enclosure, min_gate_space=None,
