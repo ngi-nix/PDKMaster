@@ -11,7 +11,7 @@ class _FreePDK45(tech.Technology):
         prims = self._primitives
 
         # Wiki: Layers
-        masks += [msk.Mask(name) for name in [
+        masks += [msk.DesignMask(name) for name in [
             "active", "nwell", "pwell", "nimplant", "pimplant", "sblock",
             "vthl", "vthg", "vthh", "thkox", "poly", "contact",
             "metal1", "via1", "metal2", "via2", "metal3", "via3", "metal4", "via4", "metal5", "via5",

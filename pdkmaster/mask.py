@@ -29,6 +29,17 @@ class _DualMaskProperty(prp.Property):
         self.mask2 = mask2
         self.prop_name = name
 
+class _AsymmetricDualMaskProperty(_DualMaskProperty):
+    @classmethod
+    def _conv_value(cls, value):
+        if not (_util.is_iterable(value)):
+            raise TypeError("property value has to be iterable of float of length 2")
+        value = tuple(_util.i2f(v) for v in value)
+        if not ((len(value) == 2) and all(isinstance(v, float) for v in value)):
+            raise TypeError("property value has to be iterable of float of length 2")
+
+        return value
+    
 class _MultiMaskCondition(cnd.Condition, abc.ABC):
     operation = abc.abstractproperty()
 
@@ -58,21 +69,17 @@ class _InsideCondition(_MultiMaskCondition):
 class _OutsideCondition(_MultiMaskCondition):
     operation = "is_outside"
 
-class Mask:
+class Mask(abc.ABC):
+    @abc.abstractmethod
     def __init__(self, name):
         self.name = name
         self.width = _MaskProperty(self, "width")
+        self.length = _MaskProperty(self, "length")
         self.space = _MaskProperty(self, "space")
-        self.grid = _MaskProperty(self, "grid")
+        self.area = _MaskProperty(self, "area")
 
     def __str__(self):
         return self.name
-
-    def space_to(self, other):
-        if not isinstance(other, Mask):
-            raise TypeError("other has to be of type 'Mask'")
-
-        return _DualMaskProperty(self, other, "space", commutative=True)
 
     def extend_over(self, other):
         if not isinstance(other, Mask):
@@ -86,11 +93,11 @@ class Mask:
 
         return _DualMaskProperty(self, other, "enclosed_by", commutative=False)
 
-    def overlap_with(self, other):
+    def enclosed_by_asymmetric(self, other):
         if not isinstance(other, Mask):
             raise TypeError("other has to be of type 'Mask'")
 
-        return _DualMaskProperty(self, other, "overlap_with", commutative=True)
+        return _AsymmetricDualMaskProperty(self, other, "enclosed_by_asymmetric", commutative=False)
 
     def is_inside(self, other, *others):
         if isinstance(other, Mask):
@@ -119,6 +126,101 @@ class Mask:
                 raise TypeError("Outside mask not of type 'Mask'")
         
         return _OutsideCondition(self, masks)
+
+    def parts_with(self, condition):
+        return PartsWith(mask=self, condition=condition)
+
+    def remove(self, what):
+        return _MaskRemove(from_=self, what=what)
+
+    @staticmethod
+    def spacing(mask1, mask2):
+        if not all(isinstance(mask, Mask) for mask in (mask1, mask2)):
+            raise TypeError("mask1 and mask2 have to be of type 'Mask'")
+
+        return _DualMaskProperty(mask1, mask2, "space", commutative=True)
+
+    @staticmethod
+    def overlapwidth(mask1, mask2):
+        if not all(isinstance(mask, Mask) for mask in (mask1, mask2)):
+            raise TypeError("mask1 and mask2 have to be of type 'Mask'")
+
+        return _DualMaskProperty(mask1, mask2, "overlapwidth", commutative=True)
+
+    @staticmethod
+    def intersect(masks):
+        return _MaskIntersect(masks)
+
+    @staticmethod
+    def join(masks):
+        return _MaskJoin(masks)
+
+class DesignMask(Mask):
+    def __init__(self, name):
+        super().__init__(name)
+
+        self.grid = _MaskProperty(self, "grid")
+
+class PartsWith(Mask):
+    def __init__(self, *, mask, condition):
+        if not isinstance(mask, Mask):
+            raise TypeError("mask has to be be of type 'Mask'")
+        condition = tuple(condition) if _util.is_iterable(condition) else (condition,)
+        if not all(
+            (
+                isinstance(cond, prp._BinaryPropertyCondition)
+                and isinstance(cond.left, _MaskProperty)
+                and cond.left.mask == mask
+            ) for cond in condition
+        ):
+            raise TypeError(
+                "condition has to a single or an iterable of condition on properties of mask '{}'".format(
+                    mask.name,
+                ))
+        
+        super().__init__("{}.parts_with({})".format(
+            mask.name, ",".join(str(cond) for cond in condition),
+        ))
+
+class Wafer(Mask):
+    # Class representing the whole wafer
+    def __init__(self):
+        super().__init__("wafer")
+
+        self.grid = _MaskProperty(self, "grid")
+
+class _MaskJoin(Mask):
+    def __init__(self, masks):
+        if _util.is_iterable(masks):
+            masks = tuple(masks)
+        else:
+            masks = (masks,)
+        if not all(isinstance(mask, Mask) for mask in masks):
+            raise TypeError("masks has to be of type 'Mask' or an iterable of type 'Mask'")
+
+        super().__init__("join({})".format(",".join(mask.name for mask in masks)))
+
+class _MaskIntersect(Mask):
+    def __init__(self, masks):
+        if _util.is_iterable(masks):
+            masks = tuple(masks)
+        else:
+            masks = (masks,)
+        if not all(isinstance(mask, Mask) for mask in masks):
+            raise TypeError("masks has to be of type 'Mask' or an iterable of type 'Mask'")
+
+        super().__init__("intersect({})".format(",".join(mask.name for mask in masks)))
+
+class _MaskRemove(Mask):
+    def __init__(self, *, from_, what):
+        if not isinstance(from_, Mask):
+            raise TypeError("from_ has to be of type 'Mask'")
+        if not isinstance(what, Mask):
+            raise TypeError("what has to be of type 'Mask'")
+
+        super().__init__("{}.remove({})".format(from_.name, what.name))
+        self.from_ = from_
+        self.what = what
 
 class Masks:
     def __init__(self):
@@ -153,3 +255,61 @@ class Masks:
 
     def __iter__(self):
         return iter(self._masks.values())
+
+
+class _EdgeProperty(prp.Property):
+    def __init__(self, edge, name):
+        assert (isinstance(edge, Edge) and isinstance(name, str)), "Internal error"
+
+        super().__init__(str(edge) + "." + name)
+        self.edge = edge
+        self.prop_name = name
+
+class Edge(abc.ABC):
+    @abc.abstractmethod
+    def __init__(self, name):
+        if not isinstance(name, str):
+            raise RuntimeError("internal error")
+        self.name = name
+
+        self.length = _EdgeProperty(self, "length")
+
+    @staticmethod
+    def join(edges):
+        return _EdgeJoin(edges)
+
+    @staticmethod
+    def intersect(edges):
+        return _EdgeIntersect(edges)
+
+    def __str__(self):
+        return self.name
+
+class MaskEdge(Edge):
+    def __init__(self, mask):
+        if not isinstance(mask, Mask):
+            raise TypeError("mask has to be of type 'Mask'")
+        self.mask = mask
+
+        super().__init__("edge({})".format(mask.name))
+
+class _EdgeJoin(Edge):
+    def __init__(self, edges):
+        edges = tuple(edges) if _util.is_iterable(edges) else (edges,)
+        if not all(isinstance(edge, Edge) for edge in edges):
+            raise TypeError("edges has to be of type 'Edge' or an iterable of type 'Edge'")
+
+        super().__init__("join({})".format(",".join(str(edge) for edge in edges)))
+
+class _EdgeIntersect(Edge):
+    def __init__(self, edges):
+        if _util.is_iterable(edges):
+            edges = tuple(edges)
+        else:
+            edges = (edges,)
+        if not all(isinstance(edge, (Mask, Edge)) for edge in edges):
+            raise TypeError("edges has to be of type 'Mask' or 'Edge' or an iterable of those")
+        if not any(isinstance(edge, Edge) for edge in edges):
+            raise ValueError("at least one element of edges has to be of type 'Edge'")
+
+        super().__init__("intersect({})".format(",".join(str(edge) for edge in edges)))
