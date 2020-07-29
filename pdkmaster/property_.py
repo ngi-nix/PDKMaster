@@ -1,5 +1,5 @@
 import abc
-from . import condition as cnd
+from . import _util, condition as cnd
 
 __all__ = ["Operators", "Property"]
 
@@ -11,14 +11,10 @@ class _BinaryPropertyCondition(cnd.Condition, abc.ABC):
             raise AttributeError("symbol _BinaryPropertyCondition abstract property has to be a string")
         if not isinstance(left, Property):
             raise TypeError("left value has to be of type 'Property'")
-        try:
-            right = left.type(right)
-        except:
-            raise TypeError("right value {!r} can't be converted to type '{!r}'".format(right, left.type))
 
         super().__init__((left, right))
         self.left = left
-        self.right = right
+        self.right = left._conv_value(right)
 
     def __str__(self):
         return "{} {} {}".format(str(self.left), self.symbol, str(self.right))
@@ -44,14 +40,15 @@ class Operators:
 Ops = Operators
 
 class Property:
-    def __init__(self, name, type_=float):
+    value_conv = _util.i2f
+    value_type = float
+    value_type_str = "float"
+
+    def __init__(self, name):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
-        if not isinstance(type_, type):
-            raise TypeError("type_ has to be of type 'type'")
 
         self.name = name
-        self.type = type_
         self.dependencies = set()
 
     def __gt__(self, other):
@@ -69,4 +66,19 @@ class Property:
         return self.name
 
     def __hash__(self):
-        return hash((self.name, self.type))
+        return hash(self.name)
+
+    @classmethod
+    def _conv_value(cls, value):
+        if cls.value_conv is not None:
+            try:
+                value = cls.value_conv(value)
+            except:
+                raise TypeError("could not convert property value {!r} to type '{}'".format(
+                    value, cls.value_type_str,
+                ))
+        if not isinstance(value, cls.value_type):
+            raise TypeError("property value {!r} is not of type '{}'".format(
+                value, cls.value_type_str,
+            ))
+        return value

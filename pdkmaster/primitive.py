@@ -29,10 +29,10 @@ class _Primitive:
             self.min_enclosure = min_enclosure
 
 class _PrimitiveProperty(prp.Property):
-    def __init__(self, primitive, name, *, type_=float):
+    def __init__(self, primitive, name):
         if not isinstance(primitive, _Primitive):
             raise RuntimeError("Internal error: primitive not of type 'Primitive'")
-        super().__init__(primitive.name + "." + name, type_=type_)
+        super().__init__(primitive.name + "." + name)
 
 class Marker(_Primitive):
     pass
