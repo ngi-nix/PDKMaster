@@ -221,25 +221,32 @@ class _FreePDK45(tech.Technology):
         prims += spacings
 
         # transistors
+        mosgate = prm.MOSFETGate(poly=prims.poly, active=prims.active,
+            min_gate_space=0.140,
+        )
+        thickmosgate = prm.MOSFETGate(poly=prims.poly, active=prims.active, oxide=prims.thkox,
+            min_l=0.060, # Added rule
+            min_gate_space=0.140,
+        )
+        prims += (mosgate, thickmosgate)
         mosfets = [
             prm.MOSFET(name,
-                poly=prims.poly, active=prims.active, implant=impl, oxide=oxide, well=well,
+                gate=gate, implant=impl, well=well,
                 # No need for overruling min_l, min_w
                 min_activepoly_space=0.050, # Poly.5
                 min_sd_width=0.070, # Poly.4
                 min_polyactive_extension=0.055, # Poly.3
                 min_gateimplant_enclosure=0.070, # Implant.1
-                min_gate_space=0.140, # Poly.2
                 min_contactgate_space=0.035, # Contact.6
-            ) for name, impl, oxide, well in (
-                ("nmos_vtl", (prims.nimplant, prims.vthl), None, prims.pwell),
-                ("pmos_vtl", (prims.pimplant, prims.vthl), None, prims.nwell),
-                ("nmos_vtg", (prims.nimplant, prims.vthg), None, prims.pwell),
-                ("pmos_vtg", (prims.pimplant, prims.vthg), None, prims.nwell),
-                ("nmos_vth", (prims.nimplant, prims.vthh), None, prims.pwell),
-                ("pmos_vth", (prims.pimplant, prims.vthh), None, prims.nwell),
-                ("nmos_thkox", prims.nimplant, prims.thkox, prims.pwell),
-                ("pmos_thkox", prims.pimplant, prims.thkox, prims.nwell),
+            ) for name, gate, impl, well in (
+                ("nmos_vtl", mosgate, (prims.nimplant, prims.vthl), prims.pwell),
+                ("pmos_vtl", mosgate, (prims.pimplant, prims.vthl), prims.nwell),
+                ("nmos_vtg", mosgate, (prims.nimplant, prims.vthg), prims.pwell),
+                ("pmos_vtg", mosgate, (prims.pimplant, prims.vthg), prims.nwell),
+                ("nmos_vth", mosgate, (prims.nimplant, prims.vthh), prims.pwell),
+                ("pmos_vth", mosgate, (prims.pimplant, prims.vthh), prims.nwell),
+                ("nmos_thkox", thickmosgate, prims.nimplant, prims.pwell),
+                ("pmos_thkox", thickmosgate, prims.pimplant, prims.nwell),
             )
         ]
         prims += mosfets

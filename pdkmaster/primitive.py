@@ -298,29 +298,67 @@ class Spacing(_Primitive):
         self.primitives2 = primitives2
         self.min_space = min_space
 
-class _MOSFETGate(_WidthSpacePrimitive):
-    def __init__(self, mosfet, poly, active, others, min_l, min_w, min_gate_space):
-        if not (
-            isinstance(mosfet, MOSFET)
-            and isinstance(poly, Wire)
-            and isinstance(active, Wire)
-            and isinstance(min_gate_space, float)
-        ):
-            raise RuntimeError("Internal error")
-        if min_w < min_l:
-            raise NotImplementedError("transistor with minimum width smaller than minimum length")
+class MOSFETGate(_WidthSpacePrimitive):
+    def __init__(self, *, name=None, poly, active, oxide=None,
+        min_l=None, min_w=None, min_gate_space=None,
+    ):
+        if not isinstance(poly, Wire):
+            raise TypeError("poly has to be of type 'Wire'")
+        self.poly = poly
+
+        if not isinstance(active, Wire):
+            raise TypeError("active has to be of type 'Wire'")
+        self.active = active
+
+        prims = (poly, active)
+        if oxide is not None:
+            if not (isinstance(oxide, Deposition) and not isinstance(oxide, Wire)):
+                raise TypeError("oxide has to be 'None' or of type 'Deposition'")
+            self.oxide = oxide
+            prims += (oxide,)
+
+        if name is None:
+            name = "gate({})".format(",".join(prim.name for prim in prims))
+        if not isinstance(name, str):
+            raise TypeError("name has to be 'None' or a string")
+
+        if min_l is not None:
+            min_l = _util.i2f(min_l)
+            if not isinstance(min_l, float):
+                raise TypeError("min_l has to be 'None' or a float")
+            self.min_l = min_l
+        else:
+            # Local use only
+            min_l = poly.min_width
+
+        if min_w is not None:
+            min_w = _util.i2f(min_w)
+            if not isinstance(min_w, float):
+                raise TypeError("min_w has to be 'None' or a float")
+            self.min_w = min_w
+        else:
+            # Local use only
+            min_w = active.min_width
+
+        if min_gate_space is not None:
+            min_gate_space = _util.i2f(min_gate_space)
+            if not isinstance(min_gate_space, float):
+                raise TypeError("min_gate_space has to be 'None' or a float")
+            self.min_gate_space = min_gate_space
+        else:
+            # Local use only
+            min_gate_space = poly.min_space
 
         super().__init__(
-            name=mosfet.name + ".gate", mask=msk.Mask.intersect((poly.mask, active.mask)),
-            min_width=min_l, min_space=min_gate_space,
+            name=name, mask=msk.Mask.intersect(prim.mask for prim in prims),
+            min_width=min(min_l, min_w), min_space=min_gate_space,
         )
-        self.poly = poly
-        self.active = active
+
 
 class MOSFET(_Primitive):
     def __init__(
         self, name, *,
-        poly, active, implant=None, oxide=None, well,
+        gate, implant, well=None,
         min_l=None, min_w=None,
         min_activepoly_space, min_sd_width,
         min_polyactive_extension, min_gateimplant_enclosure, min_gate_space=None,
@@ -331,86 +369,75 @@ class MOSFET(_Primitive):
             raise TypeError("name has to be a string")
         super().__init__(name)
 
-        if not isinstance(poly, Wire):
-            raise TypeError("poly has to be of type 'Wire'")
-        if not isinstance(active, Wire):
-            raise TypeError("active has to be of type 'Wire'")
-        ok = True
-        
+        if not isinstance(gate, MOSFETGate):
+            raise TypeError("gate has to be of type 'MOSFETGate'")
+        self.gate = gate
+
         if implant is not None:
             implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
-            for l in implant:
-                if not isinstance(l, Implant):
-                    raise TypeError("implant has to be of type 'Implant' or an iterable of type 'Implant'")
-        if not ((oxide is None) or (isinstance(oxide, Deposition) and not isinstance(oxide, Wire))):
-            raise TypeError("oxide has to be 'None' or of type 'Deposition'")
-        if isinstance(well, Marker):
-            if well.name != "substrate":
-                raise TypeError("well has to be of type 'Well' or the substrate")
-        elif not isinstance(well, Well):
-            raise TypeError("well has to be of type 'Well' or the substrate")
+            if not all(isinstance(l, Implant) for l in implant):
+                raise TypeError("implant has to be 'None', of type 'Implant' or an iterable of type 'Implant'")
+            self.implant = implant
+        elif not isinstance(gate.active, DerivedWire):
+            raise TypeError("active wire of gate has to be of type 'DerivedWire' if implant is 'None'")
 
-        if min_l is None:
-            min_l = poly.min_width
-        min_l = _util.i2f(min_l)
-        if not isinstance(min_l, float):
-            raise TypeError("min_l has to be a float") 
-        if min_l < poly.min_width:
-            raise ValueError("min_l smaller than poly min_width")
-        if min_w is None:
-            min_w = active.min_width
-        min_w = _util.i2f(min_w)
-        if not isinstance(min_w, float):
-            raise TypeError("min_w has to be a float") 
-        if min_w < active.min_width:
-            raise ValueError("min_w smaller than active min_width")
+        if well is not None:
+            if not isinstance(well, Well):
+                raise TypeError("well has to be 'None' or of type 'Well'")
+            self.well = well
+
+        if min_l is not None:
+            min_l = _util.i2f(min_l)
+            if not isinstance(min_l, float):
+                raise TypeError("min_l has to be 'None' or a float")
+            if min_l <= gate.min_l:
+                raise ValueError("min_l has to be bigger than gate min_l if not 'None'")
+            self.min_l = min_l
+
+        if min_w is not None:
+            min_w = _util.i2f(min_w)
+            if not isinstance(min_w, float):
+                raise TypeError("min_w has to be 'None' or a float")
+            if min_w <= gate.min_w:
+                raise ValueError("min_w has to be bigger than gate min_w if not 'None'")
+            self.min_w = min_w
+
         min_activepoly_space = _util.i2f(min_activepoly_space)
         if not isinstance(min_activepoly_space, float):
             raise TypeError("min_activepoly_space has to be a float")
+        self.min_activepoly_space = min_activepoly_space
+
         min_sd_width = _util.i2f(min_sd_width)
         if not isinstance(min_sd_width, float):
             raise TypeError("min_sd_width has to be a float")
+        self.min_sd_width = min_sd_width
+
         min_polyactive_extension = _util.i2f(min_polyactive_extension)
         if not isinstance(min_polyactive_extension, float):
             raise TypeError("min_polyactive_extension has to be a float")
+        self.min_polyactive_extension = min_polyactive_extension
+
         min_gateimplant_enclosure = _util.i2f(min_gateimplant_enclosure)
         if not isinstance(min_gateimplant_enclosure, float):
             raise TypeError("min_gateimplant_enclosure has to be a float")
-        if min_gate_space is None:
-            min_gate_space = poly.min_space
-        if not isinstance(min_gate_space, float):
-            raise TypeError("min_gate_space has to be 'None' or a float")
-        min_contactgate_space = _util.i2f(min_contactgate_space)
-        if not ((min_contactgate_space is None) or isinstance(min_contactgate_space, float)):
-            raise TypeError("min_contactgate_space has to be 'None' or a float")
+        self.min_gateimplant_enclosure = min_gateimplant_enclosure
+
+        if min_gate_space is not None:
+            min_gate_space = _util.i2f(min_gate_space)
+            if not isinstance(min_gate_space, float):
+                raise TypeError("min_gate_space has to be 'None' or a float")
+            self.min_gate_space = min_gate_space
+
+        if min_contactgate_space is not None:
+            min_contactgate_space = _util.i2f(min_contactgate_space)
+            if not isinstance(min_contactgate_space, float):
+                raise TypeError("min_contactgate_space has to be 'None' or a float")
+            self.min_contactgate_space = min_contactgate_space
 
         if model is None:
             model = name
         if not isinstance(model, str):
-            raise TypeError("model has to be a string")
-
-        super().__init__(name)
-        self.poly = poly
-        self.active = active
-        self.implant = implant
-        self.well = well
-        others = (well,)
-        if implant is not None:
-            others += implant
-        if oxide is not None:
-            others += (oxide,)
-        self.gate = _MOSFETGate(self, poly, active, others, min_l, min_w, min_gate_space)
-
-        self.min_l = min_l
-        self.min_w = min_w
-        self.min_activepoly_space = min_activepoly_space
-        self.min_sd_width = min_sd_width
-        self.min_polyactive_extension = min_polyactive_extension
-        self.min_gateimplant_enclosure = min_gateimplant_enclosure
-        self.min_gate_space = min_gate_space
-        if min_contactgate_space is not None:
-            self.min_contactgate_space = min_contactgate_space
-
+            raise TypeError("model has to be 'None' or a string")
         self.model = model
 
         self.l = _PrimitiveProperty(self, "l")
