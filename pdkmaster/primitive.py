@@ -6,23 +6,51 @@ from . import _util, property_ as prp, mask as msk
 __all__ = ["Well", "Wire", "MOSFET"]
 
 class _Primitive:
-    def __init__(self, name, *, enclosed_by=None, min_enclosure=0.0):
+    def __init__(self, name):
         if not isinstance(name, str):
             raise TypeError("name argument of '{}' is not a string".format(self.__class__.__name__))
+
+        self.name = name
+
+class _MaskPrimitive(_Primitive):
+    def __init__(self, *, mask,
+        enclosed_by=None, min_enclosure=0.0, grid=None, _want_designmask=False,
+        **primitive_args
+    ):
+        if not _want_designmask:
+            if not isinstance(mask, msk.Mask):
+                raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
+                    self.__class__.__name__
+                ))
+        else:
+            if not isinstance(mask, msk.DesignMask):
+                raise TypeError("mask parameter for '{}' has to be of type 'DesignMask'".format(
+                    self.__class__.__name__
+                ))
+
         if enclosed_by is not None:
             enclosed_by = tuple(enclosed_by) if _util.is_iterable(enclosed_by) else (enclosed_by,)
             if _util.is_iterable(min_enclosure):
                 min_enclosure = tuple(_util.i2f(minenc) for minenc in min_enclosure)
             else:
                 min_enclosure = len(enclosed_by)*(_util.i2f(min_enclosure),)
-            if not all(isinstance(enc, _Primitive) for enc in enclosed_by):
+            if not all(isinstance(enc, _MaskPrimitive) for enc in enclosed_by):
                 raise TypeError("enclosed_by has to be of type '_Primitive' or an iterable of type '_Primitive'")
             if not all(isinstance(enc, float) for enc in min_enclosure):
                 raise TypeError("min_enclosure has to be a float or an iterable of floats")
             if len(enclosed_by) != len(min_enclosure):
                 raise ValueError("Wrong number of min_enclosure values given")
+        if grid is not None:
+            grid = _util.i2f(grid)
+            if not isinstance(grid, float):
+                raise TypeError("grid parameter for '{}' has to be a float".format(self.__class__.__name__))
 
-        self.name = name
+        if not "name" in primitive_args:
+            primitive_args["name"] = mask.name
+        super().__init__(**primitive_args)
+        self.mask = mask
+        if grid is not None:
+            self.grid = grid
 
         if enclosed_by is not None:
             self.enclosed_by = enclosed_by
@@ -34,13 +62,13 @@ class _PrimitiveProperty(prp.Property):
             raise RuntimeError("Internal error: primitive not of type 'Primitive'")
         super().__init__(primitive.name + "." + name)
 
-class Marker(_Primitive):
+class Marker(_MaskPrimitive):
     pass
 
-class _WidthSpacePrimitive(_Primitive):
+class _WidthSpacePrimitive(_MaskPrimitive):
     def __init__(self, *,
         min_width, min_space, min_area=None, space_table=None,
-        **primitive_args
+        **maskprimitive_args
     ):
         min_width = _util.i2f(min_width)
         min_space = _util.i2f(min_space)
@@ -78,7 +106,7 @@ class _WidthSpacePrimitive(_Primitive):
                 if not isinstance(space, float):
                     raise TypeError("second element in a space_table row has to be a float")
 
-        super().__init__(**primitive_args)
+        super().__init__(**maskprimitive_args)
         self.min_width = min_width
         self.min_space = min_space
         if min_area is not None:
@@ -98,16 +126,10 @@ class _WidthSpacePrimitive(_Primitive):
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
-    def __init__(self, *, implant, **widthspace_args):
-        if "name" not in widthspace_args:
-            widthspace_args["name"] = implant.name
-        if not isinstance(implant, msk.Mask):
-            raise TypeError("implant param for '{}' has to be of type 'Mask'".format(
-                self.__class__.__name__
-            ))
-
-        super().__init__(**widthspace_args)
-        self.implant = implant
+    def __init__(self, **widthspace_args):
+        if "_want_designmask" in widthspace_args:
+            raise TypeError("got unexpected keyword argument '_want_designmaks'")
+        super().__init__(_want_designmask=True, **widthspace_args)
 
 class Well(Implant):
     # Wells are non-overlapping by design
@@ -120,20 +142,12 @@ class Well(Implant):
         if min_space_samenet is not None:
             self.min_space_samenet = min_space_samenet
 
-class Substrate(_Primitive):
-    # Wafer area not covered by wells
-    def __init__(self):
-        super().__init__("substrate")
-
 class Deposition(_WidthSpacePrimitive):
-    def __init__(self, mask, **widthspace_args):
-        if not isinstance(mask, msk.Mask):
-            raise TypeError("mask is not of type 'Mask'")
-        if "name" not in widthspace_args:
-            widthspace_args["name"] = mask.name
-
-        super().__init__(**widthspace_args)
-        self.mask = mask
+    # Layer for material deposition, if it is conducting Wire subclass should be used
+    def __init__(self, **widthspace_args):
+        if "_want_designmask" in widthspace_args:
+            raise TypeError("got unexpected keyword argument '_want_designmaks'")
+        super().__init__(_want_designmask=True, **widthspace_args)
 
 class Wire(Deposition):
     def __init__(self, *, material,
@@ -171,15 +185,14 @@ class Wire(Deposition):
         self.marker = marker
         self.connects = connects
 
-class Via(_Primitive):
-    def __init__(self, *, material,
+class Via(_MaskPrimitive):
+    def __init__(self, *,
         bottom, top,
         width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
         **primitive_args,
     ):
-        if not isinstance(material, msk.Mask):
-            raise TypeError("material is not of type 'Mask'")
-
+        if "_want_designmask" in primitive_args:
+            raise TypeError("got unexpected keyword argument '_want_designmaks'")
         if _util.is_iterable(bottom):
             bottom = tuple(bottom)
             if _util.is_iterable(min_bottom_enclosure):
@@ -251,10 +264,10 @@ class Via(_Primitive):
             raise TypeError("min_space has to be a float")
 
         if "name" not in primitive_args:
-            primitive_args["name"] = material.name
+            if "mask" in primitive_args:
+                primitive_args["name"] = primitive_args["mask"].name
 
-        super().__init__(**primitive_args)
-        self.material = material
+        super().__init__(_want_designmask=True, **primitive_args)
         self.bottom = bottom
         self.top = top
         self.width = width
@@ -265,10 +278,10 @@ class Via(_Primitive):
 class Spacing(_Primitive):
     def __init__(self, *, primitives1, primitives2, min_space):
         primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
-        if not all(isinstance(prim, _Primitive) for prim in primitives1):
+        if not all(isinstance(prim, _MaskPrimitive) for prim in primitives1):
             raise TypeError("primitives1 has to be of type '_Primitive' or an iterable of type '_Primitive'")
         primitives2 = tuple(primitives2) if _util.is_iterable(primitives2) else (primitives2,)
-        if not all(isinstance(prim, _Primitive) for prim in primitives2):
+        if not all(isinstance(prim, _MaskPrimitive) for prim in primitives2):
             raise TypeError("primitives2 has to be of type '_Primitive' or an iterable of type '_Primitive'")
         min_space = _util.i2f(min_space)
         if not isinstance(min_space, float):
@@ -286,7 +299,7 @@ class Spacing(_Primitive):
         self.min_space = min_space
 
 class _MOSFETGate(_WidthSpacePrimitive):
-    def __init__(self, mosfet, poly, active, min_l, min_w, min_gate_space):
+    def __init__(self, mosfet, poly, active, others, min_l, min_w, min_gate_space):
         if not (
             isinstance(mosfet, MOSFET)
             and isinstance(poly, Wire)
@@ -297,7 +310,10 @@ class _MOSFETGate(_WidthSpacePrimitive):
         if min_w < min_l:
             raise NotImplementedError("transistor with minimum width smaller than minimum length")
 
-        super().__init__(name=mosfet.name + ".gate", min_width=min_l, min_space=min_gate_space)
+        super().__init__(
+            name=mosfet.name + ".gate", mask=msk.Mask.intersect((poly.mask, active.mask)),
+            min_width=min_l, min_space=min_gate_space,
+        )
         self.poly = poly
         self.active = active
 
@@ -321,14 +337,18 @@ class MOSFET(_Primitive):
             raise TypeError("active has to be of type 'Wire'")
         ok = True
         
-        implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
-        for l in implant:
-            if not isinstance(l, Implant):
-                raise TypeError("implant has to be of type 'Implant' or an iterable of type 'Implant'")
+        if implant is not None:
+            implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
+            for l in implant:
+                if not isinstance(l, Implant):
+                    raise TypeError("implant has to be of type 'Implant' or an iterable of type 'Implant'")
         if not ((oxide is None) or (isinstance(oxide, Deposition) and not isinstance(oxide, Wire))):
             raise TypeError("oxide has to be 'None' or of type 'Deposition'")
-        if not isinstance(well, (Well, Substrate)):
-            raise TypeError("well has to be of type 'Well' or 'Substrate'")
+        if isinstance(well, Marker):
+            if well.name != "substrate":
+                raise TypeError("well has to be of type 'Well' or the substrate")
+        elif not isinstance(well, Well):
+            raise TypeError("well has to be of type 'Well' or the substrate")
 
         if min_l is None:
             min_l = poly.min_width
@@ -374,7 +394,12 @@ class MOSFET(_Primitive):
         self.active = active
         self.implant = implant
         self.well = well
-        self.gate = _MOSFETGate(self, poly, active, min_l, min_w, min_gate_space)
+        others = (well,)
+        if implant is not None:
+            others += implant
+        if oxide is not None:
+            others += (oxide,)
+        self.gate = _MOSFETGate(self, poly, active, others, min_l, min_w, min_gate_space)
 
         self.min_l = min_l
         self.min_w = min_w

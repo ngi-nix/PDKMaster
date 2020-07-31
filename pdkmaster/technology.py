@@ -18,7 +18,11 @@ class Technology(abc.ABC):
         self._masks = masks = msk.Masks()
         self._primitives = prims = prm.Primitives()
 
-        prims += (prm.Marker("wafer"), prm.Substrate())
+        wafer = msk.Wafer()
+        substrate = msk.Mask("substrate")
+
+        masks += (wafer, substrate)
+        prims += (prm.Marker(mask=wafer), prm.Marker(mask=substrate))
 
         self._init()
 

@@ -26,7 +26,7 @@ class _FreePDK45(tech.Technology):
         # implants
         implants = (
             *(
-                prm.Implant(implant=implant,
+                prm.Implant(mask=implant,
                     min_width=0.045, # Implant.3
                     min_space=0.045, # Implant.4
                 ) for implant in (
@@ -39,7 +39,7 @@ class _FreePDK45(tech.Technology):
         # wells
         wells = (
             prm.Well(
-                implant=impl,
+                mask=impl,
                 min_width = 0.200, # Well.4
                 min_space = 0.225, # Well.2
                 min_space_samenet = 0.135, # Well.3
@@ -48,7 +48,7 @@ class _FreePDK45(tech.Technology):
         prims += wells
         # depositions
         depositions = (
-            prm.Deposition(masks.thkox,
+            prm.Deposition(mask=masks.thkox,
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),
@@ -112,6 +112,7 @@ class _FreePDK45(tech.Technology):
                         ((0.900, 2.700), 0.900), # MetalTNG.8; added
                         ((1.500, 4.000), 1.500), # MetalTNG.9; added
                     ),
+                    "grid": 0.010, # Added rule
                 }) for metal in (masks.metal7, masks.metal8)
             ),
             *(
@@ -122,6 +123,7 @@ class _FreePDK45(tech.Technology):
                         ((0.900, 2.700), 0.900), # MetalG.8
                         ((1.500, 4.000), 1.500), # MetalG.9
                     ),
+                    "grid": 0.010, # Added rule
                 }) for metal in (masks.metal9, masks.metal10)
             ),
         ))
@@ -130,7 +132,7 @@ class _FreePDK45(tech.Technology):
         vias = (
             prm.Via(**via_args) for via_args in (
                 {
-                    "material": masks.contact,
+                    "mask": masks.contact,
                     "width": 0.065, # Contact.1
                     "min_space": 0.075, # Contact.2
                     "bottom": (prims.active, prims.poly), # Contact.3
@@ -139,7 +141,7 @@ class _FreePDK45(tech.Technology):
                     "min_top_enclosure": (0.000, 0.035), # Metal1.3
                 },
                 {
-                    "material": masks.via1,
+                    "mask": masks.via1,
                     "width": 0.065, # Contact.1
                     "min_space": 0.075, # Contact.2
                     "bottom": prims.metal1, # Contact.3
@@ -148,7 +150,7 @@ class _FreePDK45(tech.Technology):
                     "min_top_enclosure": (0.000, 0.035), # MetalInt.3
                 },
                 {
-                    "material": masks.via2,
+                    "mask": masks.via2,
                     "width": 0.070, # Via[2-3].1
                     "min_space": 0.085, # Via[2-3].2
                     "bottom": prims.metal2, # Via[2-3].3
@@ -157,7 +159,7 @@ class _FreePDK45(tech.Technology):
                     "min_top_enclosure": (0.000, 0.035), # MetalInt.4
                 },
                 {
-                    "material": masks.via3,
+                    "mask": masks.via3,
                     "width": 0.070, # Via[2-3].1
                     "min_space": 0.085, # Via[2-3].2
                     "bottom": prims.metal3, # Via[2-3].3
@@ -165,46 +167,49 @@ class _FreePDK45(tech.Technology):
                     "min_bottom_enclosure": (0.000, 0.035), # MetalInt.4
                 },
                 {
-                    "material": masks.via4,
+                    "mask": masks.via4,
                     "width": 0.140, # Via[4-6].1
                     "min_space": 0.160, # Via[4-6].2
                     "bottom": prims.metal4, # Via[4-6].3, MetalSMG.3
                     "top": prims.metal5, # Via[4-6].4, MetalSMG.3
                 },
                 {
-                    "material": masks.via5,
+                    "mask": masks.via5,
                     "width": 0.140, # Via[4-6].1
                     "min_space": 0.160, # Via[4-6].2
                     "bottom": prims.metal5, # Via[4-6].3, MetalSMG.3
                     "top": prims.metal6, # Via[4-6].4, MetalSMG.3
                 },
                 {
-                    "material": masks.via6,
+                    "mask": masks.via6,
                     "width": 0.140, # Via[4-6].1
                     "min_space": 0.160, # Via[4-6].2
                     "bottom": prims.metal6, # Via[4-6].3, MetalSMG.3
                     "top": prims.metal7, # Via[4-6].4, MetalTNG.3
                 },
                 {
-                    "material": masks.via7,
+                    "mask": masks.via7,
                     "width": 0.400, # Via[7-8].1
                     "min_space": 0.440, # Via[7-8].2
                     "bottom": prims.metal7, # Via[7-8].3, MetalTNG.3
                     "top": prims.metal8, # Via[7-8].4, MetalTNG.3
+                    "grid": 0.010, # Added rule
                 },
                 {
-                    "material": masks.via8,
+                    "mask": masks.via8,
                     "width": 0.400, # Via[7-8].1
                     "min_space": 0.440, # Via[7-8].2
                     "bottom": prims.metal8, # Via[7-8].3, MetalTNG.3
                     "top": prims.metal9, # Via[7-8].4, MetalG.3
+                    "grid": 0.010, # Added rule
                 },
                 {
-                    "material": masks.via9,
+                    "mask": masks.via9,
                     "width": 0.800, # Via[9].1
                     "min_space": 0.880, # Via[9].2
                     "bottom": prims.metal8, # Via[9].3, MetalG.3
                     "top": prims.metal9, # Via[9].4, MetalG.3
+                    "grid": 0.010, # Added rule
                 },
             )
         )
