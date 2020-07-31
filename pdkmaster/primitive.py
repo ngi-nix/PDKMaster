@@ -432,8 +432,7 @@ class Spacing(_Primitive):
 class MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, *, name=None, poly, active, oxide=None,
         min_l=None, min_w=None,
-        min_activepoly_space=None, min_sd_width=None,
-        min_polyactive_extension=None, min_gate_space=None,
+        min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
         contact=None, min_contactgate_space=None,
     ):
         if not isinstance(poly, (Wire, DerivedWire)):
@@ -477,12 +476,6 @@ class MOSFETGate(_WidthSpacePrimitive):
         else:
             # Local use only
             min_w = active.min_width
-
-        if min_activepoly_space is not None:
-            min_activepoly_space = _util.i2f(min_activepoly_space)
-            if not isinstance(min_activepoly_space, float):
-                raise TypeError("min_activepoly_space has to be a float")
-            self.min_activepoly_space = min_activepoly_space
 
         if min_sd_width is not None:
             min_sd_width = _util.i2f(min_sd_width)
@@ -528,9 +521,6 @@ class MOSFETGate(_WidthSpacePrimitive):
             self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.active.mask), msk.MaskEdge(self.mask))).length >= self.min_l,)
         if hasattr(self, "min_w"):
             self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.poly.mask), msk.MaskEdge(self.mask))).length >= self.min_w,)
-        if hasattr(self, "min_activepoly_space"):
-            warn("transistor specific active poly rule will be made general for active-poly spacing")
-            self._rules += (msk.Mask.spacing(self.poly.mask, self.active.mask) >= self.min_activepoly_space,)
         if hasattr(self, "min_sd_width"):
             self._rules += (self.active.mask.extend_over(self.mask) >= self.min_sd_width,)
         if hasattr(self, "min_polyactive_extension"):
@@ -545,8 +535,8 @@ class MOSFET(_Primitive):
         self, name, *,
         gate, implant=None, well=None,
         min_l=None, min_w=None,
-        min_activepoly_space=None, min_sd_width=None,
-        min_polyactive_extension=None, min_gateimplant_enclosure, min_gate_space=None,
+        min_sd_width=None, min_polyactive_extension=None,
+        min_gateimplant_enclosure, min_gate_space=None,
         contact=None, min_contactgate_space=None,
         model=None,
     ):
@@ -586,12 +576,6 @@ class MOSFET(_Primitive):
             if min_w <= gate.min_w:
                 raise ValueError("min_w has to be bigger than gate min_w if not 'None'")
             self.min_w = min_w
-
-        if min_activepoly_space is not None:
-            min_activepoly_space = _util.i2f(min_activepoly_space)
-            if not isinstance(min_activepoly_space, float):
-                raise TypeError("min_activepoly_space has to be a float")
-            self.min_activepoly_space = min_activepoly_space
 
         if min_sd_width is not None:
             min_sd_width = _util.i2f(min_sd_width)
@@ -661,9 +645,6 @@ class MOSFET(_Primitive):
             self._rules += (msk.Edge.intersect((markedgate_edge, active_edge)).length >= self.min_l,)
         if hasattr(self, "min_w"):
             self._rules += (msk.Edge.intersect((markedgate_edge, poly_edge)).length >= self.min_w,)
-        if hasattr(self, "min_activepoly_space"):
-            warn("transistor specific active poly rule will be made general for active-poly spacing")
-            self._rules += (msk.Mask.spacing(poly_mask, active_mask) >= self.min_activepoly_space,)
         if hasattr(self, "min_sd_width"):
             self._rules += (active_mask.extend_over(markedgate_mask) >= self.min_sd_width,)
         if hasattr(self, "min_polyactive_extension"):
