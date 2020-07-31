@@ -18,12 +18,11 @@ class _DualMaskProperty(prp.Property):
             and isinstance(name, str) and isinstance(commutative, bool)
         ), "Internal error"
 
-        name = "{}.{}.{}".format(mask1.name, mask2.name, name)
         if commutative:
-            alias = "{}.{}.{}".format(mask2.name, mask1.name, name)
-            super().__init__(name, alias)
+            name = "{}({},{})".format(name, mask1.name, mask2.name)
         else:
-            super().__init__(name)
+            name = "{}.{}({})".format(mask1.name, name, mask2.name)
+        super().__init__(name)
 
         self.mask1 = mask1
         self.mask2 = mask2
