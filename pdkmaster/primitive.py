@@ -385,7 +385,7 @@ class MOSFET(_Primitive):
         min_l=None, min_w=None,
         min_activepoly_space, min_sd_width,
         min_polyactive_extension, min_gateimplant_enclosure, min_gate_space=None,
-        min_contactgate_space=None,
+        contact=None, min_contactgate_space=None,
         model=None,
     ):
         if not isinstance(name, str):
@@ -456,6 +456,15 @@ class MOSFET(_Primitive):
             if not isinstance(min_contactgate_space, float):
                 raise TypeError("min_contactgate_space has to be 'None' or a float")
             self.min_contactgate_space = min_contactgate_space
+            if contact is None:
+                if not hasattr(gate, "contact"):
+                    raise ValueError("no contact layer provided for min_contactgate_space specification")
+                contact = gate.contact
+            elif not isinstance(contact, Via):
+                raise TypeError("contact has to be of type 'Via'")
+            self.contact = contact
+        elif contact is not None:
+            raise ValueError("contact layer provided without min_contactgate_space specification")
 
         if model is None:
             model = name
