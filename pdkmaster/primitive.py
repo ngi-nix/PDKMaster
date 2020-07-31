@@ -319,7 +319,10 @@ class Spacing(_Primitive):
 
 class MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, *, name=None, poly, active, oxide=None,
-        min_l=None, min_w=None, min_gate_space=None,
+        min_l=None, min_w=None,
+        min_activepoly_space=None, min_sd_width=None,
+        min_polyactive_extension=None, min_gate_space=None,
+        contact=None, min_contactgate_space=None,
     ):
         if not isinstance(poly, (Wire, DerivedWire)):
             raise TypeError("poly has to be of type 'Wire' or 'DerivedWire'")
@@ -363,6 +366,24 @@ class MOSFETGate(_WidthSpacePrimitive):
             # Local use only
             min_w = active.min_width
 
+        if min_activepoly_space is not None:
+            min_activepoly_space = _util.i2f(min_activepoly_space)
+            if not isinstance(min_activepoly_space, float):
+                raise TypeError("min_activepoly_space has to be a float")
+            self.min_activepoly_space = min_activepoly_space
+
+        if min_sd_width is not None:
+            min_sd_width = _util.i2f(min_sd_width)
+            if not isinstance(min_sd_width, float):
+                raise TypeError("min_sd_width has to be a float")
+            self.min_sd_width = min_sd_width
+
+        if min_polyactive_extension is not None:
+            min_polyactive_extension = _util.i2f(min_polyactive_extension)
+            if not isinstance(min_polyactive_extension, float):
+                raise TypeError("min_polyactive_extension has to be a float")
+            self.min_polyactive_extension = min_polyactive_extension
+
         if min_gate_space is not None:
             min_gate_space = _util.i2f(min_gate_space)
             if not isinstance(min_gate_space, float):
@@ -371,6 +392,17 @@ class MOSFETGate(_WidthSpacePrimitive):
         else:
             # Local use only
             min_gate_space = poly.min_space
+
+        if min_contactgate_space is not None:
+            min_contactgate_space = _util.i2f(min_contactgate_space)
+            if not isinstance(min_contactgate_space, float):
+                raise TypeError("min_contactgate_space has to be 'None' or a float")
+            self.min_contactgate_space = min_contactgate_space
+            if not isinstance(contact, Via):
+                raise TypeError("contact has to be of type 'Via'")
+            self.contact = contact
+        elif contact is not None:
+            raise ValueError("contact layer provided without min_contactgate_space specification")
 
         super().__init__(
             name=name, mask=msk.Mask.intersect(prim.mask for prim in prims),
@@ -383,8 +415,8 @@ class MOSFET(_Primitive):
         self, name, *,
         gate, implant=None, well=None,
         min_l=None, min_w=None,
-        min_activepoly_space, min_sd_width,
-        min_polyactive_extension, min_gateimplant_enclosure, min_gate_space=None,
+        min_activepoly_space=None, min_sd_width=None,
+        min_polyactive_extension=None, min_gateimplant_enclosure, min_gate_space=None,
         contact=None, min_contactgate_space=None,
         model=None,
     ):
@@ -425,20 +457,27 @@ class MOSFET(_Primitive):
                 raise ValueError("min_w has to be bigger than gate min_w if not 'None'")
             self.min_w = min_w
 
-        min_activepoly_space = _util.i2f(min_activepoly_space)
-        if not isinstance(min_activepoly_space, float):
-            raise TypeError("min_activepoly_space has to be a float")
-        self.min_activepoly_space = min_activepoly_space
+        if min_activepoly_space is not None:
+            min_activepoly_space = _util.i2f(min_activepoly_space)
+            if not isinstance(min_activepoly_space, float):
+                raise TypeError("min_activepoly_space has to be a float")
+            self.min_activepoly_space = min_activepoly_space
 
-        min_sd_width = _util.i2f(min_sd_width)
-        if not isinstance(min_sd_width, float):
-            raise TypeError("min_sd_width has to be a float")
-        self.min_sd_width = min_sd_width
+        if min_sd_width is not None:
+            min_sd_width = _util.i2f(min_sd_width)
+            if not isinstance(min_sd_width, float):
+                raise TypeError("min_sd_width has to be a float")
+            self.min_sd_width = min_sd_width
+        elif not hasattr(gate, "min_sd_width"):
+            raise ValueError("min_sd_width has to be either provided for the transistor gate or the transistor itself")
 
-        min_polyactive_extension = _util.i2f(min_polyactive_extension)
-        if not isinstance(min_polyactive_extension, float):
-            raise TypeError("min_polyactive_extension has to be a float")
-        self.min_polyactive_extension = min_polyactive_extension
+        if min_polyactive_extension is not None:
+            min_polyactive_extension = _util.i2f(min_polyactive_extension)
+            if not isinstance(min_polyactive_extension, float):
+                raise TypeError("min_polyactive_extension has to be a float")
+            self.min_polyactive_extension = min_polyactive_extension
+        elif not hasattr(gate, "min_polyactive_extension"):
+            raise ValueError("min_polyactive_extension has to be either provided for the transistor gate or the transistor itself")
 
         min_gateimplant_enclosure = _util.i2f(min_gateimplant_enclosure)
         if not isinstance(min_gateimplant_enclosure, float):

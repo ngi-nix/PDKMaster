@@ -231,22 +231,26 @@ class _FreePDK45(tech.Technology):
 
         # transistors
         mosgate = prm.MOSFETGate(poly=prims.poly, active=prims.active,
-            min_gate_space=0.140,
+            # No need for overruling min_l, min_w
+            min_activepoly_space=0.050, # Poly.5
+            min_sd_width=0.070, # Poly.4
+            min_polyactive_extension=0.055, # Poly.3
+            contact=prims.contact, min_contactgate_space=0.035, # Contact.6
+            min_gate_space=0.140, #
         )
         thickmosgate = prm.MOSFETGate(poly=prims.poly, active=prims.active, oxide=prims.thkox,
             min_l=0.060, # Added rule
-            min_gate_space=0.140,
+            min_activepoly_space=0.050, # Poly.5
+            min_sd_width=0.070, # Poly.4
+            min_polyactive_extension=0.055, # Poly.3
+            contact=prims.contact, min_contactgate_space=0.035, # Contact.6
+            min_gate_space=0.140, #
         )
         prims += (mosgate, thickmosgate)
         mosfets = [
             prm.MOSFET(name,
                 gate=gate, implant=impl, well=well,
-                # No need for overruling min_l, min_w
-                min_activepoly_space=0.050, # Poly.5
-                min_sd_width=0.070, # Poly.4
-                min_polyactive_extension=0.055, # Poly.3
                 min_gateimplant_enclosure=0.070, # Implant.1
-                min_contactgate_space=0.035, # Contact.6
             ) for name, gate, impl, well in (
                 ("nmos_vtl", mosgate, (prims.nimplant, prims.vthl), prims.pwell),
                 ("pmos_vtl", mosgate, (prims.pimplant, prims.vthl), prims.nwell),
