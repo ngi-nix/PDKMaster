@@ -1,16 +1,33 @@
 """The native technology primitives"""
-
 from textwrap import dedent
-from . import _util, property_ as prp, mask as msk
+from warnings import warn
+from itertools import product
+import abc
+
+from . import _util, property_ as prp, mask as msk, _util
 
 __all__ = ["Well", "Wire", "MOSFET"]
 
-class _Primitive:
+class _Primitive(abc.ABC):
     def __init__(self, name):
         if not isinstance(name, str):
             raise TypeError("name argument of '{}' is not a string".format(self.__class__.__name__))
 
         self.name = name
+
+        self._rules = None
+
+    @property
+    def rules(self):
+        if self._rules is None:
+            raise AttributeError("Accessing rules before they are generated")
+        return self._rules
+
+    @abc.abstractmethod
+    def _generate_rules(self, tech):
+        if self._rules is not None:
+            raise ValueError("Rules can only be generated once")
+        self._rules = tuple()
 
 class _MaskPrimitive(_Primitive):
     def __init__(self, *, mask,
@@ -56,6 +73,21 @@ class _MaskPrimitive(_Primitive):
             self.enclosed_by = enclosed_by
             self.min_enclosure = min_enclosure
 
+    @abc.abstractmethod
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        if hasattr(self, "grid"):
+            self._rules += (self.mask.grid == self.grid,)
+        if hasattr(self, "enclosed_by"):
+            for i in range(len(self.enclosed_by)):
+                mask = self.enclosed_by[i].mask
+                enclosure = self.min_enclosure[i]
+                if isinstance(enclosure, float):
+                    self._rules += (self.mask.enclosed_by(mask) >= enclosure,)
+                else:
+                    self._rules += (self.mask.enclosed_by_asymmetric(mask) >= enclosure,)
+
 class _PrimitiveProperty(prp.Property):
     def __init__(self, primitive, name):
         if not isinstance(primitive, _Primitive):
@@ -63,7 +95,8 @@ class _PrimitiveProperty(prp.Property):
         super().__init__(primitive.name + "." + name)
 
 class Marker(_MaskPrimitive):
-    pass
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
 
 class _WidthSpacePrimitive(_MaskPrimitive):
     def __init__(self, *,
@@ -123,6 +156,29 @@ class _WidthSpacePrimitive(_MaskPrimitive):
 
 
 
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        self._rules += (
+            self.mask.width >= self.min_width,
+            self.mask.space >= self.min_space,
+        )
+        if hasattr(self, "min_area"):
+            self._rules += (self.mask.area >= self.min_area,)
+        if hasattr(self, "space_table"):
+            for row in self.space_table:
+                w = row[0]
+                if isinstance(w, float):
+                    submask = self.mask.parts_with(
+                        condition=self.mask.width >= w,
+                    )
+                else:
+                    submask = self.mask.parts_with(condition=(
+                        self.mask.width >= w[0],
+                        self.mask.length >= w[1],
+                    ))
+                self._rules += (msk.Mask.spacing(submask, self.mask) >= row[1],)
+
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
@@ -141,6 +197,13 @@ class Well(Implant):
         super().__init__(**implant_args)
         if min_space_samenet is not None:
             self.min_space_samenet = min_space_samenet
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        if hasattr(self, "min_space_samenet"):
+            # TODO: implement min_space_samenet rule generation
+            warn("min_space_samenet rule generation not implemented")
 
 class Deposition(_WidthSpacePrimitive):
     # Layer for material deposition, if it is conducting Wire subclass should be used
@@ -203,6 +266,18 @@ class DerivedWire(_WidthSpacePrimitive):
             if not isinstance(connects, Well):
                 raise TypeError("connects has to be 'None' or of type 'Well'")
             self.connects = connects
+
+    def _generate_rules(self, tech):
+        # Do not generate the default width/space rules.
+        _Primitive._generate_rules(self, tech)
+
+        if self.min_width > self.wire.min_width:
+            self._rules += (self.mask.width >= self.min_width,)
+        if self.min_space > self.wire.min_space:
+            self._rules += (self.mask.space >= self.min_space,)
+        if hasattr(self, "min_area"):
+            if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
+                self._rules += (self.mask.area >= self.min_area,)
 
 class Via(_MaskPrimitive):
     def __init__(self, *,
@@ -294,6 +369,35 @@ class Via(_MaskPrimitive):
         self.min_bottom_enclosure = min_bottom_enclosure
         self.min_top_enclosure = min_top_enclosure
 
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        # TODO: implement layer cnnection
+        warn("layer connection not implemented")
+
+        self._rules += (
+            self.mask.width == self.width,
+            self.mask.space >= self.min_space,
+            # *(
+            #     self.mask.enclosed_by(self.bottom[i].mask) >= self.min_bottom_enclosure[i]
+            #     for i in range(len(self.bottom))
+            # ),
+            # *(
+            #     self.mask.enclosed_by(self.top[i].mask) >= self.min_top_enclosure[i]
+            #     for i in range(len(self.top))
+            # ),
+        )
+        for i in range(len(self.bottom)):
+            if isinstance(self.min_bottom_enclosure[i], float):
+                self._rules += (self.mask.enclosed_by(self.bottom[i].mask) >= self.min_bottom_enclosure[i],)
+            else:
+                self._rules += (self.mask.enclosed_by_asymmetric(self.bottom[i].mask) >= self.min_bottom_enclosure[i],)
+        for i in range(len(self.top)):
+            if isinstance(self.min_top_enclosure[i], float):
+                self._rules += (self.mask.enclosed_by(self.top[i].mask) >= self.min_top_enclosure[i],)
+            else:
+                self._rules += (self.mask.enclosed_by_asymmetric(self.top[i].mask) >= self.min_top_enclosure[i],)
+
 class Spacing(_Primitive):
     def __init__(self, *, primitives1, primitives2, min_space):
         primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
@@ -316,6 +420,14 @@ class Spacing(_Primitive):
         self.primitives1 = primitives1
         self.primitives2 = primitives2
         self.min_space = min_space
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        self._rules += tuple(
+            msk.Mask.spacing(prim1.mask,prim2.mask) >= self.min_space
+            for prim1, prim2 in product(self.primitives1, self.primitives2)
+        )
 
 class MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, *, name=None, poly, active, oxide=None,
@@ -409,6 +521,24 @@ class MOSFETGate(_WidthSpacePrimitive):
             min_width=min(min_l, min_w), min_space=min_gate_space,
         )
 
+    def _generate_rules(self, tech):
+        _MaskPrimitive._generate_rules(self, tech)
+
+        if hasattr(self, "min_l"):
+            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.active.mask), msk.MaskEdge(self.mask))).length >= self.min_l,)
+        if hasattr(self, "min_w"):
+            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.poly.mask), msk.MaskEdge(self.mask))).length >= self.min_w,)
+        if hasattr(self, "min_activepoly_space"):
+            warn("transistor specific active poly rule will be made general for active-poly spacing")
+            self._rules += (msk.Mask.spacing(self.poly.mask, self.active.mask) >= self.min_activepoly_space,)
+        if hasattr(self, "min_sd_width"):
+            self._rules += (self.active.mask.extend_over(self.mask) >= self.min_sd_width,)
+        if hasattr(self, "min_polyactive_extension"):
+            self._rules += (self.poly.mask.extend_over(self.mask) >= self.min_polyactive_extension,)
+        if hasattr(self, "min_gate_space"):
+            self._rules += (self.mask.space >= self.min_gate_space,)
+        if hasattr(self, "min_contactgate_space"):
+            self._rules += (msk.Mask.spacing(self.mask, self.contact.mask) >= self.min_contactgate_space,)
 
 class MOSFET(_Primitive):
     def __init__(
@@ -513,6 +643,36 @@ class MOSFET(_Primitive):
 
         self.l = _PrimitiveProperty(self, "l")
         self.w = _PrimitiveProperty(self, "w")
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        markers = (self.well if hasattr(self, "well") else tech.substrate,)
+        if hasattr(self, "implant"):
+            markers += self.implant
+        markedgate_mask = msk.Mask.intersect((self.gate.mask, *(marker.mask for marker in markers)))
+        markedgate_edge = msk.MaskEdge(markedgate_mask)
+        poly_mask = self.gate.poly.mask
+        poly_edge = msk.MaskEdge(poly_mask)
+        active_mask = self.gate.active.mask
+        active_edge = msk.MaskEdge(active_mask)
+
+        if hasattr(self, "min_l"):
+            self._rules += (msk.Edge.intersect((markedgate_edge, active_edge)).length >= self.min_l,)
+        if hasattr(self, "min_w"):
+            self._rules += (msk.Edge.intersect((markedgate_edge, poly_edge)).length >= self.min_w,)
+        if hasattr(self, "min_activepoly_space"):
+            warn("transistor specific active poly rule will be made general for active-poly spacing")
+            self._rules += (msk.Mask.spacing(poly_mask, active_mask) >= self.min_activepoly_space,)
+        if hasattr(self, "min_sd_width"):
+            self._rules += (active_mask.extend_over(markedgate_mask) >= self.min_sd_width,)
+        if hasattr(self, "min_polyactive_extension"):
+            self._rules += (poly_mask.extend_over(markedgate_mask) >= self.min_polyactive_extension,)
+        self._rules += tuple(markedgate_mask.enclosed_by(impl.mask) >= self.min_gateimplant_enclosure for impl in self.implant)
+        if hasattr(self, "min_gate_space"):
+            self._rules += (markedgate_mask.space >= self.min_gate_space,)
+        if hasattr(self, "min_contactgate_space"):
+            self.rules += (msk.Mask.spacing(markedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
 
 class Primitives:
     def __init__(self):

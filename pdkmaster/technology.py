@@ -23,6 +23,7 @@ class Technology(abc.ABC):
         masks += (msk.Wafer(),)
 
         self._init()
+        self._build_rules()
 
         masks.freeze()
         prims.freeze()
@@ -33,6 +34,20 @@ class Technology(abc.ABC):
     @abc.abstractmethod
     def _init(self):
         raise RuntimeError("abstract base method _init() has to be implemnted in subclass")
+
+    def _build_rules(self):
+        masks = self._masks
+        prims = self._primitives
+        self._rules = rules = cnd.Conditions()
+
+        # grid
+        rules += masks.wafer.grid == self.grid
+
+        for prim in prims:
+            prim._generate_rules(self)
+            rules += prim.rules
+
+        rules.freeze()
 
     @property
     def substrate(self):
@@ -45,6 +60,10 @@ class Technology(abc.ABC):
             else:
                 self._substrate = self.masks.wafer.remove(msk.Mask.join(wells))
         return self._substrate
+
+    @property
+    def rules(self):
+        return self._rules
 
     @property
     def masks(self):
