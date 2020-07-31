@@ -9,6 +9,8 @@ class Technology(abc.ABC):
     grid = abc.abstractproperty()
 
     def __init__(self):
+        self._init_done = False
+
         if not isinstance(self.name, str):
             raise AttributeError("name Technology class attribute has to be a string")
         self.grid = _util.i2f(self.grid)
@@ -18,21 +20,31 @@ class Technology(abc.ABC):
         self._masks = masks = msk.Masks()
         self._primitives = prims = prm.Primitives()
 
-        wafer = msk.Wafer()
-        substrate = msk.Mask("substrate")
-
-        masks += (wafer, substrate)
-        prims += (prm.Marker(mask=wafer), prm.Marker(mask=substrate))
+        masks += (msk.Wafer(),)
 
         self._init()
 
         masks.freeze()
         prims.freeze()
 
+        self._substrate = None
+        self._init_done = True
+
     @abc.abstractmethod
     def _init(self):
         raise RuntimeError("abstract base method _init() has to be implemnted in subclass")
 
+    @property
+    def substrate(self):
+        if not self._init_done:
+            raise AttributeError("substrate may not be accessed during object initialization")
+        if self._substrate is None:
+            wells = filter(isinstance(prim, prm.Well) for prim in self.primitives)
+            if not wells:
+                self._substrate = self.masks.wafer
+            else:
+                self._substrate = self.masks.wafer.remove(msk.Mask.join(wells))
+        return self._substrate
 
     @property
     def masks(self):
