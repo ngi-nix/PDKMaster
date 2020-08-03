@@ -456,6 +456,9 @@ class MOSFETGate(_WidthSpacePrimitive):
 
         if name is None:
             name = "gate({})".format(",".join(prim.name for prim in prims))
+            gatename = "gate:" + "+".join(prim.name for prim in prims)
+        else:
+            gatename = f"gate:{name}"
         if not isinstance(name, str):
             raise TypeError("name has to be 'None' or a string")
 
@@ -509,26 +512,36 @@ class MOSFETGate(_WidthSpacePrimitive):
         elif contact is not None:
             raise ValueError("contact layer provided without min_contactgate_space specification")
 
+        mask = msk.Mask.intersect(prim.mask for prim in prims).alias(gatename)
         super().__init__(
-            name=name, mask=msk.Mask.intersect(prim.mask for prim in prims),
+            name=name, mask=mask,
             min_width=min(min_l, min_w), min_space=min_gate_space,
         )
 
     def _generate_rules(self, tech):
         _MaskPrimitive._generate_rules(self, tech)
 
+        added = False
         if hasattr(self, "min_l"):
             self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.active.mask), msk.MaskEdge(self.mask))).length >= self.min_l,)
+            added = True
         if hasattr(self, "min_w"):
             self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.poly.mask), msk.MaskEdge(self.mask))).length >= self.min_w,)
+            added = True
         if hasattr(self, "min_sd_width"):
             self._rules += (self.active.mask.extend_over(self.mask) >= self.min_sd_width,)
+            added = True
         if hasattr(self, "min_polyactive_extension"):
             self._rules += (self.poly.mask.extend_over(self.mask) >= self.min_polyactive_extension,)
+            added = True
         if hasattr(self, "min_gate_space"):
             self._rules += (self.mask.space >= self.min_gate_space,)
+            added = True
         if hasattr(self, "min_contactgate_space"):
             self._rules += (msk.Mask.spacing(self.mask, self.contact.mask) >= self.min_contactgate_space,)
+            added = True
+        if added:
+            self._rules += (self.mask.as_condition(),)
 
 class MOSFET(_Primitive):
     def __init__(
@@ -634,13 +647,16 @@ class MOSFET(_Primitive):
         markers = (self.well if hasattr(self, "well") else tech.substrate,)
         if hasattr(self, "implant"):
             markers += self.implant
-        markedgate_mask = msk.Mask.intersect((self.gate.mask, *(marker.mask for marker in markers)))
+        markedgate_mask = msk.Mask.intersect(
+            (self.gate.mask, *(marker.mask for marker in markers))
+        ).alias(f"mosfet:{self.name}:gate")
         markedgate_edge = msk.MaskEdge(markedgate_mask)
         poly_mask = self.gate.poly.mask
         poly_edge = msk.MaskEdge(poly_mask)
         active_mask = self.gate.active.mask
         active_edge = msk.MaskEdge(active_mask)
 
+        self._rules += (markedgate_mask.as_condition(),)
         if hasattr(self, "min_l"):
             self._rules += (msk.Edge.intersect((markedgate_edge, active_edge)).length >= self.min_l,)
         if hasattr(self, "min_w"):
