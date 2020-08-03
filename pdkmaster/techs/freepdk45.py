@@ -231,14 +231,16 @@ class _FreePDK45(tech.Technology):
         prims += spacings
 
         # transistors
-        mosgate = prm.MOSFETGate(poly=prims.poly, active=prims.active,
+        mosgate = prm.MOSFETGate(
+            name="mosgate", poly=prims.poly, active=prims.active,
             # No need for overruling min_l, min_w
             min_sd_width=0.070, # Poly.4
             min_polyactive_extension=0.055, # Poly.3
             contact=prims.contact, min_contactgate_space=0.035, # Contact.6
             min_gate_space=0.140, #
         )
-        thickmosgate = prm.MOSFETGate(poly=prims.poly, active=prims.active, oxide=prims.thkox,
+        thickmosgate = prm.MOSFETGate(
+            name="thkmosgate", poly=prims.poly, active=prims.active, oxide=prims.thkox,
             min_l=0.060, # Added rule
             min_sd_width=0.070, # Poly.4
             min_polyactive_extension=0.055, # Poly.3
