@@ -520,28 +520,53 @@ class MOSFETGate(_WidthSpacePrimitive):
 
     def _generate_rules(self, tech):
         _MaskPrimitive._generate_rules(self, tech)
+        active_mask = self.active.mask
+        poly_mask = self.poly.mask
 
-        added = False
+        if hasattr(self, "oxide"):
+            mask = self.mask
+        else:
+            # Override mask
+            oxide_masks = tuple(
+                gate.oxide.mask for gate in filter(
+                    lambda prim: (
+                        isinstance(prim, MOSFETGate)
+                        and prim.active == self.active
+                        and prim.poly == self.poly
+                        and hasattr(prim, "oxide")
+                    ), tech.primitives,
+                )
+            )
+            if len(oxide_masks) == 0:
+                mask = self.mask
+            else:
+                if len(oxide_masks) == 1:
+                    oxides_mask = oxide_masks[0]
+                else:
+                    oxides_mask = msk.Mask.join(oxide_masks)
+                mask = msk.Mask.intersect(
+                    (active_mask, poly_mask, tech.masks.wafer.remove(oxides_mask)),
+                ).alias(self.mask.name)
+
+        mask_used = False
         if hasattr(self, "min_l"):
-            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.active.mask), msk.MaskEdge(self.mask))).length >= self.min_l,)
-            added = True
+            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(active_mask), msk.MaskEdge(self.mask))).length >= self.min_l,)
         if hasattr(self, "min_w"):
-            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(self.poly.mask), msk.MaskEdge(self.mask))).length >= self.min_w,)
-            added = True
+            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(poly_mask), msk.MaskEdge(self.mask))).length >= self.min_w,)
         if hasattr(self, "min_sd_width"):
-            self._rules += (self.active.mask.extend_over(self.mask) >= self.min_sd_width,)
-            added = True
+            self._rules += (active_mask.extend_over(mask) >= self.min_sd_width,)
+            mask_used = True
         if hasattr(self, "min_polyactive_extension"):
-            self._rules += (self.poly.mask.extend_over(self.mask) >= self.min_polyactive_extension,)
-            added = True
+            self._rules += (poly_mask.extend_over(mask) >= self.min_polyactive_extension,)
+            mask_used = True
         if hasattr(self, "min_gate_space"):
-            self._rules += (self.mask.space >= self.min_gate_space,)
-            added = True
+            self._rules += (mask.space >= self.min_gate_space,)
+            mask_used = True
         if hasattr(self, "min_contactgate_space"):
-            self._rules += (msk.Mask.spacing(self.mask, self.contact.mask) >= self.min_contactgate_space,)
-            added = True
-        if added:
-            self._rules += (self.mask.as_condition(),)
+            self._rules += (msk.Mask.spacing(mask, self.contact.mask) >= self.min_contactgate_space,)
+            mask_used = True
+        if mask_used:
+            self._rules += (mask.as_condition(),)
 
 class MOSFET(_Primitive):
     def __init__(
