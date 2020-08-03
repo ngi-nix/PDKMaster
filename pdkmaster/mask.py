@@ -132,6 +132,9 @@ class Mask(abc.ABC):
     def remove(self, what):
         return _MaskRemove(from_=self, what=what)
 
+    def alias(self, name):
+        return _MaskAlias(name=name, mask=self)
+
     @staticmethod
     def spacing(mask1, mask2):
         if not all(isinstance(mask, Mask) for mask in (mask1, mask2)):
@@ -220,6 +223,27 @@ class _MaskRemove(Mask):
         super().__init__("{}.remove({})".format(from_.name, what.name))
         self.from_ = from_
         self.what = what
+
+class _MaskAliasCondition(cnd.Condition):
+    def __init__(self, alias):
+        assert isinstance(alias, _MaskAlias), "internal error"
+
+        super().__init__(alias)
+
+    def __str__(self):
+        alias = self._elements
+        return f"{alias.mask.name}.alias('{alias.name}')"
+
+class _MaskAlias(Mask):
+    def __init__(self, *, name, mask):
+        if not isinstance(mask, Mask):
+            raise TypeError("mask has to be of type 'Mask'")
+        self.mask = mask
+
+        super().__init__(name)
+
+    def as_condition(self):
+        return _MaskAliasCondition(self)
 
 class Masks:
     def __init__(self):
