@@ -58,7 +58,7 @@ class Technology(abc.ABC):
             if not wells:
                 self._substrate = self.masks.wafer
             else:
-                self._substrate = self.masks.wafer.remove(msk.Mask.join(wells))
+                self._substrate = self.masks.wafer.remove(msk.join(wells))
         return self._substrate
 
     @property

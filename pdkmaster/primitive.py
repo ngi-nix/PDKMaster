@@ -4,7 +4,7 @@ from warnings import warn
 from itertools import product
 import abc
 
-from . import _util, property_ as prp, mask as msk
+from . import _util, property_ as prp, mask as msk, edge as edg
 
 __all__ = ["Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
 
@@ -35,7 +35,7 @@ class _MaskPrimitive(_Primitive):
         **primitive_args
     ):
         if not _want_designmask:
-            if not isinstance(mask, msk.Mask):
+            if not isinstance(mask, msk._Mask):
                 raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
                     self.__class__.__name__
                 ))
@@ -177,7 +177,7 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                         self.mask.width >= w[0],
                         self.mask.length >= w[1],
                     ))
-                self._rules += (msk.Mask.spacing(submask, self.mask) >= row[1],)
+                self._rules += (msk.Spacing(submask, self.mask) >= row[1],)
 
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
@@ -228,7 +228,7 @@ class DerivedWire(_WidthSpacePrimitive):
         if "mask" in widthspace_args:
             raise TypeError("DerivedWire got an unexpected keyword argument 'mask'")
         else:
-            widthspace_args["mask"] = msk.Mask.intersect(prim.mask for prim in (wire, *marker))
+            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in (wire, *marker))
 
         if "grid" in widthspace_args:
             raise TypeError("DerivedWire got an unexpected keyword argument 'grid'")
@@ -425,7 +425,7 @@ class Spacing(_Primitive):
         super()._generate_rules(tech)
 
         self._rules += tuple(
-            msk.Mask.spacing(prim1.mask,prim2.mask) >= self.min_space
+            msk.Spacing(prim1.mask,prim2.mask) >= self.min_space
             for prim1, prim2 in product(self.primitives1, self.primitives2)
         )
 
@@ -512,7 +512,7 @@ class MOSFETGate(_WidthSpacePrimitive):
         elif contact is not None:
             raise ValueError("contact layer provided without min_contactgate_space specification")
 
-        mask = msk.Mask.intersect(prim.mask for prim in prims).alias(gatename)
+        mask = msk.Intersect(prim.mask for prim in prims).alias(gatename)
         super().__init__(
             name=name, mask=mask,
             min_width=min(min_l, min_w), min_space=min_gate_space,
@@ -543,16 +543,16 @@ class MOSFETGate(_WidthSpacePrimitive):
                 if len(oxide_masks) == 1:
                     oxides_mask = oxide_masks[0]
                 else:
-                    oxides_mask = msk.Mask.join(oxide_masks)
-                mask = msk.Mask.intersect(
+                    oxides_mask = msk.Join(oxide_masks)
+                mask = msk.Intersect(
                     (active_mask, poly_mask, tech.masks.wafer.remove(oxides_mask)),
                 ).alias(self.mask.name)
 
         mask_used = False
         if hasattr(self, "min_l"):
-            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(active_mask), msk.MaskEdge(self.mask))).length >= self.min_l,)
+            self._rules += (edg.Intersect((edg.MaskEdge(active_mask), edg.MaskEdge(self.mask))).length >= self.min_l,)
         if hasattr(self, "min_w"):
-            self._rules += (msk.MaskEdge.intersect((msk.MaskEdge(poly_mask), msk.MaskEdge(self.mask))).length >= self.min_w,)
+            self._rules += (edg.Intersect((edg.MaskEdge(poly_mask), edg.MaskEdge(self.mask))).length >= self.min_w,)
         if hasattr(self, "min_sd_width"):
             self._rules += (active_mask.extend_over(mask) >= self.min_sd_width,)
             mask_used = True
@@ -563,7 +563,7 @@ class MOSFETGate(_WidthSpacePrimitive):
             self._rules += (mask.space >= self.min_gate_space,)
             mask_used = True
         if hasattr(self, "min_contactgate_space"):
-            self._rules += (msk.Mask.spacing(mask, self.contact.mask) >= self.min_contactgate_space,)
+            self._rules += (msk.Spacing(mask, self.contact.mask) >= self.min_contactgate_space,)
             mask_used = True
         if mask_used:
             self._rules += (mask,)
@@ -672,20 +672,20 @@ class MOSFET(_Primitive):
         markers = (self.well if hasattr(self, "well") else tech.substrate,)
         if hasattr(self, "implant"):
             markers += self.implant
-        markedgate_mask = msk.Mask.intersect(
+        markedgate_mask = msk.Intersect(
             (self.gate.mask, *(marker.mask for marker in markers))
         ).alias(f"gate:mosfet:{self.name}")
-        markedgate_edge = msk.MaskEdge(markedgate_mask)
+        markedgate_edge = edg.MaskEdge(markedgate_mask)
         poly_mask = self.gate.poly.mask
-        poly_edge = msk.MaskEdge(poly_mask)
+        poly_edge = edg.MaskEdge(poly_mask)
         active_mask = self.gate.active.mask
-        active_edge = msk.MaskEdge(active_mask)
+        active_edge = edg.MaskEdge(active_mask)
 
         self._rules += (markedgate_mask,)
         if hasattr(self, "min_l"):
-            self._rules += (msk.Edge.intersect((markedgate_edge, active_edge)).length >= self.min_l,)
+            self._rules += (edg.Intersect((markedgate_edge, active_edge)).length >= self.min_l,)
         if hasattr(self, "min_w"):
-            self._rules += (msk.Edge.intersect((markedgate_edge, poly_edge)).length >= self.min_w,)
+            self._rules += (edg.Intersect((markedgate_edge, poly_edge)).length >= self.min_w,)
         if hasattr(self, "min_sd_width"):
             self._rules += (active_mask.extend_over(markedgate_mask) >= self.min_sd_width,)
         if hasattr(self, "min_polyactive_extension"):
@@ -694,7 +694,7 @@ class MOSFET(_Primitive):
         if hasattr(self, "min_gate_space"):
             self._rules += (markedgate_mask.space >= self.min_gate_space,)
         if hasattr(self, "min_contactgate_space"):
-            self.rules += (msk.Mask.spacing(markedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
+            self.rules += (msk.Spacing(markedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
 
 class Primitives:
     def __init__(self):
