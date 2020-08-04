@@ -224,19 +224,7 @@ class _MaskRemove(Mask):
         self.from_ = from_
         self.what = what
 
-class _MaskAliasRule(rle._Rule):
-    def __init__(self, alias):
-        assert isinstance(alias, _MaskAlias), "internal error"
-        self.alias = alias
-
-    def __hash__(self):
-        return hash(self.alias)
-
-    def __str__(self):
-        alias = self.alias
-        return f"{alias.mask.name}.alias('{alias.name}')"
-
-class _MaskAlias(Mask):
+class _MaskAlias(Mask, rle._Rule):
     def __init__(self, *, name, mask):
         if not isinstance(mask, Mask):
             raise TypeError("mask has to be of type 'Mask'")
@@ -244,8 +232,11 @@ class _MaskAlias(Mask):
 
         super().__init__(name)
 
-    def as_rule(self):
-        return _MaskAliasRule(self)
+    def __hash__(self):
+        return hash((self.name, self.mask))
+
+    def __str__(self):
+        return f"{self.mask.name}.alias({self.name})"
 
 class Masks:
     def __init__(self):

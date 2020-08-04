@@ -566,7 +566,7 @@ class MOSFETGate(_WidthSpacePrimitive):
             self._rules += (msk.Mask.spacing(mask, self.contact.mask) >= self.min_contactgate_space,)
             mask_used = True
         if mask_used:
-            self._rules += (mask.as_rule(),)
+            self._rules += (mask,)
 
 class MOSFET(_Primitive):
     def __init__(
@@ -681,7 +681,7 @@ class MOSFET(_Primitive):
         active_mask = self.gate.active.mask
         active_edge = msk.MaskEdge(active_mask)
 
-        self._rules += (markedgate_mask.as_rule(),)
+        self._rules += (markedgate_mask,)
         if hasattr(self, "min_l"):
             self._rules += (msk.Edge.intersect((markedgate_edge, active_edge)).length >= self.min_l,)
         if hasattr(self, "min_w"):
