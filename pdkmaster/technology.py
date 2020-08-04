@@ -1,6 +1,6 @@
 import abc
 
-from . import _util, property_ as prp, condition as cnd, mask as msk, primitive as prm
+from . import _util, property_ as prp, rule as rle, mask as msk, primitive as prm
 
 __all__ = ["Technology"]
 
@@ -38,7 +38,7 @@ class Technology(abc.ABC):
     def _build_rules(self):
         masks = self._masks
         prims = self._primitives
-        self._rules = rules = cnd.Conditions()
+        self._rules = rules = rle.Rules()
 
         # grid
         rules += masks.wafer.grid == self.grid

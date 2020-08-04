@@ -1,9 +1,21 @@
 import abc
-from . import _util, condition as cnd
+from . import _util, rule as rle
 
 __all__ = ["Operators", "Property"]
 
-class _BinaryPropertyCondition(cnd.Condition, abc.ABC):
+class _Condition(rle._Rule):
+    @abc.abstractmethod
+    def __init__(self, elements):
+        self._elements = elements
+
+    def __hash__(self):
+        return hash(self._elements)
+
+    @abc.abstractmethod
+    def __str__(self):
+        raise RuntimeError("_Condition subclass needs to implement __str__() method")
+
+class _BinaryPropertyCondition(_Condition, abc.ABC):
     symbol = abc.abstractproperty()
 
     def __init__(self, *, left, right):

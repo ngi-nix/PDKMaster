@@ -1,5 +1,5 @@
 import abc
-from . import _util, condition as cnd, property_ as prp
+from . import _util, rule as rle, property_ as prp
 
 __all__ = ["Mask", "DesignMask", "Wafer", "Masks", "Edge", "MaskEdge"]
 
@@ -39,7 +39,7 @@ class _AsymmetricDualMaskProperty(_DualMaskProperty):
 
         return value
     
-class _MultiMaskCondition(cnd.Condition, abc.ABC):
+class _MultiMaskCondition(prp._Condition, abc.ABC):
     operation = abc.abstractproperty()
 
     def __init__(self, mask, others):
@@ -224,14 +224,16 @@ class _MaskRemove(Mask):
         self.from_ = from_
         self.what = what
 
-class _MaskAliasCondition(cnd.Condition):
+class _MaskAliasRule(rle._Rule):
     def __init__(self, alias):
         assert isinstance(alias, _MaskAlias), "internal error"
+        self.alias = alias
 
-        super().__init__(alias)
+    def __hash__(self):
+        return hash(self.alias)
 
     def __str__(self):
-        alias = self._elements
+        alias = self.alias
         return f"{alias.mask.name}.alias('{alias.name}')"
 
 class _MaskAlias(Mask):
@@ -242,8 +244,8 @@ class _MaskAlias(Mask):
 
         super().__init__(name)
 
-    def as_condition(self):
-        return _MaskAliasCondition(self)
+    def as_rule(self):
+        return _MaskAliasRule(self)
 
 class Masks:
     def __init__(self):
