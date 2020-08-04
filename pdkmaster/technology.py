@@ -5,6 +5,9 @@ from . import _util, property_ as prp, rule as rle, mask as msk, primitive as pr
 __all__ = ["Technology"]
 
 class Technology(abc.ABC):
+    class TechnologyError(Exception):
+        pass
+
     name = abc.abstractproperty()
     grid = abc.abstractproperty()
 

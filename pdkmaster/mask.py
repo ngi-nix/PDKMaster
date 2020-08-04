@@ -230,6 +230,38 @@ class OverlapWidth(_DualMaskProperty):
 
         super().__init__(mask1, mask2, "overlapwidth", commutative=True)
 
+class Connect(rle._Rule):
+    def __init__(self, mask1, mask2):
+        mask1 = tuple(mask1) if _util.is_iterable(mask1) else (mask1,)
+        if not all(isinstance(mask, _Mask) for mask in mask1):
+            raise TypeError("mask1 has to be of type '_Mask' or an iterable of type '_Mask'")
+        self.mask1 = mask1
+
+        mask2 = tuple(mask2) if _util.is_iterable(mask2) else (mask2,)
+        if not all(isinstance(mask, _Mask) for mask in mask2):
+            raise TypeError("mask1 has to be of type '_Mask' or an iterable of type '_Mask'")
+        self.mask2 = mask2
+
+    def __hash__(self):
+        return hash((self.mask1, self.mask2))
+
+    def __str__(self):
+        s1 = str(self.mask1[0]) if len(self.mask1) == 1 else "({})".format(
+            ",".join(m.name for m in self.mask1)
+        )
+        s2 = str(self.mask2[0]) if len(self.mask2) == 1 else "({})".format(
+            ",".join(m.name for m in self.mask2)
+        )
+        return f"connect({s1},{s2})"
+
+class SameNet(_Mask):
+    def __init__(self, mask):
+        if not isinstance(mask, _Mask):
+            raise TypeError("mask has to be of type _Mask")
+        self.mask = mask
+
+        super().__init__(f"same_net({mask.name})")
+
 class Masks:
     def __init__(self):
         self._masks = {}

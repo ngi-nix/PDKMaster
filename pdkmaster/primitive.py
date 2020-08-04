@@ -202,8 +202,14 @@ class Well(Implant):
         super()._generate_rules(tech)
 
         if hasattr(self, "min_space_samenet"):
-            # TODO: implement min_space_samenet rule generation
-            warn("min_space_samenet rule generation not implemented")
+            if not any(
+                (isinstance(prim, DerivedWire)
+                and hasattr(prim, "connects")
+                and prim.connects == self
+                ) for prim in tech.primitives
+            ):
+                raise tech.TechnologyError(f"min_space_samenet specified for '{self.name}' but it is not connected")
+            self._rules += (msk.SameNet(self.mask).space >= self.min_space_samenet,)
 
 class Deposition(_WidthSpacePrimitive):
     # Layer for material deposition, if it is conducting Wire subclass should be used
@@ -278,6 +284,8 @@ class DerivedWire(_WidthSpacePrimitive):
         if hasattr(self, "min_area"):
             if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
                 self._rules += (self.mask.area >= self.min_area,)
+        if hasattr(self, "connects"):
+            self._rules += (msk.Connect(self.mask, self.connects.mask),)
 
 class Via(_MaskPrimitive):
     def __init__(self, *,
@@ -372,9 +380,6 @@ class Via(_MaskPrimitive):
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
-        # TODO: implement layer cnnection
-        warn("layer connection not implemented")
-
         self._rules += (
             self.mask.width == self.width,
             self.mask.space >= self.min_space,
@@ -387,11 +392,13 @@ class Via(_MaskPrimitive):
             #     for i in range(len(self.top))
             # ),
         )
+        self._rules += (msk.Connect((b.mask for b in self.bottom), self.mask),)
         for i in range(len(self.bottom)):
             if isinstance(self.min_bottom_enclosure[i], float):
                 self._rules += (self.mask.enclosed_by(self.bottom[i].mask) >= self.min_bottom_enclosure[i],)
             else:
                 self._rules += (self.mask.enclosed_by_asymmetric(self.bottom[i].mask) >= self.min_bottom_enclosure[i],)
+        self._rules += (msk.Connect(self.mask, (b.mask for b in self.top)),)
         for i in range(len(self.top)):
             if isinstance(self.min_top_enclosure[i], float):
                 self._rules += (self.mask.enclosed_by(self.top[i].mask) >= self.min_top_enclosure[i],)
