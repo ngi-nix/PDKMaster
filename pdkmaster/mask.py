@@ -1,7 +1,7 @@
 import abc
 from . import _util, condition as cnd, property_ as prp
 
-__all__ = ["Mask", "Masks"]
+__all__ = ["Mask", "DesignMask", "Wafer", "Masks", "Edge", "MaskEdge"]
 
 class _MaskProperty(prp.Property):
     def __init__(self, mask, name):
@@ -127,7 +127,7 @@ class Mask(abc.ABC):
         return _OutsideCondition(self, masks)
 
     def parts_with(self, condition):
-        return PartsWith(mask=self, condition=condition)
+        return _PartsWith(mask=self, condition=condition)
 
     def remove(self, what):
         return _MaskRemove(from_=self, what=what)
@@ -163,7 +163,7 @@ class DesignMask(Mask):
 
         self.grid = _MaskProperty(self, "grid")
 
-class PartsWith(Mask):
+class _PartsWith(Mask):
     def __init__(self, *, mask, condition):
         if not isinstance(mask, Mask):
             raise TypeError("mask has to be be of type 'Mask'")

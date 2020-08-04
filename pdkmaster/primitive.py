@@ -4,9 +4,9 @@ from warnings import warn
 from itertools import product
 import abc
 
-from . import _util, property_ as prp, mask as msk, _util
+from . import _util, property_ as prp, mask as msk
 
-__all__ = ["Well", "Wire", "MOSFET"]
+__all__ = ["Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
 
 class _Primitive(abc.ABC):
     def __init__(self, name):
@@ -674,7 +674,7 @@ class MOSFET(_Primitive):
             markers += self.implant
         markedgate_mask = msk.Mask.intersect(
             (self.gate.mask, *(marker.mask for marker in markers))
-        ).alias(f"mosfet:{self.name}:gate")
+        ).alias(f"gate:mosfet:{self.name}")
         markedgate_edge = msk.MaskEdge(markedgate_mask)
         poly_mask = self.gate.poly.mask
         poly_edge = msk.MaskEdge(poly_mask)

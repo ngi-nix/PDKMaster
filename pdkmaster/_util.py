@@ -1,4 +1,4 @@
-__all__ = ["i2f"]
+__all__ = ["i2f", "is_iterable"]
 
 def i2f(i):
     "Convert i to float if it is an int but not a bool"
