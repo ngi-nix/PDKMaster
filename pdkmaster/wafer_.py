@@ -15,4 +15,8 @@ class _Wafer(msk._Mask):
 
         self.grid = msk._MaskProperty(self, "grid")
 
+    @property
+    def designmasks(self):
+        return iter(tuple())
+
 wafer = _Wafer()

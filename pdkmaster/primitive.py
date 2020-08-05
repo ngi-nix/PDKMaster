@@ -29,6 +29,10 @@ class _Primitive(abc.ABC):
             raise ValueError("Rules can only be generated once")
         self._rules = tuple()
 
+    @abc.abstractproperty
+    def designmasks(self):
+        return iter(tuple())
+
 class _MaskPrimitive(_Primitive):
     def __init__(self, *, mask,
         enclosed_by=None, min_enclosure=0.0, grid=None, _want_designmask=False,
@@ -88,6 +92,10 @@ class _MaskPrimitive(_Primitive):
                 else:
                     self._rules += (self.mask.enclosed_by_asymmetric(mask) >= enclosure,)
 
+    @property
+    def designmasks(self):
+        return self.mask.designmasks
+
 class _PrimitiveProperty(prp.Property):
     def __init__(self, primitive, name):
         if not isinstance(primitive, _Primitive):
@@ -95,8 +103,15 @@ class _PrimitiveProperty(prp.Property):
         super().__init__(primitive.name + "." + name)
 
 class Marker(_MaskPrimitive):
+    def __init__(self, **mask_args):
+        super().__init__(_want_designmask=True, **mask_args)
+
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
+
+    @property
+    def designmasks(self):
+        return super().designmasks
 
 class _WidthSpacePrimitive(_MaskPrimitive):
     def __init__(self, *,
@@ -285,6 +300,14 @@ class DerivedWire(_WidthSpacePrimitive):
         if hasattr(self, "connects"):
             self._rules += (msk.Connect(self.mask, self.connects.mask),)
 
+    @property
+    def designmasks(self):
+        for mask in super().designmasks:
+            yield mask
+        if hasattr(self, "connects"):
+            for mask in self.connects.designmasks:
+                yield mask
+
 class Via(_MaskPrimitive):
     def __init__(self, *,
         bottom, top,
@@ -403,6 +426,14 @@ class Via(_MaskPrimitive):
             else:
                 self._rules += (self.mask.enclosed_by_asymmetric(self.top[i].mask) >= self.min_top_enclosure[i],)
 
+    @property
+    def designmasks(self):
+        for mask in super().designmasks:
+            yield mask
+        for conn in self.bottom + self.top:
+            for mask in conn.designmasks:
+                yield mask
+
 class Spacing(_Primitive):
     def __init__(self, *, primitives1, primitives2, min_space):
         primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
@@ -433,6 +464,10 @@ class Spacing(_Primitive):
             msk.Spacing(prim1.mask,prim2.mask) >= self.min_space
             for prim1, prim2 in product(self.primitives1, self.primitives2)
         )
+
+    @property
+    def designmasks(self):
+        return super().designmasks
 
 class MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, *, name=None, poly, active, oxide=None,
@@ -700,6 +735,24 @@ class MOSFET(_Primitive):
             self._rules += (markedgate_mask.space >= self.min_gate_space,)
         if hasattr(self, "min_contactgate_space"):
             self.rules += (msk.Spacing(markedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
+
+    @property
+    def designmasks(self):
+        for mask in super().designmasks:
+            yield mask
+        for mask in self.gate.designmasks:
+            yield mask
+        if hasattr(self, "implant"):
+            for impl in self.implant:
+                for mask in impl.designmasks:
+                    yield mask
+        if hasattr(self, "well"):
+            for mask in self.well.designmasks:
+                yield mask
+        if hasattr(self, "contact"):
+            if (not hasattr(self.gate, "contact")) or (self.contact != self.gate.contact):
+                for mask in self.contact.designmasks:
+                    yield mask
 
 class Primitives:
     def __init__(self):

@@ -1,7 +1,7 @@
 import abc
 from . import _util, rule as rle, property_ as prp
 
-__all__ = ["DesignMask", "Masks"]
+__all__ = ["DesignMask"]
 
 class _MaskProperty(prp.Property):
     def __init__(self, mask, name):
@@ -135,11 +135,19 @@ class _Mask(abc.ABC):
     def alias(self, name):
         return _MaskAlias(name=name, mask=self)
 
+    @abc.abstractproperty
+    def designmasks(self):
+        return iter(tuple())
+
 class DesignMask(_Mask):
     def __init__(self, name):
         super().__init__(name)
 
         self.grid = _MaskProperty(self, "grid")
+
+    @property
+    def designmasks(self):
+        yield self
 
 class _PartsWith(_Mask):
     def __init__(self, *, mask, condition):
@@ -165,6 +173,10 @@ class _PartsWith(_Mask):
             mask.name, ",".join(str(cond) for cond in condition),
         ))
 
+    @property
+    def designmasks(self):
+        return self.mask.designmasks
+
 class Join(_Mask):
     def __init__(self, masks):
         if _util.is_iterable(masks):
@@ -176,6 +188,12 @@ class Join(_Mask):
         self.masks = masks
 
         super().__init__("join({})".format(",".join(mask.name for mask in masks)))
+
+    @property
+    def designmasks(self):
+        for mask in self.masks:
+            for designmask in mask.designmasks:
+                yield designmask
 
 class Intersect(_Mask):
     def __init__(self, masks):
@@ -189,6 +207,12 @@ class Intersect(_Mask):
 
         super().__init__("intersect({})".format(",".join(mask.name for mask in masks)))
 
+    @property
+    def designmasks(self):
+        for mask in self.masks:
+            for designmask in mask.designmasks:
+                yield designmask
+
 class _MaskRemove(_Mask):
     def __init__(self, *, from_, what):
         if not isinstance(from_, _Mask):
@@ -199,6 +223,12 @@ class _MaskRemove(_Mask):
         super().__init__("{}.remove({})".format(from_.name, what.name))
         self.from_ = from_
         self.what = what
+
+    @property
+    def designmasks(self):
+        for mask in (self.from_, self.what):
+            for designmask in mask.designmasks:
+                yield designmask
 
 class _MaskAlias(_Mask, rle._Rule):
     def __init__(self, *, name, mask):
@@ -213,6 +243,10 @@ class _MaskAlias(_Mask, rle._Rule):
 
     def __str__(self):
         return f"{self.mask.name}.alias({self.name})"
+
+    @property
+    def designmasks(self):
+        return self.mask.designmasks
 
 class Spacing(_DualMaskProperty):
     def __init__(self, mask1, mask2):
@@ -260,36 +294,6 @@ class SameNet(_Mask):
 
         super().__init__(f"same_net({mask.name})")
 
-class Masks:
-    def __init__(self):
-        self._masks = {}
-        self._frozen = False
-
-    def __getitem__(self, key):
-        return self._masks[key]
-
-    def __getattr__(self, name):
-        try:
-            return self._masks[name]
-        except KeyError:
-            raise AttributeError("Mask '{}' not present".format(name))
-
-    def freeze(self):
-        self._frozen = True
-
-    def __iadd__(self, other):
-        if self._frozen:
-            raise ValueError("Can't add mask when frozen")
-        masks = tuple(other) if _util.is_iterable(other) else (other,)
-        for mask in masks:
-            if not isinstance(mask, _Mask):
-                raise TypeError("Can only add 'Mask' object or an iterable of 'Mask' objects to 'Masks'")
-            if mask.name in self._masks:
-                raise ValueError("Mask '{}' already exists".format(mask.name))
-
-        self._masks.update({mask.name: mask for mask in masks})
-        
-        return self
-
-    def __iter__(self):
-        return iter(self._masks.values())
+    @property
+    def designmasks(self):
+        return self.mask.designmasks

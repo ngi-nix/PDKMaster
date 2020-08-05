@@ -20,13 +20,11 @@ class Technology(abc.ABC):
         if not isinstance(self.grid, float):
             raise AttributeError("grid Technology class attribute has to be a float")
 
-        self._masks = masks = msk.Masks()
         self._primitives = prims = prm.Primitives()
 
         self._init()
         self._build_rules()
 
-        masks.freeze()
         prims.freeze()
 
         self._substrate = None
@@ -66,10 +64,15 @@ class Technology(abc.ABC):
         return self._rules
 
     @property
-    def masks(self):
-        return self._masks
-
-    @property
     def primitives(self):
         return self._primitives
+
+    @property
+    def designmasks(self):
+        masks = set()
+        for prim in self._primitives:
+            for mask in prim.designmasks:
+                if mask not in masks:
+                    yield mask
+                    masks.add(mask)
 
