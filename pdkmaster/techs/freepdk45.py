@@ -54,6 +54,11 @@ class _FreePDK45(tech.Technology):
             ),
         )
         prims += depositions
+        # markers
+        markers = (
+            prm.Marker(mask=msk.DesignMask("sblock")),
+        )
+        prims += markers
         # wires
         wires = (prm.Wire(mask=mask, **wire_args) for mask, wire_args in (
             (masks.active, {
@@ -137,6 +142,15 @@ class _FreePDK45(tech.Technology):
             )
         )
         prims += taps
+        # resistors
+        resistors = (
+            prm.DerivedWire(name=name, wire=wire, marker=prims.sblock)
+            for name, wire in (
+                ("active_res", prims.active),
+                ("poly_res", prims.poly),
+            )
+        )
+        prims += resistors
         # vias
         vias = (
             prm.Via(**via_args) for via_args in (
