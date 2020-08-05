@@ -145,6 +145,8 @@ class _PartsWith(_Mask):
     def __init__(self, *, mask, condition):
         if not isinstance(mask, _Mask):
             raise TypeError("mask has to be be of type 'Mask'")
+        self.mask = mask
+
         condition = tuple(condition) if _util.is_iterable(condition) else (condition,)
         if not all(
             (
@@ -157,7 +159,8 @@ class _PartsWith(_Mask):
                 "condition has to a single or an iterable of condition on properties of mask '{}'".format(
                     mask.name,
                 ))
-        
+        self.condition = condition
+
         super().__init__("{}.parts_with({})".format(
             mask.name, ",".join(str(cond) for cond in condition),
         ))
@@ -177,6 +180,7 @@ class Join(_Mask):
             masks = (masks,)
         if not all(isinstance(mask, _Mask) for mask in masks):
             raise TypeError("masks has to be of type 'Mask' or an iterable of type 'Mask'")
+        self.masks = masks
 
         super().__init__("join({})".format(",".join(mask.name for mask in masks)))
 
@@ -188,6 +192,7 @@ class Intersect(_Mask):
             masks = (masks,)
         if not all(isinstance(mask, _Mask) for mask in masks):
             raise TypeError("masks has to be of type 'Mask' or an iterable of type 'Mask'")
+        self.masks = masks
 
         super().__init__("intersect({})".format(",".join(mask.name for mask in masks)))
 

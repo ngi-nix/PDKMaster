@@ -6,7 +6,7 @@ import abc
 
 from . import _util, property_ as prp, mask as msk, edge as edg
 
-__all__ = ["Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
+__all__ = ["Marker", "Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
 
 class _Primitive(abc.ABC):
     def __init__(self, name):
@@ -154,8 +154,6 @@ class _WidthSpacePrimitive(_MaskPrimitive):
 
             self.space_table = tuple(conv_spacetable_row(row) for row in space_table)
 
-
-
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
@@ -231,6 +229,12 @@ class DerivedWire(_WidthSpacePrimitive):
             raise TypeError("wire has to be of type 'Wire' or 'DerivedWire'")
         self.wire = wire
 
+        if not _util.is_iterable(marker):
+            marker = (marker,)
+        if not all(isinstance(prim, (Implant, Marker)) for prim in marker):
+            raise TypeError("marker has to be of type 'Implant' or 'Marker' or an iterable of those")
+        self.marker = marker
+
         if "mask" in widthspace_args:
             raise TypeError("DerivedWire got an unexpected keyword argument 'mask'")
         else:
@@ -252,12 +256,6 @@ class DerivedWire(_WidthSpacePrimitive):
             widthspace_args["min_space"] = wire.min_space
 
         super().__init__(**widthspace_args)
-
-        if not _util.is_iterable(marker):
-            marker = (marker,)
-        if not all(isinstance(prim, (Implant, Marker)) for prim in marker):
-            raise TypeError("marker has to be of type 'Implant' or 'Marker' or an iterable of those")
-        self.marker = marker
 
         min_enclosure = (_util.i2f(encl) for encl in min_enclosure) if _util.is_iterable(min_enclosure) else (_util.i2f(min_enclosure),)
         if not all(isinstance(enc, float) for enc in min_enclosure):
