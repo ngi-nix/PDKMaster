@@ -387,7 +387,6 @@ ilfiles = (
     _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/SKILL/config/pcios/s8/s8phirs-10r/info/devices.il",
     _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/SKILL/config/pcios/s8/s8phirs-10r/info/edr.il",
     _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/SKILL/SkyWater.il",
-    _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/libs/s8phirs_10r_old/libInit.il",
     _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/libs/technology_library/libInit.il",
     _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/libs/tech/libInit.il",
     _pdkdir+"/SkyWaterPDK_s8/VirtuosoOA/libs/s8phirs_10r/libInit.il",
