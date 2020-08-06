@@ -1,7 +1,7 @@
 import abc
 from . import _util, rule as rle, property_ as prp
 
-__all__ = ["DesignMask", "Wafer", "Masks"]
+__all__ = ["DesignMask", "Masks"]
 
 class _MaskProperty(prp.Property):
     def __init__(self, mask, name):
@@ -164,13 +164,6 @@ class _PartsWith(_Mask):
         super().__init__("{}.parts_with({})".format(
             mask.name, ",".join(str(cond) for cond in condition),
         ))
-
-class Wafer(_Mask):
-    # Class representing the whole wafer
-    def __init__(self):
-        super().__init__("wafer")
-
-        self.grid = _MaskProperty(self, "grid")
 
 class Join(_Mask):
     def __init__(self, masks):

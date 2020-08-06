@@ -1,6 +1,6 @@
 import abc
 
-from . import _util, property_ as prp, rule as rle, mask as msk, primitive as prm
+from . import _util, property_ as prp, rule as rle, mask as msk, wafer_ as wfr, primitive as prm
 
 __all__ = ["Technology"]
 
@@ -23,8 +23,6 @@ class Technology(abc.ABC):
         self._masks = masks = msk.Masks()
         self._primitives = prims = prm.Primitives()
 
-        masks += (msk.Wafer(),)
-
         self._init()
         self._build_rules()
 
@@ -39,12 +37,11 @@ class Technology(abc.ABC):
         raise RuntimeError("abstract base method _init() has to be implemnted in subclass")
 
     def _build_rules(self):
-        masks = self._masks
         prims = self._primitives
         self._rules = rules = rle.Rules()
 
         # grid
-        rules += masks.wafer.grid == self.grid
+        rules += wfr.wafer.grid == self.grid
 
         for prim in prims:
             prim._generate_rules(self)
@@ -59,9 +56,9 @@ class Technology(abc.ABC):
         if self._substrate is None:
             wells = filter(isinstance(prim, prm.Well) for prim in self.primitives)
             if not wells:
-                self._substrate = self.masks.wafer
+                self._substrate = wfr.wafer
             else:
-                self._substrate = self.masks.wafer.remove(msk.Join(wells))
+                self._substrate = wfr.wafer.remove(msk.Join(wells))
         return self._substrate
 
     @property

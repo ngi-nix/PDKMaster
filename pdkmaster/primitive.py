@@ -4,7 +4,7 @@ from warnings import warn
 from itertools import product
 import abc
 
-from . import _util, property_ as prp, mask as msk, edge as edg
+from . import _util, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
 __all__ = ["Marker", "Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
 
@@ -550,7 +550,7 @@ class MOSFETGate(_WidthSpacePrimitive):
                 else:
                     oxides_mask = msk.Join(oxide_masks)
                 mask = msk.Intersect(
-                    (active_mask, poly_mask, tech.masks.wafer.remove(oxides_mask)),
+                    (active_mask, poly_mask, wfr.wafer.remove(oxides_mask)),
                 ).alias(self.mask.name)
 
         mask_used = False
