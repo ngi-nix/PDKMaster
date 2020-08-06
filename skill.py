@@ -4,7 +4,7 @@ import sys
 import yaml
 
 from pdkmaster import SkillFile
-import pdkmaster.skill_grammar as skill_grammar
+import pdkmaster.parsing.skill_grammar as skill_grammar
 import modgrammar.debugging
 
 # Override debug
