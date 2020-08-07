@@ -139,11 +139,27 @@ class _Mask(abc.ABC):
     def designmasks(self):
         return iter(tuple())
 
-class DesignMask(_Mask):
-    def __init__(self, name):
+class DesignMask(_Mask, rle._Rule):
+    def __init__(self, name, gds_layer=None):
+        if gds_layer is not None:
+            gds_layer = tuple(gds_layer) if _util.is_iterable(gds_layer) else (gds_layer, 0)
+            if not ((len(gds_layer) == 2) and all(isinstance(n, int) for n in gds_layer)):
+                raise TypeError("gds_layer has to be an int or an iterable of two ints")
+            self.gds_layer = gds_layer
+
         super().__init__(name)
 
         self.grid = _MaskProperty(self, "grid")
+
+    def __repr__(self):
+        sgds = (
+            "" if not hasattr(self, "gds_layer")
+            else f", gds_layer={self.gds_layer[0]}.{self.gds_layer[1]}"
+        )
+        return f"design({self.name}{sgds})"
+
+    def __hash__(self):
+        return hash(self.name)
 
     @property
     def designmasks(self):

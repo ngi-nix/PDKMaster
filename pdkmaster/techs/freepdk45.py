@@ -18,46 +18,43 @@ class _FreePDK45(tech.Technology):
         prims += (
             # implants
             *(
-                prm.Implant(mask=implant,
+                prm.Implant(name=implant,
                     min_width=0.045, # Implant.3
                     min_space=0.045, # Implant.4
-                ) for implant in (
-                    msk.DesignMask("nimplant"), msk.DesignMask("pimplant"),
-                    msk.DesignMask("vthl"), msk.DesignMask("vthg"), msk.DesignMask("vthh"),
-                )
+                ) for implant in ("nimplant", "pimplant", "vthl", "vthg", "vthh")
             ),
             # wells
             *(
                 prm.Well(
-                    mask=impl,
+                    name=impl,
                     min_width = 0.200, # Well.4
                     min_space = 0.225, # Well.2
                     min_space_samenet = 0.135, # Well.3
-                ) for impl in (msk.DesignMask("nwell"), msk.DesignMask("pwell"))
+                ) for impl in ("nwell", "pwell")
             ),
             # depositions
-            prm.Deposition(mask=msk.DesignMask("thkox"),
+            prm.Deposition(name="thkox",
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),
             # markers
-            prm.Marker(mask=msk.DesignMask("sblock")),
+            prm.Marker(name="sblock"),
         )
 
         # wires
         prims += (
-            *(prm.Wire(mask=mask, **wire_args) for mask, wire_args in (
-                (msk.DesignMask("active"), {
+            *(prm.Wire(name=name, **wire_args) for name, wire_args in (
+                ("active", {
                     "min_width": 0.090, # Active.1
                     "min_space": 0.080, # Active.2
                     "enclosed_by": (prims.nwell, prims.pwell), # Active.4
                     "min_enclosure": 0.055, # Active.3
                 }),
-                (msk.DesignMask("poly"), {
+                ("poly", {
                     "min_width": 0.050, # Poly.1
                     "min_space": 0.070, # Poly.6
                 }),
-                (msk.DesignMask("metal1"), {
+                ("metal1", {
                     "min_width": 0.065, # Metal1.1
                     "min_space": 0.065, # Metal1.2
                     "space_table": (
@@ -79,7 +76,7 @@ class _FreePDK45(tech.Technology):
                             ((0.900, 2.700), 0.900), # MetalInt.8
                             ((1.500, 4.000), 1.500), # MetalInt.9
                         ),
-                    }) for metal in (msk.DesignMask('metal2'), msk.DesignMask("metal3"))
+                    }) for metal in ('metal2', "metal3")
                 ),
                 *(
                     (metal, {
@@ -91,9 +88,7 @@ class _FreePDK45(tech.Technology):
                             ((0.900, 2.700), 0.900), # MetalSMG.8
                             ((1.500, 4.000), 1.500), # MetalSMG.9; added
                         ),
-                    }) for metal in (
-                        msk.DesignMask("metal4"), msk.DesignMask("metal5"), msk.DesignMask("metal6"),
-                    )
+                    }) for metal in ("metal4", "metal5", "metal6")
                 ),
                 *(
                     (metal, {
@@ -106,7 +101,7 @@ class _FreePDK45(tech.Technology):
                             ((1.500, 4.000), 1.500), # MetalTNG.9; added
                         ),
                         "grid": 0.010, # Added rule
-                    }) for metal in (msk.DesignMask("metal7"), msk.DesignMask("metal8"))
+                    }) for metal in ("metal7", "metal8")
                 ),
                 *(
                     (metal, {
@@ -117,7 +112,7 @@ class _FreePDK45(tech.Technology):
                             ((1.500, 4.000), 1.500), # MetalG.9
                         ),
                         "grid": 0.010, # Added rule
-                    }) for metal in (msk.DesignMask("metal9"), msk.DesignMask("metal10"))
+                    }) for metal in ("metal9", "metal10")
                 ),
             )),
         )
@@ -127,7 +122,7 @@ class _FreePDK45(tech.Technology):
             *(
                 prm.Via(**via_args) for via_args in (
                     {
-                        "mask": msk.DesignMask("contact"),
+                        "name": "contact",
                         "width": 0.065, # Contact.1
                         "min_space": 0.075, # Contact.2
                         "bottom": (prims.active, prims.poly), # Contact.3
@@ -136,7 +131,7 @@ class _FreePDK45(tech.Technology):
                         "min_top_enclosure": (0.000, 0.035), # Metal1.3
                     },
                     {
-                        "mask": msk.DesignMask("via1"),
+                        "name": "via1",
                         "width": 0.065, # Contact.1
                         "min_space": 0.075, # Contact.2
                         "bottom": prims.metal1, # Contact.3
@@ -145,7 +140,7 @@ class _FreePDK45(tech.Technology):
                         "min_top_enclosure": (0.000, 0.035), # MetalInt.3
                     },
                     {
-                        "mask": msk.DesignMask("via2"),
+                        "name": "via2",
                         "width": 0.070, # Via[2-3].1
                         "min_space": 0.085, # Via[2-3].2
                         "bottom": prims.metal2, # Via[2-3].3
@@ -154,7 +149,7 @@ class _FreePDK45(tech.Technology):
                         "min_top_enclosure": (0.000, 0.035), # MetalInt.4
                     },
                     {
-                        "mask": msk.DesignMask("via3"),
+                        "name": "via3",
                         "width": 0.070, # Via[2-3].1
                         "min_space": 0.085, # Via[2-3].2
                         "bottom": prims.metal3, # Via[2-3].3
@@ -162,28 +157,28 @@ class _FreePDK45(tech.Technology):
                         "min_bottom_enclosure": (0.000, 0.035), # MetalInt.4
                     },
                     {
-                        "mask": msk.DesignMask("via4"),
+                        "name": "via4",
                         "width": 0.140, # Via[4-6].1
                         "min_space": 0.160, # Via[4-6].2
                         "bottom": prims.metal4, # Via[4-6].3, MetalSMG.3
                         "top": prims.metal5, # Via[4-6].4, MetalSMG.3
                     },
                     {
-                        "mask": msk.DesignMask("via5"),
+                        "name": "via5",
                         "width": 0.140, # Via[4-6].1
                         "min_space": 0.160, # Via[4-6].2
                         "bottom": prims.metal5, # Via[4-6].3, MetalSMG.3
                         "top": prims.metal6, # Via[4-6].4, MetalSMG.3
                     },
                     {
-                        "mask": msk.DesignMask("via6"),
+                        "name": "via6",
                         "width": 0.140, # Via[4-6].1
                         "min_space": 0.160, # Via[4-6].2
                         "bottom": prims.metal6, # Via[4-6].3, MetalSMG.3
                         "top": prims.metal7, # Via[4-6].4, MetalTNG.3
                     },
                     {
-                        "mask": msk.DesignMask("via7"),
+                        "name": "via7",
                         "width": 0.400, # Via[7-8].1
                         "min_space": 0.440, # Via[7-8].2
                         "bottom": prims.metal7, # Via[7-8].3, MetalTNG.3
@@ -191,7 +186,7 @@ class _FreePDK45(tech.Technology):
                         "grid": 0.010, # Added rule
                     },
                     {
-                        "mask": msk.DesignMask("via8"),
+                        "name": "via8",
                         "width": 0.400, # Via[7-8].1
                         "min_space": 0.440, # Via[7-8].2
                         "bottom": prims.metal8, # Via[7-8].3, MetalTNG.3
@@ -199,7 +194,7 @@ class _FreePDK45(tech.Technology):
                         "grid": 0.010, # Added rule
                     },
                     {
-                        "mask": msk.DesignMask("via9"),
+                        "name": "via9",
                         "width": 0.800, # Via[9].1
                         "min_space": 0.880, # Via[9].2
                         "bottom": prims.metal8, # Via[9].3, MetalG.3

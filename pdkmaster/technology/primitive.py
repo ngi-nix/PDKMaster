@@ -4,7 +4,7 @@ from warnings import warn
 from itertools import product
 import abc
 
-from . import _util, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
+from . import _util, rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
 __all__ = ["Marker", "Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
 
@@ -35,19 +35,13 @@ class _Primitive(abc.ABC):
 
 class _MaskPrimitive(_Primitive):
     def __init__(self, *, mask,
-        enclosed_by=None, min_enclosure=0.0, grid=None, _want_designmask=False,
+        enclosed_by=None, min_enclosure=0.0, grid=None,
         **primitive_args
     ):
-        if not _want_designmask:
-            if not isinstance(mask, msk._Mask):
-                raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
-                    self.__class__.__name__
-                ))
-        else:
-            if not isinstance(mask, msk.DesignMask):
-                raise TypeError("mask parameter for '{}' has to be of type 'DesignMask'".format(
-                    self.__class__.__name__
-                ))
+        if not isinstance(mask, msk._Mask):
+            raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
+                self.__class__.__name__
+            ))
 
         if enclosed_by is not None:
             enclosed_by = tuple(enclosed_by) if _util.is_iterable(enclosed_by) else (enclosed_by,)
@@ -78,9 +72,11 @@ class _MaskPrimitive(_Primitive):
             self.min_enclosure = min_enclosure
 
     @abc.abstractmethod
-    def _generate_rules(self, tech):
+    def _generate_rules(self, tech, *, gen_mask=True):
         super()._generate_rules(tech)
 
+        if gen_mask and isinstance(self.mask, rle._Rule):
+            self._rules += (self.mask,)
         if hasattr(self, "grid"):
             self._rules += (self.mask.grid == self.grid,)
         if hasattr(self, "enclosed_by"):
@@ -96,6 +92,11 @@ class _MaskPrimitive(_Primitive):
     def designmasks(self):
         return self.mask.designmasks
 
+    def _designmask_from_name(self, args):
+        if "mask" in args:
+            raise TypeError(f"{self.__class__.__name__} got unexpected keyword argument 'mask'")
+        args["mask"] = msk.DesignMask(args["name"], gds_layer=args.pop("gds_layer", None))
+
 class _PrimitiveProperty(prp.Property):
     def __init__(self, primitive, name):
         if not isinstance(primitive, _Primitive):
@@ -104,7 +105,8 @@ class _PrimitiveProperty(prp.Property):
 
 class Marker(_MaskPrimitive):
     def __init__(self, **mask_args):
-        super().__init__(_want_designmask=True, **mask_args)
+        self._designmask_from_name(mask_args)
+        super().__init__(**mask_args)
 
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
@@ -196,9 +198,8 @@ class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
     def __init__(self, **widthspace_args):
-        if "_want_designmask" in widthspace_args:
-            raise TypeError("got unexpected keyword argument '_want_designmaks'")
-        super().__init__(_want_designmask=True, **widthspace_args)
+        self._designmask_from_name(widthspace_args)
+        super().__init__(**widthspace_args)
 
 class Well(Implant):
     # Wells are non-overlapping by design
@@ -227,9 +228,8 @@ class Well(Implant):
 class Deposition(_WidthSpacePrimitive):
     # Layer for material deposition, if it is conducting Wire subclass should be used
     def __init__(self, **widthspace_args):
-        if "_want_designmask" in widthspace_args:
-            raise TypeError("got unexpected keyword argument '_want_designmaks'")
-        super().__init__(_want_designmask=True, **widthspace_args)
+        self._designmask_from_name(widthspace_args)
+        super().__init__(**widthspace_args)
 
 class Wire(Deposition):
     # Deposition layer that also a conductor
@@ -314,8 +314,7 @@ class Via(_MaskPrimitive):
         width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
         **primitive_args,
     ):
-        if "_want_designmask" in primitive_args:
-            raise TypeError("got unexpected keyword argument '_want_designmaks'")
+        self._designmask_from_name(primitive_args)
         if _util.is_iterable(bottom):
             bottom = tuple(bottom)
             if _util.is_iterable(min_bottom_enclosure):
@@ -386,11 +385,7 @@ class Via(_MaskPrimitive):
         if not isinstance(min_space, float):
             raise TypeError("min_space has to be a float")
 
-        if "name" not in primitive_args:
-            if "mask" in primitive_args:
-                primitive_args["name"] = primitive_args["mask"].name
-
-        super().__init__(_want_designmask=True, **primitive_args)
+        super().__init__(**primitive_args)
         self.bottom = bottom
         self.top = top
         self.width = width
@@ -559,7 +554,7 @@ class MOSFETGate(_WidthSpacePrimitive):
         )
 
     def _generate_rules(self, tech):
-        _MaskPrimitive._generate_rules(self, tech)
+        _MaskPrimitive._generate_rules(self, tech, gen_mask=False)
         active_mask = self.active.mask
         poly_mask = self.poly.mask
 
