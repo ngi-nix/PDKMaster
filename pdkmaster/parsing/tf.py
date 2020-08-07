@@ -645,6 +645,7 @@ def _layerDefinitions(elems, **kwargs):
 
 _value4function_table = {
     "techLayerPurposePriorities": _layers,
+    "controls": _skill_functionlist,
     "interconnect": _prop_value,
     "viewTypeUnits": _prop_value_units,
     "viaLayers": _combinedlayers,
