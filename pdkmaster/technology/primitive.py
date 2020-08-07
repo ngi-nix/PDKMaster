@@ -12,9 +12,14 @@ __all__ = ["Marker", "Deposition", "Implant", "Well", "Wire", "DerivedWire", "Vi
            "Spacing"]
 
 class _Primitive(abc.ABC):
+    _names = set()
+
     def __init__(self, name):
         if not isinstance(name, str):
-            raise TypeError("name argument of '{}' is not a string".format(self.__class__.__name__))
+            raise TypeError(f"name argument of '{self.__class__.__name__}' is not a string")
+        if name in _Primitive._names:
+            raise ValueError(f"primitive with name '{name}' already exists")
+        _Primitive._names.update(name)
 
         self.name = name
 
@@ -124,7 +129,8 @@ class Marker(_MaskPrimitive):
 
 class _WidthSpacePrimitive(_MaskPrimitive):
     def __init__(self, *,
-        min_width, min_space, min_area=None, space_table=None,
+        min_width, min_space, space_table=None,
+        min_area=None, min_density=None, max_density=None,
         **maskprimitive_args
     ):
         min_width = _util.i2f(min_width)
@@ -135,10 +141,33 @@ class _WidthSpacePrimitive(_MaskPrimitive):
             raise TypeError("min_width and min_space arguments for '{}' have to be floats".format(
                 self.__class__.__name__,
             ))
-        if not ((min_area is None) or isinstance(min_area, float)):
-            raise TypeError("min_area argument for '{}' has to be 'None' or a float".format(
-                self.__class__.__name__,
-            ))
+        self.min_width = min_width
+        self.min_space = min_space
+
+        if min_area is not None:
+            min_area = _util.i2f(min_area)
+            if not isinstance(min_area, float):
+                raise TypeError("min_area argument for '{}' has to be 'None' or a float".format(
+                    self.__class__.__name__,
+                ))
+            self.min_area = min_area
+
+        if min_density is not None:
+            min_density = _util.i2f(min_density)
+            if not isinstance(min_density, float):
+                raise TypeError("min_density has to be 'None' or a float")
+            if (min_density < 0.0) or (min_density > 1.0):
+                raise ValueError("min_density has be between 0.0 and 1.0")
+            self.min_density = min_density
+
+        if max_density is not None:
+            max_density = _util.i2f(max_density)
+            if not isinstance(max_density, float):
+                raise TypeError("max_density has to be 'None' or a float")
+            if (max_density < 0.0) or (max_density > 1.0):
+                raise ValueError("max_density has be between 0.0 and 1.0")
+            self.max_density = max_density
+
         if space_table is not None:
             try:
                 space_table = tuple(space_table)
@@ -163,12 +192,6 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                 if not isinstance(space, float):
                     raise TypeError("second element in a space_table row has to be a float")
 
-        super().__init__(**maskprimitive_args)
-        self.min_width = min_width
-        self.min_space = min_space
-        if min_area is not None:
-            self.min_area = min_area
-        if space_table is not None:
             def conv_spacetable_row(row):
                 width = _util.i2f(row[0])
                 space = _util.i2f(row[1])
@@ -177,6 +200,8 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                 return (width, space)
 
             self.space_table = tuple(conv_spacetable_row(row) for row in space_table)
+
+        super().__init__(**maskprimitive_args)
 
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
@@ -187,6 +212,10 @@ class _WidthSpacePrimitive(_MaskPrimitive):
         )
         if hasattr(self, "min_area"):
             self._rules += (self.mask.area >= self.min_area,)
+        if hasattr(self, "min_density"):
+            self._rules += (self.mask.density >= self.min_density,)
+        if hasattr(self, "max_density"):
+            self._rules += (self.mask.density <= self.max_density,)
         if hasattr(self, "space_table"):
             for row in self.space_table:
                 w = row[0]
@@ -211,12 +240,14 @@ class Implant(_WidthSpacePrimitive):
 class Well(Implant):
     # Wells are non-overlapping by design
     def __init__(self, *, min_space_samenet=None, **implant_args):
-        min_space_samenet = _util.i2f(min_space_samenet)
-        if not ((min_space_samenet is None) or isinstance(min_space_samenet, float)):
-            raise TypeError("min_space_samenet has to be 'None' or a float")
-            
         super().__init__(**implant_args)
+
         if min_space_samenet is not None:
+            min_space_samenet = _util.i2f(min_space_samenet)
+            if not isinstance(min_space_samenet, float):
+                raise TypeError("min_space_samenet has to be 'None' or a float")
+            if min_space_samenet >= self.min_space:
+                raise ValueError("min_space_samenet has to be smaller than min_space")
             self.min_space_samenet = min_space_samenet
 
     def _generate_rules(self, tech):
@@ -321,6 +352,10 @@ class Via(_MaskPrimitive):
         width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
         **primitive_args,
     ):
+        if "enclosed_by" in primitive_args:
+            raise TypeError("Via got unexpected keyword arguent 'enclosed_by'")
+        if "min_enclosure" in primitive_args:
+            raise TypeError("Via got unexpected keyword arguent 'min_enclosure'")
         self._designmask_from_name(primitive_args)
         if _util.is_iterable(bottom):
             bottom = tuple(bottom)
@@ -682,9 +717,32 @@ class MOSFET(_Primitive):
         elif not hasattr(gate, "min_polyactive_extension"):
             raise ValueError("min_polyactive_extension has to be either provided for the transistor gate or the transistor itself")
 
-        min_gateimplant_enclosure = _util.i2f(min_gateimplant_enclosure)
-        if not isinstance(min_gateimplant_enclosure, float):
-            raise TypeError("min_gateimplant_enclosure has to be a float")
+        min_gateimplant_enclosure = (
+            tuple(tuple(
+                _util.i2f(v) for v in enc) if _util.is_iterable(enc) else _util.i2f(enc)
+                for enc in min_gateimplant_enclosure
+            )
+            if _util.is_iterable(min_gateimplant_enclosure)
+            else (_util.i2f(min_gateimplant_enclosure),)
+        )
+        if len(implant) == 1 and len(min_gateimplant_enclosure) == 2:
+            min_gateimplant_enclosure = (min_gateimplant_enclosure,)
+        if len(implant) > 1 and len(min_gateimplant_enclosure) == 1:
+            min_gateimplant_enclosure *= len(implant)
+        if not all(
+            (isinstance(enc, float)
+             or (len(enc) == 2 and all(isinstance(v, float) for v in enc))
+            ) for enc in min_gateimplant_enclosure
+        ):
+            raise TypeError(
+                "min_gateimplant_enclosure has to be either:\n"
+                "* a float\n"
+                "* an iterable with same length as implant and with elements eihter:\n"
+                "  * a float\n"
+                "  * a length 2 iterable of float"
+            )
+        if len(implant) != len(min_gateimplant_enclosure):
+            raise ValueError("length mismatch between min_gateimplant_enclosure and implant")
         self.min_gateimplant_enclosure = min_gateimplant_enclosure
 
         if min_gate_space is not None:
@@ -727,8 +785,10 @@ class MOSFET(_Primitive):
         markedgate_edge = edg.MaskEdge(markedgate_mask)
         poly_mask = self.gate.poly.mask
         poly_edge = edg.MaskEdge(poly_mask)
+        channel_edge = edg.Intersect((markedgate_edge, poly_edge))
         active_mask = self.gate.active.mask
         active_edge = edg.MaskEdge(active_mask)
+        fieldgate_edge = edg.Intersect((markedgate_edge, active_edge))
 
         self._rules += (markedgate_mask,)
         if hasattr(self, "min_l"):
@@ -739,7 +799,16 @@ class MOSFET(_Primitive):
             self._rules += (active_mask.extend_over(markedgate_mask) >= self.min_sd_width,)
         if hasattr(self, "min_polyactive_extension"):
             self._rules += (poly_mask.extend_over(markedgate_mask) >= self.min_polyactive_extension,)
-        self._rules += tuple(markedgate_mask.enclosed_by(impl.mask) >= self.min_gateimplant_enclosure for impl in self.implant)
+        for i in range(len(self.implant)):
+            impl_mask = self.implant[i].mask
+            enc = self.min_gateimplant_enclosure[i]
+            if isinstance(enc, float):
+                self._rules += (markedgate_mask.enclosed_by(impl_mask) >= enc,)
+            else:
+                self._rules += (
+                    channel_edge.enclosed_by(impl_mask) >= enc[0],
+                    fieldgate_edge.enclosed_by(impl_mask) >= enc[1],
+                )
         if hasattr(self, "min_gate_space"):
             self._rules += (markedgate_mask.space >= self.min_gate_space,)
         if hasattr(self, "min_contactgate_space"):
