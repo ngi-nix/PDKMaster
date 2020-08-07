@@ -1,5 +1,7 @@
 import abc
-from . import _util, rule as rle
+
+from .. import _util
+from . import rule as rle
 
 __all__ = ["Operators", "Property"]
 

@@ -4,7 +4,8 @@ from warnings import warn
 from itertools import product
 import abc
 
-from . import _util, rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
+from .. import _util
+from . import rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
 __all__ = ["Marker", "Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
 

@@ -1,5 +1,7 @@
 import abc
-from . import _util, rule as rle, property_ as prp
+
+from .. import _util
+from . import rule as rle, property_ as prp
 
 __all__ = ["DesignMask"]
 

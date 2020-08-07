@@ -1,6 +1,6 @@
 import abc
 
-from . import _util
+from .. import _util
 
 __all__ = ["Rules"]
 

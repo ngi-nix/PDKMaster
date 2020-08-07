@@ -4,4 +4,4 @@ from .mask import *
 from .wafer_ import *
 from .edge import *
 from .primitive import *
-from .technology import *
+from .technology_ import *

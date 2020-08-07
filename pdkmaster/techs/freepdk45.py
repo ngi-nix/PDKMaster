@@ -1,4 +1,4 @@
-from ..technology import technology as tech, mask as msk, primitive as prm
+from ..technology import technology_ as tech, mask as msk, primitive as prm
 
 __all__ = ["technology"]
 

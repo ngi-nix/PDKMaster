@@ -1,6 +1,7 @@
 import abc
 
-from . import _util, property_ as prp, mask as msk
+from .. import _util
+from . import property_ as prp, mask as msk
 
 __all__ = ["MaskEdge"]
 
