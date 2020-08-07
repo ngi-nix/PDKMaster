@@ -12,8 +12,8 @@ class _Condition(rle._Rule):
         return hash(self._elements)
 
     @abc.abstractmethod
-    def __str__(self):
-        raise RuntimeError("_Condition subclass needs to implement __str__() method")
+    def __repr__(self):
+        raise RuntimeError("_Condition subclass needs to implement __repr__() method")
 
 class _BinaryPropertyCondition(_Condition, abc.ABC):
     symbol = abc.abstractproperty()
@@ -28,8 +28,8 @@ class _BinaryPropertyCondition(_Condition, abc.ABC):
         self.left = left
         self.right = left._conv_value(right)
 
-    def __str__(self):
-        return "{} {} {}".format(str(self.left), self.symbol, str(self.right))
+    def __repr__(self):
+        return "{} {} {}".format(repr(self.left), self.symbol, repr(self.right))
 
 class Operators:
     class Greater(_BinaryPropertyCondition):
@@ -74,7 +74,7 @@ class Property:
     def __eq__(self, other):
         return Ops.Equal(left=self, right=other)
 
-    def __str__(self):
+    def __repr__(self):
         return self.name
 
     def __hash__(self):

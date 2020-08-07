@@ -57,7 +57,7 @@ class _MultiMaskCondition(prp._Condition, abc.ABC):
     def __hash__(self):
         return hash((self.mask, *self.others))
 
-    def __str__(self):
+    def __repr__(self):
         return "{}.{}({})".format(
             str(self.mask), self.operation,
             ",".join(str(mask) for mask in self.others),
@@ -77,7 +77,7 @@ class _Mask(abc.ABC):
         self.space = _MaskProperty(self, "space")
         self.area = _MaskProperty(self, "area")
 
-    def __str__(self):
+    def __repr__(self):
         return self.name
 
     def extend_over(self, other):
@@ -257,7 +257,7 @@ class _MaskAlias(_Mask, rle._Rule):
     def __hash__(self):
         return hash((self.name, self.mask))
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.mask.name}.alias({self.name})"
 
     @property
@@ -293,11 +293,11 @@ class Connect(rle._Rule):
     def __hash__(self):
         return hash((self.mask1, self.mask2))
 
-    def __str__(self):
-        s1 = str(self.mask1[0]) if len(self.mask1) == 1 else "({})".format(
+    def __repr__(self):
+        s1 = self.mask1[0].name if len(self.mask1) == 1 else "({})".format(
             ",".join(m.name for m in self.mask1)
         )
-        s2 = str(self.mask2[0]) if len(self.mask2) == 1 else "({})".format(
+        s2 = self.mask2[0].name if len(self.mask2) == 1 else "({})".format(
             ",".join(m.name for m in self.mask2)
         )
         return f"connect({s1},{s2})"

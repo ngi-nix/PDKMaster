@@ -17,6 +17,10 @@ class _Primitive(abc.ABC):
 
         self._rules = None
 
+    def __repr__(self):
+        cname = self.__class__.__name__.split(".")[-1]
+        return f"{cname}({self.name})"
+
     @property
     def rules(self):
         if self._rules is None:
@@ -441,7 +445,7 @@ class Spacing(_Primitive):
         if not isinstance(min_space, float):
             raise TypeError("min_space has to be a float")
 
-        name = "spacing({})".format(",".join(
+        name = "Spacing({})".format(",".join(
             (
                 prims[0].name if len(prims) == 1
                 else "({})".format(",".join(prim.name for prim in prims))
@@ -463,6 +467,9 @@ class Spacing(_Primitive):
     @property
     def designmasks(self):
         return super().designmasks
+
+    def __repr__(self):
+        return self.name
 
 class MOSFETGate(_WidthSpacePrimitive):
     def __init__(self, *, name=None, poly, active, oxide=None,
