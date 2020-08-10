@@ -50,19 +50,24 @@ class _FreePDK45(tech.Technology):
             prm.Marker(name="sblock"),
         )
 
+        prims += (
+            prm.WaferWire("active", allow_in_substrate=False,
+                min_width=0.090, # Active.1
+                min_space=0.080, # Active.2
+                implant=(prims.nimplant, prims.pimplant), implant_abut="all",
+                allow_contactless_implant=False,
+                well=(prims.nwell, prims.pwell),
+                min_well_enclosure=0.055, # Active.3
+                allow_well_crossing=False,
+            ),
+            prm.BottomWire("poly",
+                min_width=0.050, # Poly.1
+                min_space=0.070, # Poly.6
+            ),
+        )
         # wires
         prims += (
             *(prm.Wire(name, **wire_args) for name, wire_args in (
-                ("active", {
-                    "min_width": 0.090, # Active.1
-                    "min_space": 0.080, # Active.2
-                    "enclosed_by": (prims.nwell, prims.pwell), # Active.4
-                    "min_enclosure": 0.055, # Active.3
-                }),
-                ("poly", {
-                    "min_width": 0.050, # Poly.1
-                    "min_space": 0.070, # Poly.6
-                }),
                 ("metal1", {
                     "min_width": 0.065, # Metal1.1
                     "min_space": 0.065, # Metal1.2
@@ -112,18 +117,25 @@ class _FreePDK45(tech.Technology):
                         "grid": 0.010, # Added rule
                     }) for metal in ("metal7", "metal8")
                 ),
-                *(
-                    (metal, {
-                        "min_width": 0.800, # MetalG.1
-                        "min_space": 0.800, # MetalG.2
-                        "space_table": (
-                            ((0.900, 2.700), 0.900), # MetalG.8
-                            ((1.500, 4.000), 1.500), # MetalG.9
-                        ),
-                        "grid": 0.010, # Added rule
-                    }) for metal in ("metal9", "metal10")
-                ),
+                ("metal9", {
+                    "min_width": 0.800, # MetalG.1
+                    "min_space": 0.800, # MetalG.2
+                    "space_table": (
+                        ((0.900, 2.700), 0.900), # MetalG.8
+                        ((1.500, 4.000), 1.500), # MetalG.9
+                    ),
+                    "grid": 0.010, # Added rule
+                }),
             )),
+        )
+        prims += prm.TopWire("metal10",
+            min_width=0.800, # MetalG.1
+            min_space=0.800, # MetalG.2
+            space_table=(
+                ((0.900, 2.700), 0.900), # MetalG.8
+                ((1.500, 4.000), 1.500), # MetalG.9
+            ),
+            grid=0.010, # Added rule
         )
 
         # vias
@@ -216,14 +228,6 @@ class _FreePDK45(tech.Technology):
 
         # misc using wires
         prims += (
-            # taps
-            *(
-                prm.DerivedWire(name=name, wire=prims.active, marker=marker, connects=well)
-                for name, marker, well in (
-                    ("ntap", (prims.nimplant, prims.nwell), prims.nwell),
-                    ("ptap", (prims.pimplant, prims.pwell), prims.pwell),
-                )
-            ),
             # resistors
             *(
                 prm.DerivedWire(name, wire=wire, marker=prims.sblock)

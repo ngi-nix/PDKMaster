@@ -1,13 +1,15 @@
 """The native technology primitives"""
 from textwrap import dedent
 from warnings import warn
-from itertools import product
+from itertools import product, combinations
 import abc
 
 from .. import _util
 from . import rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
-__all__ = ["Marker", "Deposition", "Implant", "Well", "Wire", "DerivedWire", "Via",
+__all__ = ["Marker", "Auxiliary",
+           "Deposition", "Wire", "WaferWire", "DerivedWire", "Via",
+           "Implant", "Well",
            "MOSFETGate", "MOSFET",
            "Spacing"]
 
@@ -116,6 +118,20 @@ class _PrimitiveProperty(prp.Property):
         super().__init__(primitive.name + "." + name)
 
 class Marker(_MaskPrimitive):
+    def __init__(self, name, **mask_args):
+        mask_args["name"] = name
+        self._designmask_from_name(mask_args)
+        super().__init__(**mask_args)
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+    @property
+    def designmasks(self):
+        return super().designmasks
+
+class Auxiliary(_MaskPrimitive):
+    # Layer not used in other primitives but defined by foundry for the technology
     def __init__(self, name, **mask_args):
         mask_args["name"] = name
         self._designmask_from_name(mask_args)
@@ -264,13 +280,6 @@ class Well(Implant):
         super()._generate_rules(tech)
 
         if hasattr(self, "min_space_samenet"):
-            if not any(
-                (isinstance(prim, DerivedWire)
-                and hasattr(prim, "connects")
-                and prim.connects == self
-                ) for prim in tech.primitives
-            ):
-                raise tech.TechnologyError(f"min_space_samenet specified for '{self.name}' but it is not connected")
             self._rules += (msk.SameNet(self.mask).space >= self.min_space_samenet,)
 
 class Deposition(_WidthSpacePrimitive):
@@ -284,13 +293,111 @@ class Wire(Deposition):
     # Deposition layer that also a conductor
     pass
 
+class BottomWire(Wire):
+    # This class represents a wire that does not need to be connected from the bottom
+    pass
+class TopWire(Wire):
+    # This class represents a wire that does not need to be connected from the top
+    pass
+
+class WaferWire(_WidthSpacePrimitive):
+    # The wire made from wafer material and normally isolated by LOCOS for old technlogies
+    # and STI for other ones.
+    def __init__(self, name, *,
+        allow_in_substrate,
+        implant, implant_abut, allow_contactless_implant,
+        well, min_well_enclosure, min_substrate_enclosure=None, allow_well_crossing,
+        **widthspace_args
+    ):
+        widthspace_args["name"] = name
+        self._designmask_from_name(widthspace_args)
+
+        if not isinstance(allow_in_substrate, bool):
+            raise TypeError("allow_in_substrate has to be a bool")
+        self.allow_in_substrate = allow_in_substrate
+
+        implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
+        if not all(
+            isinstance(impl, Implant) and not isinstance(impl, Well)
+            for impl in implant
+        ):
+            raise TypeError("implant has to be of type 'Implant' that is not a 'Well' or an interable of that")
+        self.implant = implant
+        if isinstance(implant_abut, str):
+            _conv = {"all": implant, "none": tuple()}
+            if implant_abut not in _conv:
+                raise ValueError("only 'all' or 'none' allowed for a string implant_abut")
+            implant_abut = _conv[implant_abut]
+        if not all(impl in implant for impl in implant_abut):
+            raise ValueError("implant_abut has to be an iterable of 'Implant' that are also in implant")
+        self.implant_abut = implant_abut
+        if not isinstance(allow_contactless_implant, bool):
+            raise TypeError("allow_contactless_implant has to be a bool")
+
+        well = tuple(well) if _util.is_iterable(well) else (well,)
+        if not all(isinstance(w, Well) for w in well):
+            raise TypeError("well has to be of type 'Well' or an iterable 'Well'")
+        self.well = well
+        min_well_enclosure = (
+            tuple(_util.i2f(enc) for enc in min_well_enclosure) if _util.is_iterable(min_well_enclosure)
+            else (_util.i2f(min_well_enclosure),)
+        )
+        if min_substrate_enclosure is None:
+            if len(min_well_enclosure) == 1:
+                min_substrate_enclosure = min_well_enclosure[0]
+            else:
+                raise TypeError("min_substrate_enclosure has be provided when providing multi min_well_enclosure values")
+        elif not allow_in_substrate:
+            raise TypeError("min_substrate_enclosure may not be provided if ")
+        if len(min_well_enclosure) == 1 and len(well) > 1:
+            min_well_enclosure *= len(well)
+        if not all(isinstance(enc, float) for enc in min_well_enclosure):
+            raise TypeError("min_well_enclosure has to be a float or an iterable of float")
+        if len(well) != len(min_well_enclosure):
+            raise ValueError("mismatch between number of well and number of min_well_enclosure")
+        self.min_well_enclosure = min_well_enclosure
+        if allow_in_substrate:
+            min_substrate_enclosure = _util.i2f(min_substrate_enclosure)
+            if not isinstance(min_substrate_enclosure, float):
+                raise TypeError("min_substrate_enclosure has to be 'None' or a float")
+            self.min_substrate_enclosure = min_substrate_enclosure
+        if not isinstance(allow_well_crossing, bool):
+            raise TypeError("allow_well_crossing has to be a bool")
+        self.allow_well_crossing = allow_well_crossing
+
+        super().__init__(**widthspace_args)
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        for impl in self.implant:
+            if self.allow_in_substrate and (impl.type_ == tech.substrate_type):
+                self._rules += (msk.Connect(msk.Intersect((self.mask, impl.mask)), tech.substrate),)
+            if impl not in self.implant_abut:
+                self._rules += (edg.MaskEdge(impl.mask).interact_with(self.mask).length == 0,)
+        for implduo in combinations((impl.mask for impl in self.implant_abut), 2):
+            self._rules += (msk.Intersect(implduo).area == 0,)
+        # TODO: allow_contactless_implant
+        for impl, w in product(self.implant, self.well):
+            if impl.type_ == w.type_:
+                self._rules += (msk.Connect(w.mask, msk.Intersect((self.mask, impl.mask))),)
+        for i in range(len(self.well)):
+            w = self.well[i]
+            enc = self.min_well_enclosure[i]
+            self._rules += (self.mask.enclosed_by(w.mask) >= enc,)
+        if hasattr(self, "min_substrate_enclosure"):
+            self._rules += (self.mask.enclosed_by(tech.substrate) >= self.min_substrate_enclosure,)
+        if not self.allow_well_crossing:
+            mask_edge = edg.MaskEdge(self.mask)
+            self._rules += tuple(mask_edge.interact_with(w.mask).length == 0 for w in self.well)
+
 class DerivedWire(_WidthSpacePrimitive):
     def __init__(self, name=None, *, wire, marker,
         min_enclosure=0.0, connects=None,
         **widthspace_args,
     ):
-        if not isinstance(wire, (Wire, DerivedWire)):
-            raise TypeError("wire has to be of type 'Wire' or 'DerivedWire'")
+        if not isinstance(wire, (Wire, WaferWire, DerivedWire)):
+            raise TypeError("wire has to be of type 'Wire', 'WaferWire' or 'DerivedWire'")
         self.wire = wire
 
         if not _util.is_iterable(marker):
@@ -390,8 +497,8 @@ class Via(_MaskPrimitive):
         for i in range(len(bottom)):
             wire = bottom[i]
             encl = min_bottom_enclosure[i]
-            if not isinstance(wire, (Wire, DerivedWire)):
-                raise TypeError("bottom has to be of type 'Wire' or 'DerivedWire' or an iterable of those")
+            if not isinstance(wire, (Wire, WaferWire, DerivedWire)):
+                raise TypeError("bottom has to be of type 'Wire', 'WaferWire' or DerivedWire' or an iterable of those")
             if not isinstance(encl, float):
                 try:
                     ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
@@ -491,6 +598,31 @@ class Via(_MaskPrimitive):
             for mask in conn.designmasks:
                 yield mask
 
+class PadOpening(_WidthSpacePrimitive):
+    def __init__(self, name, *, bottom, min_bottom_enclosure, **widthspace_args):
+        widthspace_args["name"] = name
+        self._designmask_from_name(widthspace_args)
+        super().__init__(**widthspace_args)
+
+        if not isinstance(bottom, Wire):
+            raise TypeError("bottom has to be of type 'Wire'")
+        self.bottom = bottom
+        min_bottom_enclosure = _util.i2f(min_bottom_enclosure)
+        if not isinstance(min_bottom_enclosure, float):
+            raise TypeError("min_bottom_enclosure has to be a float")
+        self.min_bottom_enclosure = min_bottom_enclosure
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        self._rules += (self.mask.enclosed_by(self.bottom.mask) >= self.min_bottom_enclosure,)
+
+    @property
+    def designmasks(self):
+        for mask in super().designmasks:
+            yield mask
+        yield self.bottom.mask
+
 class Spacing(_Primitive):
     def __init__(self, *, primitives1, primitives2, min_space):
         primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
@@ -541,8 +673,8 @@ class MOSFETGate(_WidthSpacePrimitive):
             raise NotImplementedError("poly of type 'DerivedWire'")
         self.poly = poly
 
-        if not isinstance(active, (Wire, DerivedWire)):
-            raise TypeError("active has to be of type 'Wire' or 'DerivedWire'")
+        if not isinstance(active, WaferWire):
+            raise TypeError("active has to be of type 'WaferWire'")
         if isinstance(active, DerivedWire):
             raise NotImplementedError("active of type 'DerivedWire'")
         self.active = active
