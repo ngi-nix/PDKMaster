@@ -24,12 +24,13 @@ class Technology(abc.ABC):
         self._primitives = prims = prm.Primitives()
 
         self._init()
+
+        self._init_done = True
+        self._substrate = None
+
         self._build_rules()
 
         prims.freeze()
-
-        self._substrate = None
-        self._init_done = True
 
     @abc.abstractmethod
     def _init(self):

@@ -720,12 +720,10 @@ class MOSFET(_Primitive):
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
-        markers = (self.well if hasattr(self, "well") else tech.substrate,)
+        markers = (self.well.mask if hasattr(self, "well") else tech.substrate,)
         if hasattr(self, "implant"):
-            markers += self.implant
-        markedgate_mask = msk.Intersect(
-            (self.gate.mask, *(marker.mask for marker in markers))
-        ).alias(f"gate:mosfet:{self.name}")
+            markers += tuple(impl.mask for impl in self.implant)
+        markedgate_mask = msk.Intersect((self.gate.mask, *markers)).alias(f"gate:mosfet:{self.name}")
         markedgate_edge = edg.MaskEdge(markedgate_mask)
         poly_mask = self.gate.poly.mask
         poly_edge = edg.MaskEdge(poly_mask)
