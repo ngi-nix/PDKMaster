@@ -11,15 +11,20 @@ class Technology(abc.ABC):
 
     name = abc.abstractproperty()
     grid = abc.abstractproperty()
+    substrate_type = abc.abstractproperty()
 
     def __init__(self):
         self._init_done = False
 
         if not isinstance(self.name, str):
-            raise AttributeError("name Technology class attribute has to be a string")
+            raise TypeError("name Technology class attribute has to be a string")
         self.grid = _util.i2f(self.grid)
         if not isinstance(self.grid, float):
-            raise AttributeError("grid Technology class attribute has to be a float")
+            raise TypeError("grid Technology class attribute has to be a float")
+        if not isinstance(self.substrate_type, str):
+            raise TypeError("substrate_type Technology class attribute has to be a string")
+        if not self.substrate_type in ("n", "p", "undoped"):
+            raise ValueError("substrate_type Technology class attribute has to be 'n', 'p' or 'undoped'")
 
         self._primitives = prims = prm.Primitives()
 

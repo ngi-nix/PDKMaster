@@ -233,8 +233,15 @@ class _WidthSpacePrimitive(_MaskPrimitive):
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
-    def __init__(self, **widthspace_args):
+    def __init__(self, *, type_, **widthspace_args):
         self._designmask_from_name(widthspace_args)
+
+        if not isinstance(type_, str):
+            raise TypeError("type_ has to be a string")
+        if type_ not in ("n", "p", "adjust"):
+            raise ValueError("type_ has to be 'n', 'p' or adjust")
+        self.type_ = type_
+
         super().__init__(**widthspace_args)
 
 class Well(Implant):

@@ -5,6 +5,7 @@ __all__ = ["technology"]
 class _FreePDK45(tech.Technology):
     name = "FreePDK45"
     grid = 0.0025
+    substrate_type = "undoped"
 
     def _init(self):
         prims = self._primitives
@@ -18,19 +19,28 @@ class _FreePDK45(tech.Technology):
         prims += (
             # implants
             *(
-                prm.Implant(name=implant,
+                prm.Implant(name=implant, type_=type_,
                     min_width=0.045, # Implant.3
                     min_space=0.045, # Implant.4
-                ) for implant in ("nimplant", "pimplant", "vthl", "vthg", "vthh")
+                ) for implant, type_ in (
+                    ("nimplant", "n"),
+                    ("pimplant", "p"),
+                    ("vthl", "adjust"),
+                    ("vthg", "adjust"),
+                    ("vthh", "adjust"),
+                )
             ),
             # wells
             *(
                 prm.Well(
-                    name=impl,
+                    name=impl, type_=type_,
                     min_width = 0.200, # Well.4
                     min_space = 0.225, # Well.2
                     min_space_samenet = 0.135, # Well.3
-                ) for impl in ("nwell", "pwell")
+                ) for impl, type_ in (
+                    ("nwell", "n"),
+                    ("pwell", "p"),
+                )
             ),
             # depositions
             prm.Deposition(name="thkox",
