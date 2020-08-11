@@ -13,6 +13,26 @@ class _EdgeProperty(prp.Property):
         self.edge = edge
         self.prop_name = name
 
+class _DualEdgeProperty(prp.Property):
+    def __init__(self, edge1, edge2, name, *, commutative, allow_mask2):
+        assert all((
+            isinstance(commutative, bool),
+            isinstance(allow_mask2, bool),
+            isinstance(edge1, _Edge),
+            isinstance(edge2, _Edge) or (isinstance(edge2, msk._Mask) and allow_mask2),
+            isinstance(name, str),
+        )), "Internal error"
+
+        if commutative:
+            name = "{}({},{})".format(name, edge1.name, edge2.name)
+        else:
+            name = "{}.{}({})".format(edge1.name, name, edge2.name)
+        super().__init__(name)
+
+        self.edge1 = edge1
+        self.edge2 = edge2
+        self.property = name
+
 class _Edge(abc.ABC):
     @abc.abstractmethod
     def __init__(self, name):
@@ -24,6 +44,35 @@ class _Edge(abc.ABC):
 
     def __str__(self):
         return self.name
+
+    def enclosed_by(self, other):
+        if not isinstance(other, (_Edge, msk._Mask)):
+            raise TypeError("other has to be of type '_Edge' or '_Mask'")
+
+        return _DualEdgeProperty(
+            self, other, "enclosed_by",
+            commutative=False, allow_mask2=True,
+        )
+
+    def interact_with(self, other):
+        if not isinstance(other, (_Edge, msk._Mask)):
+            raise TypeError("other has to be of type '_Edge' or '_Mask'")
+
+        return _DualEdgeOperation(self, other, "interact_with", allow_mask2=True)
+
+class _DualEdgeOperation(_Edge):
+    def __init__(self, edge1, edge2, name, allow_mask2=False):
+        assert all((
+            isinstance(name, str),
+            isinstance(edge1, _Edge),
+            isinstance(allow_mask2, bool),
+            isinstance(edge2, _Edge) or (allow_mask2 and isinstance(edge2, msk._Mask)),
+        )), "Internal error"
+
+        super().__init__(name=f"{edge1.name}.{name}({edge2.name})")
+        self.edge1 = edge1
+        self.edge2 = edge2
+        self.operation = name
 
 class MaskEdge(_Edge):
     def __init__(self, mask):

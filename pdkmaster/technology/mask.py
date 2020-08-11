@@ -78,6 +78,7 @@ class _Mask(abc.ABC):
         self.length = _MaskProperty(self, "length")
         self.space = _MaskProperty(self, "space")
         self.area = _MaskProperty(self, "area")
+        self.density = _MaskProperty(self, "density")
 
     def __repr__(self):
         return self.name
