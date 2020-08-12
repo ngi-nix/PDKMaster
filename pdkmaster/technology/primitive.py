@@ -11,7 +11,8 @@ __all__ = ["Marker", "Auxiliary",
            "Deposition", "Wire", "WaferWire", "DerivedWire", "Via",
            "Implant", "Well",
            "MOSFETGate", "MOSFET",
-           "Spacing"]
+           "Spacing",
+           "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
 
 class _Primitive(abc.ABC):
     _names = set()
@@ -337,6 +338,9 @@ class WaferWire(_WidthSpacePrimitive):
         well = tuple(well) if _util.is_iterable(well) else (well,)
         if not all(isinstance(w, Well) for w in well):
             raise TypeError("well has to be of type 'Well' or an iterable 'Well'")
+        for w in well:
+            if not any(impl.type_ == w.type_ for impl in implant):
+                raise UnconnectedPrimitiveError(f"well '{well.name}' is unconnected")
         self.well = well
         min_well_enclosure = (
             tuple(_util.i2f(enc) for enc in min_well_enclosure) if _util.is_iterable(min_well_enclosure)
@@ -1012,3 +1016,8 @@ class Primitives:
 
     def __iter__(self):
         return iter(self._primitives.values())
+
+class UnusedPrimitiveError(Exception):
+    pass
+class UnconnectedPrimitiveError(Exception):
+    pass
