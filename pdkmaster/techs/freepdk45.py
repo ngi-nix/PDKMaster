@@ -19,7 +19,7 @@ class _FreePDK45(tech.Technology):
         prims += (
             # implants
             *(
-                prm.Implant(name=implant, type_=type_,
+                prm.Implant(implant, type_=type_,
                     min_width=0.045, # Implant.3
                     min_space=0.045, # Implant.4
                 ) for implant, type_ in (
@@ -32,8 +32,7 @@ class _FreePDK45(tech.Technology):
             ),
             # wells
             *(
-                prm.Well(
-                    name=impl, type_=type_,
+                prm.Well(impl, type_=type_,
                     min_width = 0.200, # Well.4
                     min_space = 0.225, # Well.2
                     min_space_samenet = 0.135, # Well.3
@@ -43,7 +42,7 @@ class _FreePDK45(tech.Technology):
                 )
             ),
             # depositions
-            prm.Deposition(name="thkox",
+            prm.Deposition("thkox",
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),
@@ -53,7 +52,7 @@ class _FreePDK45(tech.Technology):
 
         # wires
         prims += (
-            *(prm.Wire(name=name, **wire_args) for name, wire_args in (
+            *(prm.Wire(name, **wire_args) for name, wire_args in (
                 ("active", {
                     "min_width": 0.090, # Active.1
                     "min_space": 0.080, # Active.2
@@ -227,7 +226,7 @@ class _FreePDK45(tech.Technology):
             ),
             # resistors
             *(
-                prm.DerivedWire(name=name, wire=wire, marker=prims.sblock)
+                prm.DerivedWire(name, wire=wire, marker=prims.sblock)
                 for name, wire in (
                     ("active_res", prims.active),
                     ("poly_res", prims.poly),
@@ -240,16 +239,16 @@ class _FreePDK45(tech.Technology):
 
         # transistors
         prims += (
-            prm.MOSFETGate(
-                name="mosgate", poly=prims.poly, active=prims.active,
+            prm.MOSFETGate("mosgate",
+                poly=prims.poly, active=prims.active,
                 # No need for overruling min_l, min_w
                 min_sd_width=0.070, # Poly.4
                 min_polyactive_extension=0.055, # Poly.3
                 contact=prims.contact, min_contactgate_space=0.035, # Contact.6
                 min_gate_space=0.140, #
             ),
-            prm.MOSFETGate(
-                name="thkmosgate", poly=prims.poly, active=prims.active, oxide=prims.thkox,
+            prm.MOSFETGate("thkmosgate",
+                poly=prims.poly, active=prims.active, oxide=prims.thkox,
                 min_l=0.060, # Added rule
                 min_sd_width=0.070, # Poly.4
                 min_polyactive_extension=0.055, # Poly.3

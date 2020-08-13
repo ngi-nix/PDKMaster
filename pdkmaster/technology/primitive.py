@@ -116,7 +116,8 @@ class _PrimitiveProperty(prp.Property):
         super().__init__(primitive.name + "." + name)
 
 class Marker(_MaskPrimitive):
-    def __init__(self, **mask_args):
+    def __init__(self, name, **mask_args):
+        mask_args["name"] = name
         self._designmask_from_name(mask_args)
         super().__init__(**mask_args)
 
@@ -233,7 +234,8 @@ class _WidthSpacePrimitive(_MaskPrimitive):
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
-    def __init__(self, *, type_, **widthspace_args):
+    def __init__(self, name, *, type_, **widthspace_args):
+        widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args)
 
         if not isinstance(type_, str):
@@ -246,7 +248,8 @@ class Implant(_WidthSpacePrimitive):
 
 class Well(Implant):
     # Wells are non-overlapping by design
-    def __init__(self, *, min_space_samenet=None, **implant_args):
+    def __init__(self, name, *, min_space_samenet=None, **implant_args):
+        implant_args["name"] = name
         super().__init__(**implant_args)
 
         if min_space_samenet is not None:
@@ -272,7 +275,8 @@ class Well(Implant):
 
 class Deposition(_WidthSpacePrimitive):
     # Layer for material deposition, if it is conducting Wire subclass should be used
-    def __init__(self, **widthspace_args):
+    def __init__(self, name, **widthspace_args):
+        widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args)
         super().__init__(**widthspace_args)
 
@@ -281,7 +285,7 @@ class Wire(Deposition):
     pass
 
 class DerivedWire(_WidthSpacePrimitive):
-    def __init__(self, *, wire, marker,
+    def __init__(self, name=None, *, wire, marker,
         min_enclosure=0.0, connects=None,
         **widthspace_args,
     ):
@@ -315,6 +319,8 @@ class DerivedWire(_WidthSpacePrimitive):
         else:
             widthspace_args["min_space"] = wire.min_space
 
+        if name is not None:
+            widthspace_args["name"] = name
         super().__init__(**widthspace_args)
 
         min_enclosure = (_util.i2f(encl) for encl in min_enclosure) if _util.is_iterable(min_enclosure) else (_util.i2f(min_enclosure),)
@@ -354,11 +360,12 @@ class DerivedWire(_WidthSpacePrimitive):
                 yield mask
 
 class Via(_MaskPrimitive):
-    def __init__(self, *,
+    def __init__(self, name, *,
         bottom, top,
         width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
         **primitive_args,
     ):
+        primitive_args["name"] = name
         if "enclosed_by" in primitive_args:
             raise TypeError("Via got unexpected keyword arguent 'enclosed_by'")
         if "min_enclosure" in primitive_args:
@@ -523,7 +530,7 @@ class Spacing(_Primitive):
         return self.name
 
 class MOSFETGate(_WidthSpacePrimitive):
-    def __init__(self, *, name=None, poly, active, oxide=None,
+    def __init__(self, name=None, *, poly, active, oxide=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
         contact=None, min_contactgate_space=None,
