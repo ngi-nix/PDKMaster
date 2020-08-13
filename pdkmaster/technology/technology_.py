@@ -53,11 +53,16 @@ class Technology(abc.ABC):
         if not self._init_done:
             raise AttributeError("substrate may not be accessed during object initialization")
         if self._substrate is None:
-            wells = filter(isinstance(prim, prm.Well) for prim in self.primitives)
-            if not wells:
+            well_masks = tuple(
+                prim.mask for prim in
+                filter(lambda p: isinstance(p, prm.Well), self._primitives)
+            )
+            if not well_masks:
                 self._substrate = wfr.wafer
             else:
-                self._substrate = wfr.wafer.remove(msk.Join(wells))
+                self._substrate = wfr.wafer.remove(
+                    well_masks[0] if len(well_masks) == 1 else msk.Join(well_masks),
+                )
         return self._substrate
 
     @property
