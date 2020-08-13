@@ -7,7 +7,9 @@ import abc
 from .. import _util
 from . import rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
-__all__ = ["Marker", "Well", "Wire", "Via", "MOSFETGate", "MOSFET"]
+__all__ = ["Marker", "Deposition", "Implant", "Well", "Wire", "DerivedWire", "Via",
+           "MOSFETGate", "MOSFET",
+           "Spacing"]
 
 class _Primitive(abc.ABC):
     def __init__(self, name):
@@ -328,7 +330,10 @@ class Via(_MaskPrimitive):
                 min_bottom_enclosure = len(bottom)*(min_bottom_enclosure,)
         else:
             bottom = (bottom,)
-            min_bottom_enclosure = (min_bottom_enclosure,)
+            min_bottom_enclosure = (
+                tuple(min_bottom_enclosure) if _util.is_iterable(min_bottom_enclosure)
+                else min_bottom_enclosure,
+            )
         if len(bottom) != len(min_bottom_enclosure):
             raise ValueError(
                 "min_bottom_enclosure has to be single or an iterable with same length as the bottom parameter",
@@ -359,7 +364,10 @@ class Via(_MaskPrimitive):
                 min_top_enclosure = len(top)*(min_top_enclosure,)
         else:
             top = (top,)
-            min_top_enclosure = (min_top_enclosure,)
+            min_top_enclosure = (
+                tuple(min_top_enclosure) if _util.is_iterable(min_top_enclosure)
+                else min_top_enclosure,
+            )
         if len(top) != len(min_top_enclosure):
             raise ValueError(
                 "min_top_enclosure has to be single or an iterable with same length as the top parameter",

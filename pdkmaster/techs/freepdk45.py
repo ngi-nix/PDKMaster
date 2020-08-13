@@ -197,8 +197,8 @@ class _FreePDK45(tech.Technology):
                         "name": "via9",
                         "width": 0.800, # Via[9].1
                         "min_space": 0.880, # Via[9].2
-                        "bottom": prims.metal8, # Via[9].3, MetalG.3
-                        "top": prims.metal9, # Via[9].4, MetalG.3
+                        "bottom": prims.metal9, # Via[9].3, MetalG.3
+                        "top": prims.metal10, # Via[9].4, MetalG.3
                         "grid": 0.010, # Added rule
                     },
                 )
