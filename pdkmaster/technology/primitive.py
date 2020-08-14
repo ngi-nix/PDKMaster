@@ -321,7 +321,7 @@ class WaferWire(_WidthSpacePrimitive):
             raise TypeError("well has to be of type 'Well' or an iterable 'Well'")
         for w in well:
             if not any(impl.type_ == w.type_ for impl in implant):
-                raise UnconnectedPrimitiveError(f"well '{well.name}' is unconnected")
+                raise UnconnectedPrimitiveError(well)
         self.well = well
         min_well_enclosure = (
             tuple(_util.i2f(enc) for enc in min_well_enclosure) if _util.is_iterable(min_well_enclosure)
@@ -943,6 +943,14 @@ class Primitives(_util.TypedTuple):
     tt_element_type = _Primitive
 
 class UnusedPrimitiveError(Exception):
-    pass
+    def __init__(self, primitive):
+        assert isinstance(primitive, _Primitive)
+        super().__init__(
+            f"primitive '{primitive.name}' defined but not used"
+        )
 class UnconnectedPrimitiveError(Exception):
-    pass
+    def __init__(self, primitive):
+        assert isinstance(primitive, _Primitive)
+        super().__init__(
+            f"primitive '{primitive.name}' is not connected"
+        )
