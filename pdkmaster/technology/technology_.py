@@ -8,6 +8,8 @@ __all__ = ["Technology"]
 class Technology(abc.ABC):
     class TechnologyError(Exception):
         pass
+    class ConnectionError(Exception):
+        pass
 
     name = abc.abstractproperty()
     grid = abc.abstractproperty()
@@ -33,8 +35,7 @@ class Technology(abc.ABC):
         self._init_done = True
         self._substrate = None
 
-        self._checks()
-
+        self._build_interconnect()
         self._build_rules()
 
         prims.tt_freeze()
@@ -43,63 +44,144 @@ class Technology(abc.ABC):
     def _init(self):
         raise RuntimeError("abstract base method _init() has to be implemnted in subclass")
 
-    def _checks(self):
-        used_implants = set()
-        used_wells = set()
-        used_gates = set()
-        topconnected_wires = set()
-        bottomconnected_wires = set()
+    def _build_interconnect(self):
+        prims = self._primitives
 
-        for prim in self._primitives:
-            if isinstance(prim, prm.BottomWire):
-                bottomconnected_wires.add(prim)
-            elif isinstance(prim, prm.TopWire):
-                topconnected_wires.add(prim)
-            elif isinstance(prim, prm.PadOpening):
-                topconnected_wires.add(prim.bottom)
-            elif isinstance(prim, prm.WaferWire):
-                used_implants.update((*prim.implant, *prim.well))
-                used_wells.update(prim.well)
-            elif isinstance(prim, prm.Via):
-                topconnected_wires.update(prim.bottom)
-                bottomconnected_wires.update(prim.top)
-            elif isinstance(prim, prm.MOSFET):
-                used_implants.update(
-                    filter(lambda impl: impl.type_ == "adjust", prim.implant)
-                )
-                used_gates.add(prim.gate)
-            elif isinstance(prim, prm.Via):
-                topconnected_wires.update(prim.bottom)
-                bottomconnected_wires.update(prim.top)
+        neworder = []
+        def add_prims(prims2):
+            for prim in prims2:
+                idx = prims.index(prim)
+                if idx not in neworder:
+                    neworder.append(idx)
 
-        for prim in self._primitives:
-            if isinstance(prim, prm.Implant) and (prim not in used_implants):
-                raise prm.UnusedPrimitiveError(
-                    f"implant '{prim.name}' defined but not used"
-                )
-            if isinstance(prim, prm.Well) and (prim not in used_wells):
-                raise prm.UnusedPrimitiveError(
-                    f"implant '{prim.name}' defined but not used"
-                )
-            if isinstance(prim, prm.Wire):
-                if prim not in topconnected_wires:
-                    raise prm.UnconnectedPrimitiveError(
-                        f"wire '{prim.name}' is not connected from the top"
-                    )
-                if prim not in bottomconnected_wires:
-                    raise prm.UnconnectedPrimitiveError(
-                        f"wire '{prim.name}' is not connected from the bottom"
-                    )
-            if isinstance(prim, prm.MOSFETGate) and (prim not in used_gates):
-                raise prm.UnconnectedPrimitiveError(
-                    f"gate '{prim.name}' defined but not used"
+        def get_name(prim):
+            return prim.name
+
+        # set that are build up when going over the primitives
+        # bottomwires: primitives that still need to be bottomconnected by a via
+        bottomwires = set(prims.tt_iter_type(prm.BottomWire))
+        # implants: used implant not added yet
+        implants = set() # Implants to add
+        markers = set() # Markers to add
+        # the wells, fixed
+        wells = set(prims.tt_iter_type(prm.Well))
+
+        # Wells are the first primitives in line
+        add_prims(sorted(wells, key=get_name))
+
+        # process waferwires
+        waferwires = set(prims.tt_iter_type(prm.WaferWire))
+        bottomwires.update(waferwires) # They also need to be connected
+        conn_wells = set()
+        for wire in waferwires:
+            implants.update((*wire.implant, *wire.well))
+            conn_wells.update(wire.well)
+        if conn_wells != wells:
+            raise prm.UnconnectedPrimitiveError((wells - conn_wells).pop())
+
+        # Already add implants that are used in the waferwires
+        add_prims(sorted(implants, key=get_name))
+        implants = set()
+
+        # process vias
+        vias = set(prims.tt_iter_type(prm.Via))
+
+        def allwires(wire):
+            if isinstance(wire, prm.DerivedWire):
+                yield allwires(wire.wire)
+                for m in wire.marker:
+                    yield m
+            yield wire
+
+        connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))
+        while connvias:
+            viabottoms = set()
+            viatops = set()
+            for via in connvias:
+                viabottoms.update(via.bottom)
+                viatops.update(via.top)
+
+            noconn = viabottoms - bottomwires
+            if noconn:
+                raise Technology.ConnectionError(
+                    f"wires ({', '.join(wire.name) for wire in noconn}) not connected from bottom"
                 )
 
-        for gate in used_gates:
-            if gate not in self._primitives:
-                raise Technology.TechnologyError(
-                    f"gate '{gate.name}' used for MOSFET but is not in primitives attribute"
-                )
+            for bottom in viabottoms:
+                add_prims(allwires(bottom))
+
+            bottomwires -= viabottoms
+            bottomwires.update(viatops)
+
+            vias -= connvias
+            connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))
+        # Add the top layers of last via to the prims
+        for top in viatops:
+            add_prims(allwires(top))
+
+        if vias:
+            raise Technology.ConnectionError(
+                f"vias ({', '.join(via.name for via in vias)}) not connected to bottom wires"
+            )
+        # Now add all vias
+        add_prims(prims.tt_iter_type(prm.Via))
+
+        # process mosfets
+        mosfets = set(prims.tt_iter_type(prm.MOSFET))
+        gates = set(mosfet.gate for mosfet in mosfets)
+        actives = set(gate.active for gate in gates)
+        polys = set(gate.poly for gate in gates)
+        bottomwires.update(polys) # Also need to be connected
+        oxides = set()
+        for gate in gates:
+            if hasattr(gate, "oxide"):
+                oxides.add(gate.oxide)
+        for mosfet in mosfets:
+            implants.update(mosfet.implant)
+            if hasattr(mosfet, "well"):
+                implants.add(mosfet.well)
+
+        add_prims((
+            *sorted(implants, key=get_name),
+            *sorted(actives, key=get_name), *sorted(polys, key=get_name),
+            *sorted(oxides, key=get_name), *sorted(gates, key=get_name),
+            *sorted(mosfets, key=get_name),
+        ))
+        implants = set()
+        markers = set()
+
+        # proces pad openings
+        padopenings = set(prims.tt_iter_type(prm.PadOpening))
+        viabottoms = set()
+        for padopening in padopenings:
+            add_prims(allwires(padopening.bottom))
+        add_prims(padopenings)
+
+        # process top wires
+        add_prims(prims.tt_iter_type(prm.TopWire))
+
+        # process derivedwires
+        # TODO: proper connection check DerivedWire
+        derivedwires = set(prims.tt_iter_type(prm.DerivedWire))
+        for derivedwire in derivedwires:
+            markers.update(derivedwire.marker)
+
+        # process spacings
+        spacings = set(prims.tt_iter_type(prm.Spacing))
+
+        add_prims((*markers, *derivedwires, *spacings))
+
+        # process auxiliary
+        def aux_key(aux):
+            return (getattr(aux.mask, "gds_layer", (1000000, 1000000)), aux.name)
+        add_prims(sorted(prims.tt_iter_type(prm.Auxiliary), key=aux_key))
+
+        # reorder primitives
+        unused = set(range(len(prims))) - set(neworder)
+        if unused:
+            raise prm.UnusedPrimitiveError(prims[unused.pop()])
+        prims.tt_reorder(neworder)
+
     def _build_rules(self):
         prims = self._primitives
         self._rules = rules = rle.Rules()
