@@ -933,40 +933,8 @@ class MOSFET(_Primitive):
                 for mask in self.contact.designmasks:
                     yield mask
 
-class Primitives:
-    def __init__(self):
-        self._primitives = {}
-        self._frozen = False
-
-    def __getitem__(self, key):
-        return self._primitives[key]
-
-    def __getattr__(self, name):
-        try:
-            return self._primitives[name]
-        except KeyError:
-            raise AttributeError("Primitive '{}' not present".format(name))
-
-    def freeze(self):
-        self._frozen = True
-
-    def __iadd__(self, other):
-        if self._frozen:
-            raise ValueError("Can't add primitive when frozen")
-        e = TypeError("Can only add 'Primitive' object or an iterable of 'Primitive' objects to 'Primitives'")
-        prims = tuple(other) if _util.is_iterable(other) else (other,)
-        for prim in prims:
-            if not isinstance(prim, _Primitive):
-                raise e
-            if prim.name in self._primitives:
-                raise ValueError("Primitive '{}' already exists".format(prim.name))
-
-        self._primitives.update({prim.name: prim for prim in prims})
-
-        return self
-
-    def __iter__(self):
-        return iter(self._primitives.values())
+class Primitives(_util.TypedTuple):
+    tt_element_type = _Primitive
 
 class UnusedPrimitiveError(Exception):
     pass

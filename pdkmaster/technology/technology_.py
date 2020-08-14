@@ -37,7 +37,7 @@ class Technology(abc.ABC):
 
         self._build_rules()
 
-        prims.freeze()
+        prims.tt_freeze()
 
     @abc.abstractmethod
     def _init(self):
@@ -111,7 +111,7 @@ class Technology(abc.ABC):
             prim._generate_rules(self)
             rules += prim.rules
 
-        rules.freeze()
+        rules.tt_freeze()
 
     @property
     def substrate(self):
@@ -119,8 +119,7 @@ class Technology(abc.ABC):
             raise AttributeError("substrate may not be accessed during object initialization")
         if self._substrate is None:
             well_masks = tuple(
-                prim.mask for prim in
-                filter(lambda p: isinstance(p, prm.Well), self._primitives)
+                prim.mask for prim in self._primitives.tt_iter_type(prm.Well)
             )
             if not well_masks:
                 self._substrate = wfr.wafer
