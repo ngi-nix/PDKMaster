@@ -33,6 +33,12 @@ class _Primitive(abc.ABC):
         cname = self.__class__.__name__.split(".")[-1]
         return f"{cname}({self.name})"
 
+    def __eq__(self, other):
+        return (self.__class__ == other.__class__) and (self.name == other.name)
+
+    def __hash__(self):
+        return hash(self.name)
+
     @property
     def rules(self):
         if self._rules is None:
