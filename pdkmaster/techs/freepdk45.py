@@ -1,8 +1,8 @@
-from ..technology import technology_ as tech, mask as msk, primitive as prm
+from ..technology import technology_ as tch, mask as msk, primitive as prm
 
 __all__ = ["technology"]
 
-class _FreePDK45(tech.Technology):
+class _FreePDK45(tch.Technology):
     name = "FreePDK45"
     grid = 0.0025
     substrate_type = "undoped"

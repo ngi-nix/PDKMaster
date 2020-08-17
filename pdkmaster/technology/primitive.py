@@ -8,8 +8,9 @@ from .. import _util
 from . import rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
 __all__ = ["Marker", "Auxiliary",
-           "Deposition", "Wire", "WaferWire", "DerivedWire", "Via",
            "Implant", "Well",
+           "Deposition", "Wire", "WaferWire", "DerivedWire", "BottomWire", "TopWire",
+           "Via", "PadOpening",
            "MOSFETGate", "MOSFET",
            "Spacing",
            "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
@@ -49,27 +50,12 @@ class _Primitive(abc.ABC):
         return iter(tuple())
 
 class _MaskPrimitive(_Primitive):
-    def __init__(self, *, mask,
-        enclosed_by=None, min_enclosure=0.0, grid=None,
-        **primitive_args
-    ):
+    def __init__(self, *, mask, grid=None, **primitive_args):
         if not isinstance(mask, msk._Mask):
             raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
                 self.__class__.__name__
             ))
 
-        if enclosed_by is not None:
-            enclosed_by = tuple(enclosed_by) if _util.is_iterable(enclosed_by) else (enclosed_by,)
-            if _util.is_iterable(min_enclosure):
-                min_enclosure = tuple(_util.i2f(minenc) for minenc in min_enclosure)
-            else:
-                min_enclosure = len(enclosed_by)*(_util.i2f(min_enclosure),)
-            if not all(isinstance(enc, _MaskPrimitive) for enc in enclosed_by):
-                raise TypeError("enclosed_by has to be of type '_Primitive' or an iterable of type '_Primitive'")
-            if not all(isinstance(enc, float) for enc in min_enclosure):
-                raise TypeError("min_enclosure has to be a float or an iterable of floats")
-            if len(enclosed_by) != len(min_enclosure):
-                raise ValueError("Wrong number of min_enclosure values given")
         if grid is not None:
             grid = _util.i2f(grid)
             if not isinstance(grid, float):
@@ -82,10 +68,6 @@ class _MaskPrimitive(_Primitive):
         if grid is not None:
             self.grid = grid
 
-        if enclosed_by is not None:
-            self.enclosed_by = enclosed_by
-            self.min_enclosure = min_enclosure
-
     @abc.abstractmethod
     def _generate_rules(self, tech, *, gen_mask=True):
         super()._generate_rules(tech)
@@ -94,14 +76,6 @@ class _MaskPrimitive(_Primitive):
             self._rules += (self.mask,)
         if hasattr(self, "grid"):
             self._rules += (self.mask.grid == self.grid,)
-        if hasattr(self, "enclosed_by"):
-            for i in range(len(self.enclosed_by)):
-                mask = self.enclosed_by[i].mask
-                enclosure = self.min_enclosure[i]
-                if isinstance(enclosure, float):
-                    self._rules += (self.mask.enclosed_by(mask) >= enclosure,)
-                else:
-                    self._rules += (self.mask.enclosed_by_asymmetric(mask) >= enclosure,)
 
     @property
     def designmasks(self):
@@ -334,6 +308,7 @@ class WaferWire(_WidthSpacePrimitive):
         self.implant_abut = implant_abut
         if not isinstance(allow_contactless_implant, bool):
             raise TypeError("allow_contactless_implant has to be a bool")
+        self.allow_contactless_implant = allow_contactless_implant
 
         well = tuple(well) if _util.is_iterable(well) else (well,)
         if not all(isinstance(w, Well) for w in well):
@@ -346,13 +321,6 @@ class WaferWire(_WidthSpacePrimitive):
             tuple(_util.i2f(enc) for enc in min_well_enclosure) if _util.is_iterable(min_well_enclosure)
             else (_util.i2f(min_well_enclosure),)
         )
-        if min_substrate_enclosure is None:
-            if len(min_well_enclosure) == 1:
-                min_substrate_enclosure = min_well_enclosure[0]
-            else:
-                raise TypeError("min_substrate_enclosure has be provided when providing multi min_well_enclosure values")
-        elif not allow_in_substrate:
-            raise TypeError("min_substrate_enclosure may not be provided if ")
         if len(min_well_enclosure) == 1 and len(well) > 1:
             min_well_enclosure *= len(well)
         if not all(isinstance(enc, float) for enc in min_well_enclosure):
@@ -361,10 +329,17 @@ class WaferWire(_WidthSpacePrimitive):
             raise ValueError("mismatch between number of well and number of min_well_enclosure")
         self.min_well_enclosure = min_well_enclosure
         if allow_in_substrate:
+            if min_substrate_enclosure is None:
+                if len(min_well_enclosure) == 1:
+                    min_substrate_enclosure = min_well_enclosure[0]
+                else:
+                    raise TypeError("min_substrate_enclosure has be provided when providing multi min_well_enclosure values")
             min_substrate_enclosure = _util.i2f(min_substrate_enclosure)
             if not isinstance(min_substrate_enclosure, float):
                 raise TypeError("min_substrate_enclosure has to be 'None' or a float")
             self.min_substrate_enclosure = min_substrate_enclosure
+        elif min_substrate_enclosure is not None:
+            raise TypeError("min_substrate_enclosure should be 'None' if allow_in_substrate is 'False'")
         if not isinstance(allow_well_crossing, bool):
             raise TypeError("allow_well_crossing has to be a bool")
         self.allow_well_crossing = allow_well_crossing
@@ -397,7 +372,7 @@ class WaferWire(_WidthSpacePrimitive):
 
 class DerivedWire(_WidthSpacePrimitive):
     def __init__(self, name=None, *, wire, marker,
-        min_enclosure=0.0, connects=None,
+        min_enclosure=0.0,
         **widthspace_args,
     ):
         if not isinstance(wire, (Wire, WaferWire, DerivedWire)):
@@ -434,7 +409,11 @@ class DerivedWire(_WidthSpacePrimitive):
             widthspace_args["name"] = name
         super().__init__(**widthspace_args)
 
-        min_enclosure = (_util.i2f(encl) for encl in min_enclosure) if _util.is_iterable(min_enclosure) else (_util.i2f(min_enclosure),)
+        min_enclosure = (
+            tuple(_util.i2f(encl) for encl in min_enclosure)
+            if _util.is_iterable(min_enclosure)
+            else (_util.i2f(min_enclosure),)
+        )
         if not all(isinstance(enc, float) for enc in min_enclosure):
             raise TypeError("min_enclosure has to be a float or an iterable of float")
         if len(min_enclosure) == 1:
@@ -442,11 +421,6 @@ class DerivedWire(_WidthSpacePrimitive):
         if len(min_enclosure) != len(marker):
             raise ValueError("mismatch in number of marker and min_enclosure")
         self.min_enclosure = min_enclosure
-
-        if connects is not None:
-            if not isinstance(connects, Well):
-                raise TypeError("connects has to be 'None' or of type 'Well'")
-            self.connects = connects
 
     def _generate_rules(self, tech):
         # Do not generate the default width/space rules.
@@ -459,16 +433,6 @@ class DerivedWire(_WidthSpacePrimitive):
         if hasattr(self, "min_area"):
             if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
                 self._rules += (self.mask.area >= self.min_area,)
-        if hasattr(self, "connects"):
-            self._rules += (msk.Connect(self.mask, self.connects.mask),)
-
-    @property
-    def designmasks(self):
-        for mask in super().designmasks:
-            yield mask
-        if hasattr(self, "connects"):
-            for mask in self.connects.designmasks:
-                yield mask
 
 class Via(_MaskPrimitive):
     def __init__(self, name, *,
@@ -477,10 +441,6 @@ class Via(_MaskPrimitive):
         **primitive_args,
     ):
         primitive_args["name"] = name
-        if "enclosed_by" in primitive_args:
-            raise TypeError("Via got unexpected keyword arguent 'enclosed_by'")
-        if "min_enclosure" in primitive_args:
-            raise TypeError("Via got unexpected keyword arguent 'min_enclosure'")
         self._designmask_from_name(primitive_args)
         if _util.is_iterable(bottom):
             bottom = tuple(bottom)
@@ -572,14 +532,6 @@ class Via(_MaskPrimitive):
         self._rules += (
             self.mask.width == self.width,
             self.mask.space >= self.min_space,
-            # *(
-            #     self.mask.enclosed_by(self.bottom[i].mask) >= self.min_bottom_enclosure[i]
-            #     for i in range(len(self.bottom))
-            # ),
-            # *(
-            #     self.mask.enclosed_by(self.top[i].mask) >= self.min_top_enclosure[i]
-            #     for i in range(len(self.top))
-            # ),
         )
         self._rules += (msk.Connect((b.mask for b in self.bottom), self.mask),)
         for i in range(len(self.bottom)):
@@ -916,11 +868,10 @@ class MOSFET(_Primitive):
         elif contact is not None:
             raise ValueError("contact layer provided without min_contactgate_space specification")
 
-        if model is None:
-            model = name
-        if not isinstance(model, str):
-            raise TypeError("model has to be 'None' or a string")
-        self.model = model
+        if model is not None:
+            if not isinstance(model, str):
+                raise TypeError("model has to be 'None' or a string")
+            self.model = model
 
         self.l = _PrimitiveProperty(self, "l")
         self.w = _PrimitiveProperty(self, "w")
