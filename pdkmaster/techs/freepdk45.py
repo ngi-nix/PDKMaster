@@ -42,12 +42,15 @@ class _FreePDK45(tch.Technology):
                 )
             ),
             # depositions
-            prm.Deposition("thkox",
+            prm.Insulator("thkox",
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),
-            # markers
-            prm.Marker(name="sblock"),
+            # silicide block
+            prm.ExtraProcess(name="sblock",
+                min_width=0.045, # Own rule
+                min_space=0.045, # Own rule
+            ),
         )
 
         prims += (
@@ -60,14 +63,14 @@ class _FreePDK45(tch.Technology):
                 min_well_enclosure=0.055, # Active.3
                 allow_well_crossing=False,
             ),
-            prm.BottomWire("poly",
+            prm.GateWire("poly",
                 min_width=0.050, # Poly.1
                 min_space=0.070, # Poly.6
             ),
         )
         # wires
         prims += (
-            *(prm.Wire(name, **wire_args) for name, wire_args in (
+            *(prm.MetalWire(name, **wire_args) for name, wire_args in (
                 ("metal1", {
                     "min_width": 0.065, # Metal1.1
                     "min_space": 0.065, # Metal1.2
@@ -128,7 +131,7 @@ class _FreePDK45(tch.Technology):
                 }),
             )),
         )
-        prims += prm.TopWire("metal10",
+        prims += prm.TopMetalWire("metal10",
             min_width=0.800, # MetalG.1
             min_space=0.800, # MetalG.2
             space_table=(
@@ -230,7 +233,10 @@ class _FreePDK45(tch.Technology):
         prims += (
             # resistors
             *(
-                prm.DerivedWire(name, wire=wire, marker=prims.sblock)
+                prm.Resistor(name,
+                    wire=wire, indicator=prims.sblock,
+                    min_enclosure=0.045, # Own rule
+                )
                 for name, wire in (
                     ("active_res", prims.active),
                     ("poly_res", prims.poly),

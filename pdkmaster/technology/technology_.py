@@ -59,7 +59,7 @@ class Technology(abc.ABC):
 
         # set that are build up when going over the primitives
         # bottomwires: primitives that still need to be bottomconnected by a via
-        bottomwires = set(prims.tt_iter_type(prm.BottomWire))
+        bottomwires = set()
         # implants: used implant not added yet
         implants = set() # Implants to add
         markers = set() # Markers to add
@@ -79,6 +79,9 @@ class Technology(abc.ABC):
         if conn_wells != wells:
             raise prm.UnconnectedPrimitiveError((wells - conn_wells).pop())
 
+        # process gatewires
+        bottomwires.update(prims.tt_iter_type(prm.GateWire))
+
         # Already add implants that are used in the waferwires
         add_prims(sorted(implants, key=get_name))
         implants = set()
@@ -87,7 +90,7 @@ class Technology(abc.ABC):
         vias = set(prims.tt_iter_type(prm.Via))
 
         def allwires(wire):
-            if isinstance(wire, prm.DerivedWire):
+            if isinstance(wire, prm.Resistor):
                 yield allwires(wire.wire)
                 for m in wire.marker:
                     yield m
@@ -157,19 +160,19 @@ class Technology(abc.ABC):
             add_prims(allwires(padopening.bottom))
         add_prims(padopenings)
 
-        # process top wires
-        add_prims(prims.tt_iter_type(prm.TopWire))
+        # process top metal wires
+        add_prims(prims.tt_iter_type(prm.TopMetalWire))
 
-        # process derivedwires
-        # TODO: proper connection check DerivedWire
-        derivedwires = set(prims.tt_iter_type(prm.DerivedWire))
-        for derivedwire in derivedwires:
-            markers.update(derivedwire.marker)
+        # process resistors
+        # TODO: proper connection check Resistor
+        resistors = set(prims.tt_iter_type(prm.Resistor))
+        for resistor in resistors:
+            markers.update(resistor.indicator)
 
         # process spacings
         spacings = set(prims.tt_iter_type(prm.Spacing))
 
-        add_prims((*markers, *derivedwires, *spacings))
+        add_prims((*markers, *resistors, *spacings))
 
         # process auxiliary
         def aux_key(aux):

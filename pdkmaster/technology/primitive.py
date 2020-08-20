@@ -7,9 +7,10 @@ import abc
 from .. import _util
 from . import rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
 
-__all__ = ["Marker", "Auxiliary",
+__all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Implant", "Well",
-           "Deposition", "Wire", "WaferWire", "DerivedWire", "BottomWire", "TopWire",
+           "Insulator", "WaferWire", "GateWire", "MetalWire", "TopMetalWire",
+           "Resistor",
            "Via", "PadOpening",
            "MOSFETGate", "MOSFET",
            "Spacing",
@@ -18,6 +19,7 @@ __all__ = ["Marker", "Auxiliary",
 class _Primitive(abc.ABC):
     _names = set()
 
+    @abc.abstractmethod
     def __init__(self, name):
         if not isinstance(name, str):
             raise TypeError(f"name argument of '{self.__class__.__name__}' is not a string")
@@ -56,6 +58,7 @@ class _Primitive(abc.ABC):
         return iter(tuple())
 
 class _MaskPrimitive(_Primitive):
+    @abc.abstractmethod
     def __init__(self, *, mask, grid=None, **primitive_args):
         if not isinstance(mask, msk._Mask):
             raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
@@ -126,6 +129,7 @@ class Auxiliary(_MaskPrimitive):
         return super().designmasks
 
 class _WidthSpacePrimitive(_MaskPrimitive):
+    @abc.abstractmethod
     def __init__(self, *,
         min_width, min_space, space_table=None,
         min_area=None, min_density=None, max_density=None,
@@ -228,6 +232,12 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                     ))
                 self._rules += (msk.Spacing(submask, self.mask) >= row[1],)
 
+class ExtraProcess(_WidthSpacePrimitive):
+    def __init__(self, name, **widthspace_args):
+        widthspace_args["name"] = name
+        self._designmask_from_name(widthspace_args)
+        super().__init__(**widthspace_args)
+
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
@@ -263,23 +273,11 @@ class Well(Implant):
         if hasattr(self, "min_space_samenet"):
             self._rules += (msk.SameNet(self.mask).space >= self.min_space_samenet,)
 
-class Deposition(_WidthSpacePrimitive):
-    # Layer for material deposition, if it is conducting Wire subclass should be used
+class Insulator(_WidthSpacePrimitive):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args)
         super().__init__(**widthspace_args)
-
-class Wire(Deposition):
-    # Deposition layer that also a conductor
-    pass
-
-class BottomWire(Wire):
-    # This class represents a wire that does not need to be connected from the bottom
-    pass
-class TopWire(Wire):
-    # This class represents a wire that does not need to be connected from the top
-    pass
 
 class WaferWire(_WidthSpacePrimitive):
     # The wire made from wafer material and normally isolated by LOCOS for old technlogies
@@ -376,28 +374,48 @@ class WaferWire(_WidthSpacePrimitive):
             mask_edge = edg.MaskEdge(self.mask)
             self._rules += tuple(mask_edge.interact_with(w.mask).length == 0 for w in self.well)
 
-class DerivedWire(_WidthSpacePrimitive):
-    def __init__(self, name=None, *, wire, marker,
-        min_enclosure=0.0,
+class GateWire(_WidthSpacePrimitive):
+    def __init__(self, name, **widthspace_args):
+        widthspace_args["name"] = name
+        self._designmask_from_name(widthspace_args)
+        super().__init__(**widthspace_args)
+
+class MetalWire(_WidthSpacePrimitive):
+    def __init__(self, name, **widthspace_args):
+        widthspace_args["name"] = name
+        self._designmask_from_name(widthspace_args)
+        super().__init__(**widthspace_args)
+
+class TopMetalWire(MetalWire):
+    pass
+
+class Resistor(_WidthSpacePrimitive):
+    def __init__(self, name=None, *,
+        wire, indicator, min_enclosure,
         **widthspace_args,
     ):
-        if not isinstance(wire, (Wire, WaferWire, DerivedWire)):
-            raise TypeError("wire has to be of type 'Wire', 'WaferWire' or 'DerivedWire'")
+        if not isinstance(wire, (WaferWire, GateWire, MetalWire)):
+            raise TypeError(
+                "wire has to be of type '(Wafer|Gate|Metal)Wire'"
+            )
         self.wire = wire
 
-        if not _util.is_iterable(marker):
-            marker = (marker,)
-        if not all(isinstance(prim, (Implant, Marker)) for prim in marker):
-            raise TypeError("marker has to be of type 'Implant' or 'Marker' or an iterable of those")
-        self.marker = marker
+        if not _util.is_iterable(indicator):
+            indicator = (indicator,)
+        if not all(isinstance(prim, (Marker, ExtraProcess)) for prim in indicator):
+            raise TypeError(
+                "indicator has to be of type 'Marker' or 'ExtraProcess' "
+                "or an iterable of those"
+            )
+        self.indicator = indicator
 
         if "mask" in widthspace_args:
-            raise TypeError("DerivedWire got an unexpected keyword argument 'mask'")
+            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
         else:
-            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in (wire, *marker))
+            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in (wire, *indicator))
 
         if "grid" in widthspace_args:
-            raise TypeError("DerivedWire got an unexpected keyword argument 'grid'")
+            raise TypeError("Resistor got an unexpected keyword argument 'grid'")
 
         if "min_width" in widthspace_args:
             if widthspace_args["min_width"] < wire.min_width:
@@ -423,9 +441,9 @@ class DerivedWire(_WidthSpacePrimitive):
         if not all(isinstance(enc, float) for enc in min_enclosure):
             raise TypeError("min_enclosure has to be a float or an iterable of float")
         if len(min_enclosure) == 1:
-            min_enclosure = len(marker)*min_enclosure
-        if len(min_enclosure) != len(marker):
-            raise ValueError("mismatch in number of marker and min_enclosure")
+            min_enclosure = len(indicator)*min_enclosure
+        if len(min_enclosure) != len(indicator):
+            raise ValueError("mismatch in number of indicator and min_enclosure")
         self.min_enclosure = min_enclosure
 
     def _generate_rules(self, tech):
@@ -467,8 +485,14 @@ class Via(_MaskPrimitive):
         for i in range(len(bottom)):
             wire = bottom[i]
             encl = min_bottom_enclosure[i]
-            if not isinstance(wire, (Wire, WaferWire, DerivedWire)):
-                raise TypeError("bottom has to be of type 'Wire', 'WaferWire' or DerivedWire' or an iterable of those")
+            if not (
+                isinstance(wire, (WaferWire, GateWire, MetalWire, Resistor))
+                and not isinstance(wire, TopMetalWire)
+            ):
+                raise TypeError(
+                    "bottom has to be of type '(Wafer|Gate|Metal)Wire' or 'Resistor'\n"
+                    "or an iterable of those"
+                )
             if not isinstance(encl, float):
                 try:
                     ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
@@ -501,8 +525,8 @@ class Via(_MaskPrimitive):
         for i in range(len(top)):
             wire = top[i]
             encl = min_top_enclosure[i]
-            if not isinstance(wire, (Wire, DerivedWire)):
-                raise TypeError("top has to be of type 'Wire' or 'DerivedWire' or an iterable of those")
+            if not isinstance(wire, (MetalWire, Resistor)):
+                raise TypeError("top has to be of type 'MetalWire' or 'Resistor' or an iterable of those")
             if not isinstance(encl, float):
                 try:
                     ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
@@ -566,8 +590,8 @@ class PadOpening(_WidthSpacePrimitive):
         self._designmask_from_name(widthspace_args)
         super().__init__(**widthspace_args)
 
-        if not isinstance(bottom, Wire):
-            raise TypeError("bottom has to be of type 'Wire'")
+        if not (isinstance(bottom, MetalWire) and not isinstance(bottom, TopMetalWire)):
+            raise TypeError("bottom has to be of type 'MetalWire'")
         self.bottom = bottom
         min_bottom_enclosure = _util.i2f(min_bottom_enclosure)
         if not isinstance(min_bottom_enclosure, float):
@@ -642,27 +666,23 @@ class MOSFETGate(_WidthSpacePrimitive):
     def computed(self):
         return MOSFETGate._ComputedProps(self)
 
-    def __init__(self, name=None, *, poly, active, oxide=None,
+    def __init__(self, name=None, *, active, poly, oxide=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
         contact=None, min_contactgate_space=None,
     ):
-        if not isinstance(poly, (Wire, DerivedWire)):
-            raise TypeError("poly has to be of type 'Wire' or 'DerivedWire'")
-        if isinstance(poly, DerivedWire):
-            raise NotImplementedError("poly of type 'DerivedWire'")
-        self.poly = poly
-
         if not isinstance(active, WaferWire):
             raise TypeError("active has to be of type 'WaferWire'")
-        if isinstance(active, DerivedWire):
-            raise NotImplementedError("active of type 'DerivedWire'")
         self.active = active
+
+        if not isinstance(poly, GateWire):
+            raise TypeError("poly has to be of type 'GateWire'")
+        self.poly = poly
 
         prims = (poly, active)
         if oxide is not None:
-            if not (isinstance(oxide, Deposition) and not isinstance(oxide, Wire)):
-                raise TypeError("oxide has to be 'None' or of type 'Deposition'")
+            if not isinstance(oxide, Insulator):
+                raise TypeError("oxide has to be 'None' or of type 'Insulator'")
             self.oxide = oxide
             prims += (oxide,)
 

@@ -29,28 +29,31 @@ class PrimitiveDispatcher:
     def _WidthSpacePrimitive(self, prim, *args, **kwargs):
         return self._MaskPrimitive(prim, *args, **kwargs)
 
+    def ExtraProcess(self, prim, *args, **kwargs):
+        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+
     def Implant(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
 
     def Well(self, prim, *args, **kwargs):
         return self.Implant(prim, *args, **kwargs)
 
-    def Deposition(self, prim, *args, **kwargs):
+    def Insulator(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
-
-    def Wire(self, prim, *args, **kwargs):
-        return self.Deposition(prim, *args, **kwargs)
-
-    def BottomWire(self, prim, *args, **kwargs):
-        return self.Wire(prim, *args, **kwargs)
-
-    def TopWire(self, prim, *args, **kwargs):
-        return self.Wire(prim, *args, **kwargs)
 
     def WaferWire(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
 
-    def DerivedWire(self, prim, *args, **kwargs):
+    def GateWire(self, prim, *args, **kwargs):
+        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+
+    def MetalWire(self, prim, *args, **kwargs):
+        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+
+    def TopMetalWire(self, prim, *args, **kwargs):
+        return self.MetalWire(prim, *args, **kwargs)
+
+    def Resistor(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
     
     def Via(self, prim, *args, **kwargs):

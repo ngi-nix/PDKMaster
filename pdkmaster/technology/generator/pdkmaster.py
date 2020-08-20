@@ -74,6 +74,9 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _params_Auxiliary(self, prim):
         return self._params_mask(prim)
 
+    def _params_ExtraProcess(self, prim):
+        return self._params_widthspace(prim)
+
     def _params_Implant(self, prim):
         s = f"type_='{prim.type_}',\n"
         s += self._params_widthspace(prim)
@@ -87,17 +90,17 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s += self._params_Implant(prim)
         return s
 
-    def _params_Deposition(self, prim):
+    def _params_Insulator(self, prim):
         return self._params_widthspace(prim)
 
-    def _params_Wire(self, prim):
-        return self._params_Deposition(prim)
+    def _params_GateWire(self, prim):
+        return self._params_widthspace(prim)
 
-    def _params_BottomWire(self, prim):
-        return self._params_Wire(prim)
+    def _params_MetalWire(self, prim):
+        return self._params_widthspace(prim)
 
-    def _params_TopWire(self, prim):
-        return self._params_Wire(prim)
+    def _params_TopMetalWire(self, prim):
+        return self._params_MetalWire(prim)
 
     def _params_WaferWire(self, prim):
         s = f"allow_in_substrate={prim.allow_in_substrate},\n"
@@ -112,8 +115,8 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s += self._params_widthspace(prim)
         return s
 
-    def _params_DerivedWire(self, prim):
-        s = f"wire={_str_prim(prim.wire)}, marker={_str_primtuple(prim.marker)},\n"
+    def _params_Resistor(self, prim):
+        s = f"wire={_str_prim(prim.wire)}, indicator={_str_primtuple(prim.indicator)},\n"
         s += f"min_enclosure={prim.min_enclosure},\n"
         s += self._params_widthspace(prim)
         return s
@@ -148,7 +151,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         return s
 
     def _params_MOSFETGate(self, prim):
-        s = f"poly={_str_prim(prim.poly)}, active={_str_prim(prim.active)},\n"
+        s = f"active={_str_prim(prim.active)}, poly={_str_prim(prim.poly)},\n"
         if hasattr(prim, "oxide"):
             s += f"oxide={_str_prim(prim.oxide)},\n"
         if hasattr(prim, "min_l"):

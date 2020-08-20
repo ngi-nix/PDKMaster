@@ -41,27 +41,33 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
     def Marker(self, prim):
         return _str_create_basic(prim.name, "other") + _str_gds_layer(prim)
 
+    def ExtraProcess(self, prim):
+        return _str_create_basic(prim.name, "other") + _str_gds_layer(prim)
+
     def Implant(self, prim):
         return _str_create_basic(prim.name, prim.type_+"Implant") + _str_gds_layer(prim)
 
     def Well(self, prim):
         return _str_create_basic(prim.name, prim.type_+"Well") + _str_gds_layer(prim)
 
-    def Deposition(self, prim):
-        return _str_create_basic(prim.name, "other") + _str_gds_layer(prim)
-
-    def Wire(self, prim):
-        if prim in self.poly_layers:
-            mat = "poly"
-        elif prim in self.via_conns:
-            mat = "metal"
-        else:
-            assert False
-            mat = "other"
-        return _str_create_basic(prim.name, mat) + _str_gds_layer(prim)
-
     def WaferWire(self, prim):
         return _str_create_basic(prim.name, "active") + _str_gds_layer(prim)
+
+    def GateWire(self, prim):
+        return _str_create_basic(prim.name, "poly") + _str_gds_layer(prim)
+
+    def MetalWire(self, prim):
+        return _str_create_basic(prim.name, "metal") + _str_gds_layer(prim)
+
+    def Resistor(self, prim):
+        if len(prim.indicator) == 1:
+            s_indicator = f"'{prim.indicator[0].name}'"
+        else:
+            s_indicator = str(tuple(ind.name for ind in prim.indicator))
+        return (
+            f"# ResistorLayer.create(tech, '{prim.name}', '{prim.wire.name}', "
+            f"{s_indicator})\n"
+        )
 
     def Via(self, prim):
         return _str_create_basic(prim.name, "cut") + _str_gds_layer(prim)
@@ -118,6 +124,9 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
     def Marker(self, prim):
         return self._rows_mask(prim)
 
+    def ExtraProcess(self, prim):
+        return self._rows_mask(prim)
+
     def Auxiliary(self, prim):
         return self._rows_mask(prim)
 
@@ -130,8 +139,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             s += f"('minSpacingSameNet', '{prim.name}', {prim.min_space_samenet}, Length, ''),\n"
         return s
 
-    def Deposition(self, prim):
-        # Also handles Wire, BottomWire, TopWire
+    def Insulator(self, prim):
         return self._rows_widthspace(prim)
 
     def WaferWire(self, prim):
@@ -155,13 +163,20 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         )
         return s
 
-    def DerivedWire(self, prim):
+    def GateWire(self, prim):
+        return self._rows_widthspace(prim)
+
+    def MetalWire(self, prim):
+        # Also handles TopMetalWire
+        return self._rows_widthspace(prim)
+
+    def Resistor(self, prim):
         s = self._rows_widthspace(prim)
-        for i in range(len(prim.marker)):
-            marker = prim.marker[i]
+        for i in range(len(prim.indicator)):
+            ind = prim.indicator[i]
             enc = prim.min_enclosure[i]
             s += (
-                f"('minEnclosure', '{marker.name}', '{prim.wire.name}', {enc}, "
+                f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
             )
         return s
@@ -321,10 +336,10 @@ class CoriolisGenerator:
             s_prims += gen(waferwire)
             written_prims.add(waferwire)
 
-        for wire in tech.primitives.tt_iter_type(prm.BottomWire):
-            assert wire not in written_prims
-            s_prims += gen(wire)
-            written_prims.add(wire)
+        for gatewire in tech.primitives.tt_iter_type(prm.GateWire):
+            assert gatewire not in written_prims
+            s_prims += gen(gatewire)
+            written_prims.add(gatewire)
 
         for via in tech.primitives.tt_iter_type((prm.Via, prm.PadOpening)):
             assert via not in written_prims
@@ -335,6 +350,13 @@ class CoriolisGenerator:
                     written_prims.add(bottom)
             s_prims += gen(via)
             written_prims.add(via)
+
+        extraprocesses = set()
+        for res in tech.primitives.tt_iter_type(prm.Resistor):
+            extraprocesses.update(res.indicator)
+        for proc in extraprocesses:
+            s_prims += gen(proc)
+        written_prims.update(extraprocesses)
 
         # Make string for auxiliary primitives, add it at the end.
         s_aux = ""
@@ -350,7 +372,7 @@ class CoriolisGenerator:
         if unhandled_masks:
             raise NotImplementedError(f"Layer generation for masks {unhandled_masks} not implemented")
 
-        for prim in tech.primitives.tt_iter_type((prm.MOSFETGate, prm.MOSFET)):
+        for prim in tech.primitives.tt_iter_type((prm.Resistor, prm.MOSFETGate, prm.MOSFET)):
             assert prim not in written_prims
             s_prims += gen(prim)
             written_prims.add(prim)
