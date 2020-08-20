@@ -624,6 +624,24 @@ class Spacing(_Primitive):
         return self.name
 
 class MOSFETGate(_WidthSpacePrimitive):
+    class _ComputedProps:
+        def __init__(self, gate):
+            self.gate = gate
+
+        @property
+        def min_l(self):
+            gate = self.gate
+            return gate.min_l if hasattr(gate, "min_l") else gate.poly.min_width
+
+        @property
+        def min_w(self):
+            gate = self.gate
+            return gate.min_w if hasattr(gate, "min_w") else gate.active.min_width
+
+    @property
+    def computed(self):
+        return MOSFETGate._ComputedProps(self)
+
     def __init__(self, name=None, *, poly, active, oxide=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
@@ -763,6 +781,34 @@ class MOSFETGate(_WidthSpacePrimitive):
             self._rules += (mask,)
 
 class MOSFET(_Primitive):
+    class _ComputedProps:
+        def __init__(self, mosfet):
+            self.mosfet = mosfet
+
+        @property
+        def min_l(self):
+            mosfet = self.mosfet
+            return mosfet.min_l if hasattr(mosfet, "min_l") else mosfet.gate.computed.min_l
+
+        @property
+        def min_w(self):
+            mosfet = self.mosfet
+            return mosfet.min_w if hasattr(mosfet, "min_w") else mosfet.gate.computed.min_w
+
+        @property
+        def min_sd_width(self):
+            mosfet = self.mosfet
+            return mosfet.min_sd_width if hasattr(mosfet, "min_sd_width") else mosfet.gate.min_sd_width
+
+        @property
+        def min_polyactive_extension(self):
+            mosfet = self.mosfet
+            return mosfet.min_polyactive_extension if hasattr(mosfet, "min_polyactive_extension") else mosfet.gate.min_polyactive_extension
+
+    @property
+    def computed(self):
+        return MOSFET._ComputedProps(self)
+
     def __init__(
         self, name, *,
         gate, implant, well=None,
