@@ -765,7 +765,7 @@ class MOSFETGate(_WidthSpacePrimitive):
 class MOSFET(_Primitive):
     def __init__(
         self, name, *,
-        gate, implant=None, well=None,
+        gate, implant, well=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None,
         min_gateimplant_enclosure, min_gate_space=None,
@@ -780,13 +780,10 @@ class MOSFET(_Primitive):
             raise TypeError("gate has to be of type 'MOSFETGate'")
         self.gate = gate
 
-        if implant is not None:
-            implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
-            if not all(isinstance(l, Implant) for l in implant):
-                raise TypeError("implant has to be 'None', of type 'Implant' or an iterable of type 'Implant'")
-            self.implant = implant
-        elif not isinstance(gate.active, DerivedWire):
-            raise TypeError("active wire of gate has to be of type 'DerivedWire' if implant is 'None'")
+        implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
+        if not all(isinstance(l, Implant) for l in implant):
+            raise TypeError("implant has to be 'None', of type 'Implant' or an iterable of type 'Implant'")
+        self.implant = implant
 
         if well is not None:
             if not isinstance(well, Well):
