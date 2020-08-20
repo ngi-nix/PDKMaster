@@ -4,7 +4,7 @@ from logging import warn
 
 from .. import dispatcher as dsp, technology_ as tch
 
-__all__ = ["PDKMasterGenerator"]
+__all__ = ["PDKMasterGenerator", "generate"]
 
 
 def _str_prim(prim):
@@ -211,3 +211,5 @@ class PDKMasterGenerator:
         s += "\n"
         s += f"technology = tech = {tech.name}()"
         return s
+
+generate = PDKMasterGenerator()
