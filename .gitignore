@@ -4,7 +4,6 @@
 *.pyc
 __pychache__
 *files.txt
-/FreePDK45*.py
 
 .ipynb_checkpoints
 .vscode
