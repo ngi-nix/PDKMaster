@@ -5,7 +5,10 @@ from itertools import product, combinations
 import abc
 
 from .. import _util
-from . import rule as rle, property_ as prp, mask as msk, wafer_ as wfr, edge as edg
+from . import (
+    rule as rle, property_ as prp, port as prt, mask as msk, wafer_ as wfr,
+    edge as edg,
+)
 
 __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Implant", "Well",
@@ -27,6 +30,8 @@ class _Primitive(abc.ABC):
             raise ValueError(f"primitive with name '{name}' already exists")
         _Primitive._names.update(name)
         self.name = name
+
+        self.ports = prt.Ports()
 
         self._rules = None
 
@@ -59,22 +64,25 @@ class _Primitive(abc.ABC):
 class _MaskPrimitive(_Primitive):
     @abc.abstractmethod
     def __init__(self, *, mask, grid=None, **primitive_args):
+        if not "name" in primitive_args:
+            primitive_args["name"] = mask.name
+        super().__init__(**primitive_args)
+
         if not isinstance(mask, msk._Mask):
             raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
                 self.__class__.__name__
             ))
+        if isinstance(mask, msk.DesignMask):
+            self.ports += msk.MaskPort("conn", mask)
+        self.mask = mask
 
         if grid is not None:
             grid = _util.i2f(grid)
             if not isinstance(grid, float):
                 raise TypeError("grid parameter for '{}' has to be a float".format(self.__class__.__name__))
-
-        if not "name" in primitive_args:
-            primitive_args["name"] = mask.name
-        super().__init__(**primitive_args)
-        self.mask = mask
-        if grid is not None:
             self.grid = grid
+
+
 
     @abc.abstractmethod
     def _generate_rules(self, tech, *, gen_mask=True):
@@ -940,6 +948,18 @@ class MOSFET(_Primitive):
             if not isinstance(model, str):
                 raise TypeError("model has to be 'None' or a string")
             self.model = model
+
+        # MOSFET is symmetric so both diffusion regions can be source or drain
+        bulkport = (
+            msk.MaskPort("bulk", well.mask) if well is not None
+            else wfr.SubstratePort("bulk")
+        )
+        self.ports += (
+            msk.MaskPort("sourcedrain1", gate.active.mask),
+            msk.MaskPort("sourcedrain2", gate.active.mask),
+            msk.MaskPort("gate", gate.poly.mask),
+            bulkport,
+        )
 
         self.l = _PrimitiveProperty(self, "l")
         self.w = _PrimitiveProperty(self, "w")

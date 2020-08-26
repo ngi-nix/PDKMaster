@@ -1,6 +1,6 @@
-from . import mask as msk
+from . import port as prt, mask as msk
 
-__all__ = ["wafer"]
+__all__ = ["wafer", "SubstratePort"]
 
 class _Wafer(msk._Mask):
     generated = False
@@ -20,3 +20,9 @@ class _Wafer(msk._Mask):
         return iter(tuple())
 
 wafer = _Wafer()
+
+class SubstratePort(prt.Port):
+    def __init__(self, name):
+        if not isinstance(name, str):
+            raise TypeError("name has to be a string")
+        super().__init__(name)
