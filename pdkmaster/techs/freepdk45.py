@@ -1,4 +1,5 @@
 from ..technology import technology_ as tch, mask as msk, primitive as prm
+from ..design import circuit as ckt
 
 __all__ = ["technology"]
 
@@ -283,3 +284,4 @@ class _FreePDK45(tch.Technology):
         )
 
 tech = technology = _FreePDK45()
+cktfab = circuit_factory = ckt.CircuitFactory(tech)
