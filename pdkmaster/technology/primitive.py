@@ -26,7 +26,6 @@ class _Primitive(abc.ABC):
         if name in _Primitive._names:
             raise ValueError(f"primitive with name '{name}' already exists")
         _Primitive._names.update(name)
-
         self.name = name
 
         self._rules = None

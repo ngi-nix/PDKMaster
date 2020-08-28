@@ -70,7 +70,7 @@ class TypedTuple(abc.ABC):
             raise TypeError(
                 f"elements of {self.__class__.__name__} have to be of type f{self.tt_element_type}"
             )
-        self. _t += other
+        self._t += other
 
         if hasattr(self, "_d"):
             d = {
