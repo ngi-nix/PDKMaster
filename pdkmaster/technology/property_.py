@@ -28,7 +28,7 @@ class _BinaryPropertyCondition(_Condition, abc.ABC):
 
         super().__init__((left, right))
         self.left = left
-        self.right = left._conv_value(right)
+        self.right = left.cast(right)
 
     def __repr__(self):
         return "{} {} {}".format(repr(self.left), self.symbol, repr(self.right))
@@ -83,7 +83,7 @@ class Property:
         return hash(self.name)
 
     @classmethod
-    def _conv_value(cls, value):
+    def cast(cls, value):
         if cls.value_conv is not None:
             try:
                 value = cls.value_conv(value)

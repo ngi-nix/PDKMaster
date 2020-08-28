@@ -32,7 +32,7 @@ class _DualMaskProperty(prp.Property):
 
 class _AsymmetricDualMaskProperty(_DualMaskProperty):
     @classmethod
-    def _conv_value(cls, value):
+    def cast(cls, value):
         if not (_util.is_iterable(value)):
             raise TypeError("property value has to be iterable of float of length 2")
         value = tuple(_util.i2f(v) for v in value)
