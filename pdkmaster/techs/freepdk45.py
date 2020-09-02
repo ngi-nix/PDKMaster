@@ -43,12 +43,12 @@ class _FreePDK45(tch.Technology):
                 )
             ),
             # depositions
-            prm.Insulator("thkox",
+            prm.Insulator("thkox", fill_space="yes",
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),
             # silicide block
-            prm.ExtraProcess(name="sblock",
+            prm.ExtraProcess(name="sblock", fill_space="yes",
                 min_width=0.045, # Own rule
                 min_space=0.045, # Own rule
             ),

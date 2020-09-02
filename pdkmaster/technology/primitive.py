@@ -97,11 +97,13 @@ class _MaskPrimitive(_Primitive):
     def designmasks(self):
         return self.mask.designmasks
 
-    def _designmask_from_name(self, args):
+    def _designmask_from_name(self, args, *, fill_space):
         if "mask" in args:
             raise TypeError(f"{self.__class__.__name__} got unexpected keyword argument 'mask'")
-        args["mask"] = msk.DesignMask(args["name"], gds_layer=args.pop("gds_layer", None))
-
+        args["mask"] = msk.DesignMask(
+            args["name"], gds_layer=args.pop("gds_layer", None),
+            fill_space=fill_space,
+        )
 class _PrimitiveProperty(prp.Property):
     def __init__(self, primitive, name):
         if not isinstance(primitive, _Primitive):
@@ -111,7 +113,7 @@ class _PrimitiveProperty(prp.Property):
 class Marker(_MaskPrimitive):
     def __init__(self, name, **mask_args):
         mask_args["name"] = name
-        self._designmask_from_name(mask_args)
+        self._designmask_from_name(mask_args, fill_space="yes")
         super().__init__(**mask_args)
 
     def _generate_rules(self, tech):
@@ -125,7 +127,7 @@ class Auxiliary(_MaskPrimitive):
     # Layer not used in other primitives but defined by foundry for the technology
     def __init__(self, name, **mask_args):
         mask_args["name"] = name
-        self._designmask_from_name(mask_args)
+        self._designmask_from_name(mask_args, fill_space="no")
         super().__init__(**mask_args)
 
     def _generate_rules(self, tech):
@@ -240,9 +242,13 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                 self._rules += (msk.Spacing(submask, self.mask) >= row[1],)
 
 class ExtraProcess(_WidthSpacePrimitive):
-    def __init__(self, name, **widthspace_args):
+    def __init__(self, name, *, fill_space, **widthspace_args):
+        if not isinstance(fill_space, str):
+            raise TypeError("fill_space has to be a string")
+        if not fill_space in ("no", "yes"):
+            raise ValueError("fill_space has to be either 'yes' or 'no'")
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space=fill_space)
         super().__init__(**widthspace_args)
 
 class Implant(_WidthSpacePrimitive):
@@ -250,7 +256,7 @@ class Implant(_WidthSpacePrimitive):
     # MOSFET and other primitives
     def __init__(self, name, *, type_, **widthspace_args):
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space="yes")
 
         if not isinstance(type_, str):
             raise TypeError("type_ has to be a string")
@@ -281,9 +287,13 @@ class Well(Implant):
             self._rules += (msk.SameNet(self.mask).space >= self.min_space_samenet,)
 
 class Insulator(_WidthSpacePrimitive):
-    def __init__(self, name, **widthspace_args):
+    def __init__(self, name, *, fill_space, **widthspace_args):
+        if not isinstance(fill_space, str):
+            raise TypeError("fill_space has to be a string")
+        if not fill_space in ("no", "yes"):
+            raise ValueError("fill_space has to be either 'yes' or 'no'")
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space=fill_space)
         super().__init__(**widthspace_args)
 
 class WaferWire(_WidthSpacePrimitive):
@@ -296,7 +306,7 @@ class WaferWire(_WidthSpacePrimitive):
         **widthspace_args
     ):
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space="same_net")
 
         if not isinstance(allow_in_substrate, bool):
             raise TypeError("allow_in_substrate has to be a bool")
@@ -384,13 +394,13 @@ class WaferWire(_WidthSpacePrimitive):
 class GateWire(_WidthSpacePrimitive):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space="same_net")
         super().__init__(**widthspace_args)
 
 class MetalWire(_WidthSpacePrimitive):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space="same_net")
         super().__init__(**widthspace_args)
 
 class TopMetalWire(MetalWire):
@@ -472,7 +482,7 @@ class Via(_MaskPrimitive):
         **primitive_args,
     ):
         primitive_args["name"] = name
-        self._designmask_from_name(primitive_args)
+        self._designmask_from_name(primitive_args, fill_space="no")
         if _util.is_iterable(bottom):
             bottom = tuple(bottom)
             if _util.is_iterable(min_bottom_enclosure):
@@ -594,7 +604,7 @@ class Via(_MaskPrimitive):
 class PadOpening(_WidthSpacePrimitive):
     def __init__(self, name, *, bottom, min_bottom_enclosure, **widthspace_args):
         widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args)
+        self._designmask_from_name(widthspace_args, fill_space="no")
         super().__init__(**widthspace_args)
 
         if not (isinstance(bottom, MetalWire) and not isinstance(bottom, TopMetalWire)):

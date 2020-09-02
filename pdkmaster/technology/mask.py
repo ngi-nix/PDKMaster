@@ -143,14 +143,19 @@ class _Mask(abc.ABC):
         return iter(tuple())
 
 class DesignMask(_Mask, rle._Rule):
-    def __init__(self, name, gds_layer=None):
+    def __init__(self, name, *, gds_layer=None, fill_space):
         if gds_layer is not None:
             gds_layer = tuple(gds_layer) if _util.is_iterable(gds_layer) else (gds_layer, 0)
             if not ((len(gds_layer) == 2) and all(isinstance(n, int) for n in gds_layer)):
                 raise TypeError("gds_layer has to be an int or an iterable of two ints")
             self.gds_layer = gds_layer
-
         super().__init__(name)
+
+        if not isinstance(fill_space, str):
+            raise TypeError("fill_space has to be a string")
+        if not fill_space in ("no", "same_net", "yes"):
+            raise ValueError("fill_space has to be one of ('no', 'same_net', 'yes')")
+        self.fill_space = fill_space
 
         self.grid = _MaskProperty(self, "grid")
 

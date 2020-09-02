@@ -45,13 +45,18 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _params_unhandled(self, prim):
         raise RuntimeError(f"Internal error: unhandled params for {prim.__class__.__name__}")
 
-    def _params_mask(self, prim):
+    def _params_mask(self, prim, *, add_fill_space=False):
         s = ""
         if hasattr(prim, "grid"):
-            s += f"grid={prim.grid},\n"
+            s += f"grid={prim.grid},"
+        if add_fill_space:
+            if s:
+                s += " "
+            s += f"fill_space='{prim.mask.fill_space}',"
+        s += "\n"
         return s
 
-    def _params_widthspace(self, prim):
+    def _params_widthspace(self, prim, *, add_fill_space=False):
         s = f"min_width={prim.min_width}, min_space={prim.min_space},\n"
         if hasattr(prim, "space_table"):
             s += "space_table=(\n"
@@ -64,7 +69,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             s += f"min_density={prim.min_density},\n"
         if hasattr(prim, "max_density"):
             s += f"max_density={prim.max_density},\n"
-        s += self._params_mask(prim)
+        s += self._params_mask(prim, add_fill_space=add_fill_space)
         
         return s
 
@@ -75,7 +80,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         return self._params_mask(prim)
 
     def _params_ExtraProcess(self, prim):
-        return self._params_widthspace(prim)
+        return self._params_widthspace(prim, add_fill_space=True)
 
     def _params_Implant(self, prim):
         s = f"type_='{prim.type_}',\n"
@@ -91,7 +96,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         return s
 
     def _params_Insulator(self, prim):
-        return self._params_widthspace(prim)
+        return self._params_widthspace(prim, add_fill_space=True)
 
     def _params_GateWire(self, prim):
         return self._params_widthspace(prim)
