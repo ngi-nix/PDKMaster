@@ -24,4 +24,4 @@ class _Rule(abc.ABC):
 
 class Rules(_util.TypedTuple):
     tt_element_type = _Rule
-    tt_element_name_attribute = None
+    tt_index_attribute = None

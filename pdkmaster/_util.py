@@ -16,7 +16,8 @@ def is_iterable(it):
 
 class TypedTuple(abc.ABC):
     tt_element_type = abc.abstractproperty()
-    tt_element_name_attribute = "name"
+    tt_index_attribute = "name"
+    tt_index_type = str
 
     def __init__(self, iterable=tuple()):
         assert not issubclass(self.tt_element_type, tuple)
@@ -26,13 +27,16 @@ class TypedTuple(abc.ABC):
                 f"elements of {self.__class__.__name__} have to be of type f{self.tt_element_type.__name__}"
             )
 
-        if self.tt_element_name_attribute is not None:
+        if self.tt_index_attribute is not None:
             self._d = {
-                getattr(elem, self.tt_element_name_attribute): elem
+                getattr(elem, self.tt_index_attribute): elem
                 for elem in self._t
             }
-            if not all(isinstance(key, str) for key in self._d.keys()):
-                raise TypeError("element name attributes have to be strings")
+            if not all(isinstance(key, self.tt_index_type) for key in self._d.keys()):
+                raise TypeError(
+                    "element index attributes have to be of type "
+                    f"{self.tt_index_type.__name__}"
+                )
 
         self._frozen = False
 
@@ -52,15 +56,17 @@ class TypedTuple(abc.ABC):
     def __getitem__(self, key):
         if isinstance(key, int):
             return self._t[key]
-        elif isinstance(key, str) and hasattr(self, "_d"):
+        elif isinstance(key, self.tt_index_type) and hasattr(self, "_d"):
             return self.__getattr__(key)
         else:
             raise KeyError(f"'{key}'")
 
-    def __getattr__(self, name):
-        if (self.tt_element_name_attribute is None) or (name not in self._d):
-            raise AttributeError(f"'{self.__class__.__name__}' object has no element with name '{name}'")
-        return self._d[name]
+    def __getattr__(self, idx):
+        if (self.tt_index_attribute is None) or (idx not in self._d):
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no element with index '{idx}'"
+            )
+        return self._d[idx]
 
     def __iadd__(self, other):
         if isinstance(other, self.tt_element_type):
@@ -74,14 +80,19 @@ class TypedTuple(abc.ABC):
 
         if hasattr(self, "_d"):
             d = {
-                getattr(elem, self.tt_element_name_attribute): elem
+                getattr(elem, self.tt_index_attribute): elem
                 for elem in other
             }
-            for name in d.keys():
-                if not isinstance(name, str):
-                    raise TypeError(f"element name attribute value '{name}' is not a string")
-                if name in self._d:
-                    raise ValueError(f"element with name '{name}' already  present")
+            for idx in d.keys():
+                if not isinstance(idx, self.tt_index_type):
+                    raise TypeError(
+                        f"element name attribute value '{idx}' is not "
+                        f"of type {self.tt_index_type.__name__}"
+                    )
+                if idx in self._d:
+                    raise ValueError(
+                        f"element with index '{idx}' already  present"
+                    )
             self._d.update(d)
 
         return self
@@ -91,6 +102,11 @@ class TypedTuple(abc.ABC):
 
     def __len__(self):
         return len(self._t)
+
+    def tt_keys(self):
+        if not hasattr(self, "_d"):
+            raise TypeError("typed tuple elements don't an index")
+        return self._d.keys()
 
     def tt_iter_type(self, type_):
         for elem in self:
