@@ -1,6 +1,8 @@
 OUTPUT := \
   FreePDK45_pdkmaster.py \
   FreePDK45_coriolis.py \
+  portfolio.html \
+  inverter.html \
 #END OUTPUTS
 GENERATED := \
   FreePDK45_gen.py \
@@ -10,6 +12,8 @@ CACHE := \
 #END CACHE
 SOURCE := \
   FreePDK45_gen.ipynb \
+  portfolio.ipynb \
+  inverter.ipynb \
 #END SOURCE
 TARBALL = tarballs/FreePDK45_all_$(shell date +%Y%m%d).tgz
 
@@ -24,6 +28,10 @@ pdkgen: FreePDK45_gen.py
 %.py: %.ipynb
 	@echo "Generating $@"
 	@jupyter nbconvert --to python $<
+
+%.html: %.ipynb
+	@echo "Generating $@"
+	@jupyter nbconvert --to html --execute $<
 
 .PHONY: pack
 pack: $(TARBALL)
