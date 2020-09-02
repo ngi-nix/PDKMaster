@@ -19,6 +19,24 @@ __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Spacing",
            "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
 
+class _Param(prp.Property):
+    def __init__(self, primitive, name, *, default=None):
+        if not isinstance(primitive, _Primitive):
+            raise RuntimeError("Internal error: primitive not of type 'Primitive'")
+        super().__init__(name)
+
+        if default is not None:
+            try:
+                default = self.cast(default)
+            except TypeError:
+                raise TypeError(
+                    f"default has to be 'None' or of type '{self.value_type_str}'"
+                )
+            self.default = default
+
+class _Params(_util.TypedTuple):
+    tt_element_type = _Param
+
 class _Primitive(abc.ABC):
     _names = set()
 
@@ -32,6 +50,7 @@ class _Primitive(abc.ABC):
         self.name = name
 
         self.ports = prt.Ports()
+        self.params = _Params()
 
         self._rules = None
 
@@ -60,6 +79,34 @@ class _Primitive(abc.ABC):
     @abc.abstractproperty
     def designmasks(self):
         return iter(tuple())
+
+    def cast_params(self, params):
+        casted = {}
+        for param in self.params:
+            try:
+                v = param.cast(params.pop(param.name, param.default))
+            except AttributeError:
+                raise TypeError(
+                    f"missing required argument with name '{param.name}'"
+                )
+            except TypeError:
+                raise TypeError(
+                    f"param '{param.name}' is not of type '{param.value_type_str}'"
+                )
+            else:
+                casted[param.name] = v
+            conv = param.__class__.value_conv
+            if conv is not None:
+                v = conv(v)
+            if not isinstance(v, param.value_type):
+                pass
+        if len(params) > 0:
+            raise TypeError(
+                f"primitive '{self.name}' got unexpected parameters "
+                f"{tuple(params.keys())}"
+            )
+
+        return casted
 
 class _MaskPrimitive(_Primitive):
     @abc.abstractmethod
@@ -104,11 +151,6 @@ class _MaskPrimitive(_Primitive):
             args["name"], gds_layer=args.pop("gds_layer", None),
             fill_space=fill_space,
         )
-class _PrimitiveProperty(prp.Property):
-    def __init__(self, primitive, name):
-        if not isinstance(primitive, _Primitive):
-            raise RuntimeError("Internal error: primitive not of type 'Primitive'")
-        super().__init__(primitive.name + "." + name)
 
 class Marker(_MaskPrimitive):
     def __init__(self, name, **mask_args):
@@ -1013,8 +1055,21 @@ class MOSFET(_Primitive):
             bulkport,
         )
 
-        self.l = _PrimitiveProperty(self, "l")
-        self.w = _PrimitiveProperty(self, "w")
+        self.params += (
+            _Param(self, "l", default=self.computed.min_l),
+            _Param(self, "w", default=self.computed.min_w),
+            _Param(self, "sd_width", default=self.computed.min_sd_width),
+            _Param(
+                self, "polyactive_extension",
+                default=self.computed.min_polyactive_extension,
+            ),
+        )
+        spc = self.computed.min_gate_space
+        if spc is not None:
+            self.params += _Param(self, "gate_space", default=spc)
+        spc = self.computed.min_contactgate_space
+        if spc is not None:
+            self.params += _Param(self, "contactgate_space", default=spc)
 
     def _generate_rules(self, tech):
         super()._generate_rules(tech)

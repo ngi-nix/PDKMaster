@@ -87,38 +87,16 @@ class _Circuit:
         self.nets = _Nets()
         self.ports = prt.Ports()
 
-    def new_instance(self, name, object, **params):
+    def new_instance(self, name, object_, **params):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
 
-        if isinstance(object, prm._Primitive):
-            newparams = dict()
-            for param in object.params:
-                try:
-                    v = param.cast(params.pop(param.name, param.default))
-                except AttributeError:
-                    raise TypeError(
-                        f"missing required argument with name '{param.name}'"
-                    )
-                except TypeError:
-                    raise TypeError(
-                        f"param '{param.name}' is not of type '{param.value_type_str}'"
-                    )
-                else:
-                    newparams[param.name] = v
-                conv = param.__class__.value_conv
-                if conv is not None:
-                    v = conv(v)
-                if not isinstance(v, param.value_type):
-                    pass
-            if len(params) > 0:
-                raise TypeError(
-                    f"got unexpected keyword arguments {tuple(params.keys())}"
-                )
+        if isinstance(object_, prm._Primitive):
+            params = object_.cast_params(params)
         else:
-            raise TypeError("object has to be of type '_Primitive'")
+            raise TypeError("object_ has to be of type '_Primitive'")
 
-        inst = _PrimitiveInstance(name, object, **newparams)
+        inst = _PrimitiveInstance(name, object_, **params)
         self.instances += inst
         return inst
 
