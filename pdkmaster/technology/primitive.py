@@ -662,12 +662,36 @@ class MOSFETGate(_WidthSpacePrimitive):
         @property
         def min_l(self):
             gate = self.gate
-            return gate.min_l if hasattr(gate, "min_l") else gate.poly.min_width
+            try:
+                return gate.min_l
+            except AttributeError:
+                return gate.poly.min_width
 
         @property
         def min_w(self):
             gate = self.gate
-            return gate.min_w if hasattr(gate, "min_w") else gate.active.min_width
+            try:
+                return gate.min_w
+            except AttributeError:
+                return gate.active.min_width
+
+        @property
+        def min_gate_space(self):
+            gate = self.gate
+            try:
+                return gate.min_gate_space
+            except AttributeError:
+                return gate.poly.min_space
+
+        @property
+        def min_sd_width(self):
+            gate = self.gate
+            return gate.min_sd_width
+
+        @property
+        def min_polyactive_extension(self):
+            gate = self.gate
+            return gate.min_polyactive_extension
 
     @property
     def computed(self):
@@ -812,25 +836,43 @@ class MOSFET(_Primitive):
         def __init__(self, mosfet):
             self.mosfet = mosfet
 
+        def _lookup(self, name, allow_none):
+            mosfet = self.mosfet
+            try:
+                return getattr(mosfet, name)
+            except AttributeError:
+                if not allow_none:
+                    return getattr(mosfet.gate.computed, name)
+                else:
+                    return getattr(mosfet.gate, name, None)
+
         @property
         def min_l(self):
-            mosfet = self.mosfet
-            return mosfet.min_l if hasattr(mosfet, "min_l") else mosfet.gate.computed.min_l
+            return self._lookup("min_l", False)
 
         @property
         def min_w(self):
-            mosfet = self.mosfet
-            return mosfet.min_w if hasattr(mosfet, "min_w") else mosfet.gate.computed.min_w
+            return self._lookup("min_w", False)
 
         @property
         def min_sd_width(self):
-            mosfet = self.mosfet
-            return mosfet.min_sd_width if hasattr(mosfet, "min_sd_width") else mosfet.gate.min_sd_width
+            return self._lookup("min_sd_width", False)
 
         @property
         def min_polyactive_extension(self):
-            mosfet = self.mosfet
-            return mosfet.min_polyactive_extension if hasattr(mosfet, "min_polyactive_extension") else mosfet.gate.min_polyactive_extension
+            return self._lookup("min_polyactive_extension", False)
+
+        @property
+        def min_gate_space(self):
+            return self._lookup("min_gate_space", False)
+
+        @property
+        def contact(self):
+            return self._lookup("contact", True)
+
+        @property
+        def min_contactgate_space(self):
+            return self._lookup("min_contactgate_space", True)
 
     @property
     def computed(self):
