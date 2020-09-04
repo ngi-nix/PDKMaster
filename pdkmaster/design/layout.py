@@ -10,6 +10,7 @@ from ..technology import (
 
 __all__ = [
     "MaskPolygon", "MaskPolygons", "PrimitiveLayoutFactory",
+    "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "Layout",
     "Plotter",
 ]
 
@@ -302,6 +303,168 @@ class MaskPolygons(_util.TypedTuple):
         newpolygons -= other
         return newpolygons
 
+class _SubLayout(abc.ABC):
+    @abc.abstractmethod
+    def __init__(self, polygons):
+        assert isinstance(polygons, MaskPolygons), "Internal error"
+        self.polygons = polygons
+
+class NetSubLayout(_SubLayout):
+    def __init__(self, net, polygons):
+        if not isinstance(net, net_.Net):
+            raise TypeError("net has to be of type '_Net'")
+        self.net = net
+
+        if isinstance(polygons, MaskPolygon):
+            polygons = MaskPolygons(polygons)
+        if not isinstance(polygons, MaskPolygons):
+            raise TypeError("polygons has to be of type 'MaskPolygon' or 'MaskPolygons'")
+        super().__init__(polygons)
+
+    def __iadd__(self, other):
+        assert (
+            isinstance(other, NetSubLayout)
+            and (self.net == other.net)
+        ), "Internal error"
+        self.polygons += other.polygons
+
+        return self
+
+class NetlessSubLayout(_SubLayout):
+    def __init__(self, polygons):
+        if isinstance(polygons, MaskPolygon):
+            polygons = MaskPolygons(polygons)
+        if not isinstance(polygons, MaskPolygons):
+            raise TypeError("polygons has to be of type 'MaskPolygon' or 'MaskPolygons'")
+        super().__init__(polygons)
+
+    def __iadd__(self, other):
+        assert isinstance(other, NetlessSubLayout), "Internal error"
+        self.polygons += other.polygons
+
+        return self
+
+class MultiNetSubLayout(_SubLayout):
+    def __init__(self, sublayouts):
+        if not _util.is_iterable(sublayouts):
+            raise TypeError(
+                "sublayouts has to be an iterable of 'NetSubLayout' and "
+                "'NetlessSubLayout'"
+            )
+        sublayouts = tuple(sublayouts)
+        if not all((
+            isinstance(netlayout, (NetSubLayout, NetlessSubLayout))
+            for netlayout in sublayouts
+        )):
+            raise TypeError(
+                "sublayouts has to be an iterable of 'NetSubLayout' and "
+                "'NetlessSubLayout'"
+            )
+
+        def _netmasks():
+            for netlayout in sublayouts:
+                for polygon in netlayout.polygons:
+                    yield polygon.mask
+        netmasks = set(_netmasks())
+
+        def _netpolygons():
+            for netlayout in sublayouts:
+                for polygon in netlayout.polygons:
+                    yield polygon.polygon
+        netpolygons = tuple(_netpolygons())
+
+        if len(set(netmasks)) != 1:
+            raise ValueError(
+                "all layouts in sublayouts have to be on the same mask"
+            )
+        netmask = next(iter(netmasks))
+
+        maskpolygon = MaskPolygon(netmask, sh_ops.unary_union(netpolygons))
+        area = sum(polygon.area for polygon in _netpolygons())
+        if not all((
+            isinstance(maskpolygon.polygon, sh_geo.Polygon),
+            abs(area - maskpolygon.polygon.area)/area < 1e-4,
+        )):
+            raise ValueError(
+                "sublayouts has to consist of touching, non-overlapping subblocks"
+            )
+
+        self.sublayouts = sublayouts
+        super().__init__(MaskPolygons(maskpolygon))
+
+class SubLayouts(_util.TypedTuple):
+    tt_element_type = _SubLayout
+    tt_index_attribute = None
+
+    def __iadd__(self, other):
+        other = tuple(other) if _util.is_iterable(other) else (other,)
+        if not all(isinstance(sublayout, _SubLayout) for sublayout in other):
+            raise TypeError(
+                "Can only add '_SubLayout' object or iterable of '_SubLayout' objects\n"
+                "to an 'SubLayouts' object"
+            )
+
+        forsuper = []
+        for sublayout in other:
+            if isinstance(sublayout, NetlessSubLayout):
+                for sublayout2 in self:
+                    if isinstance(sublayout2, NetlessSubLayout):
+                        sublayout2 += sublayout
+                        break
+                else:
+                    forsuper.append(sublayout)
+            elif isinstance(sublayout, NetSubLayout):
+                # TODO: implement overlap of a MaskPolygon on added net layout
+                # with a MultiNetSubLayout
+                for sublayout2 in self:
+                    if (isinstance(sublayout2, NetSubLayout)
+                        and (sublayout.net == sublayout2.net)
+                       ):
+                        sublayout2 += sublayout
+                        break
+                else:
+                    forsuper.append(sublayout)
+            elif isinstance(sublayout, MultiNetSubLayout):
+                # TODO: implement overlap with other MaskPolygons
+                forsuper.append(sublayout)
+            else:
+                raise AssertionError("Internal error")
+
+        if forsuper:
+            return super().__iadd__(forsuper)
+        else:
+            return self
+
+class Layout:
+    def __init__(self, sublayouts=None):
+        if sublayouts is None:
+            sublayouts = SubLayouts()
+        if not isinstance(sublayouts, SubLayouts):
+            raise TypeError("netlayouts has to be of type 'SubLayouts'")
+        self.sublayouts = sublayouts
+
+    @property
+    def polygons(self):
+        for sublayout in self.sublayouts:
+            for polygon in sublayout.polygons:
+                yield polygon
+
+    def __iadd__(self, other):
+        if self.sublayouts._frozen:
+            raise ValueError("Can't add sublayouts to a frozen 'Layout' object")
+        if not isinstance(other, (_SubLayout, SubLayouts)):
+            raise TypeError(
+                "Can only add '_SubLayout' or 'SubLayouts' object to a "
+                "'Layout' object"
+            )
+
+        self.sublayouts += other
+
+        return self
+
+    def freeze(self):
+        self.sublayouts.tt_freeze()
+
 class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
     def __init__(self, tech):
         if not isinstance(tech, tch.Technology):
@@ -310,8 +473,7 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
 
     def new_layout(self, prim, *, center=sh_geo.Point(0.0, 0.0), **prim_params):
         prim_params = prim.cast_params(prim_params)
-        polygons = self(prim, center=center, **prim_params)
-        return MaskPolygons(polygons)
+        return self(prim, center=center, **prim_params)
 
     # Dispatcher implementation
     def _Primitive(self, prim, **params):
@@ -334,7 +496,7 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
         gate_top = centery + 0.5*w
         gate_bottom = centery - 0.5*w
 
-        polygons = MaskPolygons()
+        layout = Layout()
 
         active = prim.gate.active
         sdw = prim.computed.min_sd_width
@@ -342,10 +504,28 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
         active_bottom = gate_bottom
         active_right = gate_right + sdw
         active_top = gate_top
-        polygons += MaskPolygon(
-            active.mask,
-            _rect(active_left, active_bottom, active_right, active_top),
-        )
+        layout += MultiNetSubLayout((
+            NetSubLayout(
+                prim.ports.sourcedrain1,
+                MaskPolygon(
+                    active.mask,
+                    _rect(active_left, active_bottom, gate_left, active_top),
+                ),
+            ),
+            NetlessSubLayout(
+                MaskPolygon(
+                    active.mask,
+                    _rect(gate_left, active_bottom, gate_right, active_top),
+                ),
+            ),
+            NetSubLayout(
+                prim.ports.sourcedrain2,
+                MaskPolygon(
+                    active.mask,
+                    _rect(gate_right, active_bottom, active_right, active_top),
+                ),
+            ),
+        ))
 
         poly = prim.gate.poly
         ext = prim.computed.min_polyactive_extension
@@ -353,39 +533,50 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
         poly_bottom = gate_bottom - ext
         poly_right = gate_right
         poly_top = gate_top + ext
-        polygons += MaskPolygon(
-            poly.mask,
-            _rect(poly_left, poly_bottom, poly_right, poly_top),
+        layout += NetSubLayout(
+            prim.ports.gate,
+            MaskPolygon(
+                poly.mask,
+                _rect(poly_left, poly_bottom, poly_right, poly_top),
+            ),
         )
 
         if hasattr(prim, "well"):
             enc = active.min_well_enclosure[active.well.index(prim.well)]
-            polygons += MaskPolygon(
-                prim.well.mask,
-                _rect(active_left, active_bottom, active_right, active_top, enclosure=enc)
+            layout += NetSubLayout(
+                prim.ports.bulk,
+                MaskPolygon(
+                    prim.well.mask,
+                    _rect(active_left, active_bottom, active_right, active_top, enclosure=enc)
+                ),
             )
 
+        polygons = MaskPolygons()
         for i, impl in enumerate(prim.implant):
             enc = prim.min_gateimplant_enclosure[i]
             polygons += MaskPolygon(
                 impl.mask,
                 _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
             )
+        layout += NetlessSubLayout(polygons)
 
-        return polygons
+        return layout
 
 class Plotter:
     def __init__(self, plot_specs={}):
         self.plot_specs = dict(plot_specs)
 
     def plot(self, obj):
-        if isinstance(obj, MaskPolygon):
+        if _util.is_iterable(obj):
+            for item in obj:
+                self.plot(item)
+        elif isinstance(obj, (Layout, _SubLayout)):
+            for item in obj.polygons:
+                self.plot(item)
+        elif isinstance(obj, MaskPolygon):
             ax = plt.gca()
             draw_args = self.plot_specs.get(obj.mask.name, {})
             patch = descartes.PolygonPatch(obj.polygon, **draw_args)
             ax.add_patch(patch)
-        elif isinstance(obj, MaskPolygons):
-            for polygon in obj:
-                self.plot(polygon)
         else:
             raise NotImplementedError(f"plotting obj of type '{obj.__class__.__name__}'")

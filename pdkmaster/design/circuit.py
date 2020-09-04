@@ -56,7 +56,7 @@ class _Circuit:
         self.instances = _Instances()
         self.nets = net_.Nets()
         self.ports = _CircuitNets()
-        self._layout = lay.MaskPolygons()
+        self._layout = lay.Layout()
 
     @property
     def layout(self):
@@ -138,6 +138,18 @@ class CircuitLayouter:
         if not all((isinstance(x, float), isinstance(y, float))):
             raise TypeError("x and y have to be floats")
 
-        self.circuit._layout += self.circuit.fab.layoutfab.new_layout(
+        instlayout = self.circuit.fab.layoutfab.new_layout(
             inst.prim, center=sh_geo.Point(x, y), **inst.params,
         )
+
+        def connect_ports(sublayouts):
+            for sublayout in sublayouts:
+                if isinstance(sublayout, lay.NetSubLayout):
+                    sublayout.net = _InstanceNet(inst, sublayout.net)
+                elif isinstance(sublayout, lay.MultiNetSubLayout):
+                    connect_ports(sublayout.sublayouts)
+                elif not isinstance(sublayout, lay.NetlessSubLayout):
+                    raise AssertionError("Internal error")
+
+        connect_ports(instlayout.sublayouts)
+        self.circuit._layout += instlayout.sublayouts
