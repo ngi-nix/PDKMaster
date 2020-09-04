@@ -6,6 +6,15 @@ def i2f(i):
     "Convert i to float if it is an int but not a bool"
     return float(i) if (isinstance(i, int) and (type(i) != bool)) else i
 
+def i2f_recursive(values):
+    if is_iterable(values):
+        return tuple(i2f_recursive(v) for v in values)
+    else:
+        return i2f(values)
+
+def v2t(value):
+    return tuple(value) if is_iterable(value) else (value,)
+
 def is_iterable(it):
     try:
         iter(it)
@@ -19,9 +28,15 @@ class TypedTuple(abc.ABC):
     tt_index_attribute = "name"
     tt_index_type = str
 
-    def __init__(self, iterable=tuple()):
-        assert not issubclass(self.tt_element_type, tuple)
-        self._t = tuple(iterable)
+    def __init__(self, elems=tuple()):
+        assert (
+            isinstance(self.tt_element_type, tuple)
+            or (not issubclass(self.tt_element_type, tuple))
+        ), "Internal error"
+        if isinstance(elems, self.tt_element_type):
+            self._t = (elems,)
+        else:
+            self._t = tuple(elems)
         if not all(isinstance(elem, self.tt_element_type) for elem in self._t):
             raise TypeError(
                 f"elements of {self.__class__.__name__} have to be of type {self.tt_element_type.__name__}"
