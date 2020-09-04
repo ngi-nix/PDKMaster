@@ -364,10 +364,14 @@ class WaferWire(_WidthSpacePrimitive):
         if isinstance(implant_abut, str):
             _conv = {"all": implant, "none": tuple()}
             if implant_abut not in _conv:
-                raise ValueError("only 'all' or 'none' allowed for a string implant_abut")
+                raise ValueError(
+                    "only 'all' or 'none' allowed for a string implant_abut"
+                )
             implant_abut = _conv[implant_abut]
         if not all(impl in implant for impl in implant_abut):
-            raise ValueError("implant_abut has to be an iterable of 'Implant' that are also in implant")
+            raise ValueError(
+                "implant_abut has to be an iterable of 'Implant' that are also in implant"
+            )
         self.implant_abut = implant_abut
         if not isinstance(allow_contactless_implant, bool):
             raise TypeError("allow_contactless_implant has to be a bool")
@@ -387,22 +391,32 @@ class WaferWire(_WidthSpacePrimitive):
         if len(min_well_enclosure) == 1 and len(well) > 1:
             min_well_enclosure *= len(well)
         if not all(isinstance(enc, float) for enc in min_well_enclosure):
-            raise TypeError("min_well_enclosure has to be a float or an iterable of float")
+            raise TypeError(
+                "min_well_enclosure has to be a float or an iterable of float"
+            )
         if len(well) != len(min_well_enclosure):
-            raise ValueError("mismatch between number of well and number of min_well_enclosure")
+            raise ValueError(
+                "mismatch between number of well and number of min_well_enclosure"
+            )
         self.min_well_enclosure = min_well_enclosure
         if allow_in_substrate:
             if min_substrate_enclosure is None:
                 if len(min_well_enclosure) == 1:
                     min_substrate_enclosure = min_well_enclosure[0]
                 else:
-                    raise TypeError("min_substrate_enclosure has be provided when providing multi min_well_enclosure values")
+                    raise TypeError(
+                        "min_substrate_enclosure has be provided when providing multi min_well_enclosure values"
+                    )
             min_substrate_enclosure = _util.i2f(min_substrate_enclosure)
             if not isinstance(min_substrate_enclosure, float):
-                raise TypeError("min_substrate_enclosure has to be 'None' or a float")
+                raise TypeError(
+                    "min_substrate_enclosure has to be 'None' or a float"
+                )
             self.min_substrate_enclosure = min_substrate_enclosure
         elif min_substrate_enclosure is not None:
-            raise TypeError("min_substrate_enclosure should be 'None' if allow_in_substrate is 'False'")
+            raise TypeError(
+                "min_substrate_enclosure should be 'None' if allow_in_substrate is 'False'"
+            )
         if not isinstance(allow_well_crossing, bool):
             raise TypeError("allow_well_crossing has to be a bool")
         self.allow_well_crossing = allow_well_crossing
@@ -525,6 +539,8 @@ class Via(_MaskPrimitive):
     ):
         primitive_args["name"] = name
         self._designmask_from_name(primitive_args, fill_space="no")
+        super().__init__(**primitive_args)
+
         if _util.is_iterable(bottom):
             bottom = tuple(bottom)
             if _util.is_iterable(min_bottom_enclosure):
@@ -565,6 +581,9 @@ class Via(_MaskPrimitive):
                         * for iterable bottom: an iterable with same length as bottom, elems have to be float or tuple of float of length 2
                         """
                     ))
+        self.bottom = bottom
+        self.min_bottom_enclosure = min_bottom_enclosure
+
         if _util.is_iterable(top):
             top = tuple(top)
             if _util.is_iterable(min_top_enclosure):
@@ -599,21 +618,18 @@ class Via(_MaskPrimitive):
                         * for iterable top: an iterable with same length as top, elems have to be float or tuple of float of length 2
                         """
                     ))
+        self.top = top
+        self.min_top_enclosure = min_top_enclosure
         
         width = _util.i2f(width)
         if not isinstance(width, float):
             raise TypeError("width has to be a float")
+        self.width = width
+
         min_space = _util.i2f(min_space)
         if not isinstance(min_space, float):
             raise TypeError("min_space has to be a float")
-
-        super().__init__(**primitive_args)
-        self.bottom = bottom
-        self.top = top
-        self.width = width
         self.min_space = min_space
-        self.min_bottom_enclosure = min_bottom_enclosure
-        self.min_top_enclosure = min_top_enclosure
 
     def _generate_rules(self, tech):
         super()._generate_rules(tech)

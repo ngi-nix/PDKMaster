@@ -24,7 +24,7 @@ class TypedTuple(abc.ABC):
         self._t = tuple(iterable)
         if not all(isinstance(elem, self.tt_element_type) for elem in self._t):
             raise TypeError(
-                f"elements of {self.__class__.__name__} have to be of type f{self.tt_element_type.__name__}"
+                f"elements of {self.__class__.__name__} have to be of type {self.tt_element_type.__name__}"
             )
 
         if self.tt_index_attribute is not None:
@@ -74,7 +74,7 @@ class TypedTuple(abc.ABC):
         other = tuple(other)
         if not all(isinstance(elem, self.tt_element_type) for elem in other):
             raise TypeError(
-                f"elements of {self.__class__.__name__} have to be of type f{self.tt_element_type}"
+                f"elements of {self.__class__.__name__} have to be of type {self.tt_element_type}"
             )
         self._t += other
 

@@ -7,7 +7,6 @@ from .. import _util
 from ..technology import (
     mask as msk, primitive as prm, technology_ as tch, dispatcher as dsp
 )
-from . import circuit as crt
 
 __all__ = [
     "MaskPolygon", "MaskPolygons", "PrimitiveLayoutFactory",
@@ -33,7 +32,7 @@ def _rect(left, bottom, right, top, *, enclosure=None):
 
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
-    _geometry_types_str = "'Polygon' or 'MultiPolygon' from shapely"
+    _geometry_types_str = "'Polygon'/'MultiPolygon' from shapely"
     def __init__(self, mask, polygon):
         if not isinstance(mask, msk.DesignMask):
             raise TypeError("mask has to be of type 'DesignMask'")
