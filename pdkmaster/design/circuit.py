@@ -3,37 +3,31 @@ from shapely import geometry as sh_geo
 
 from .. import _util
 from ..technology import (
-    property_ as prp, port as prt, primitive as prm, technology_ as tch,
+    property_ as prp, net as net_, primitive as prm, technology_ as tch,
 )
 from . import layout as lay
 
 __all__ = ["CircuitFactory", "CircuitLayouter"]
-
-class _InstancePort:
-    def __init__(self, inst, port):
-        assert all((
-            isinstance(inst, _Instance),
-            isinstance(port, prt.Port),
-         )), "Internal error"
-
-        self.name = port.name
-        self.inst = inst
-        self.port = port
-
-class _InstancePorts(_util.TypedTuple):
-    tt_element_type = _InstancePort
 
 class _Instance(abc.ABC):
     @abc.abstractmethod
     def __init__(self, name, ports):
         assert all((
             isinstance(name, str),
-            isinstance(ports, _InstancePorts),
+            isinstance(ports, net_.Nets),
         )), "Internal error"
 
         self.name = name
         ports.tt_freeze()
         self.ports = ports
+
+class _InstanceNet(net_.Net):
+    def __init__(self, inst, net):
+        assert all((
+            isinstance(inst, _Instance),
+            isinstance(net, net_.Net),
+        )), "Internal error"
+        super().__init__(f"{inst.name}.{net.name}")
 
 class _Instances(_util.TypedTuple):
     tt_element_type = _Instance
@@ -45,36 +39,10 @@ class _PrimitiveInstance(_Instance):
             isinstance(prim, prm._Primitive),
         )), "Internal error"
 
-        super().__init__(name, _InstancePorts(
-            _InstancePort(self, port) for port in prim.ports
-        ))
+        super().__init__(name, prim.ports)
 
         self.prim = prim
         self.params = params
-
-class _Net:
-    def __init__(self, circuit, name, external):
-        assert all((
-            isinstance(circuit, _Circuit),
-            isinstance(name, str),
-            isinstance(external, bool),
-        )), "Internal error"
-
-        self.circuit = circuit
-        self.name = name
-        self.ports = _InstancePorts()
-
-    def freeze(self):
-        self.ports.tt_freeze()
-
-class _Nets(_util.TypedTuple):
-    tt_element_type = _Net
-
-class _NetPort(prt.Port):
-    def __init__(self, net):
-        assert isinstance(net, _Net), "Internal error"
-        super().__init__(net.name)
-        self.net = net
 
 class _Circuit:
     def __init__(self, name, fab):
@@ -86,8 +54,8 @@ class _Circuit:
         self.fab = fab
 
         self.instances = _Instances()
-        self.nets = _Nets()
-        self.ports = prt.Ports()
+        self.nets = net_.Nets()
+        self.ports = _CircuitNets()
         self._layout = lay.MaskPolygons()
 
     @property
@@ -113,11 +81,29 @@ class _Circuit:
         if not isinstance(external, bool):
             raise TypeError("external has to be a bool")
         
-        net = _Net(self, name, external)
+        net = _CircuitNet(self, name, external)
         self.nets += net
         if external:
-            self.ports += _NetPort(net)
+            self.ports += net
         return net
+
+class _CircuitNet(net_.Net):
+    def __init__(self, circuit, name, external):
+        assert all((
+            isinstance(circuit, _Circuit),
+            isinstance(name, str),
+            isinstance(external, bool),
+        )), "Internal error"
+
+        super().__init__(name)
+        self.circuit = circuit
+        self.childports = net_.Nets()
+
+    def freeze(self):
+        self.childports.tt_freeze()
+
+class _CircuitNets(net_.Nets):
+    tt_element_type = _CircuitNet
 
 class CircuitFactory:
     def __init__(self, tech, layoutfab):

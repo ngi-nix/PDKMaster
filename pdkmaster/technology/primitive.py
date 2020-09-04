@@ -6,7 +6,7 @@ import abc
 
 from .. import _util
 from . import (
-    rule as rle, property_ as prp, port as prt, mask as msk, wafer_ as wfr,
+    rule as rle, property_ as prp, net as net_, mask as msk, wafer_ as wfr,
     edge as edg,
 )
 
@@ -49,7 +49,7 @@ class _Primitive(abc.ABC):
         _Primitive._names.update(name)
         self.name = name
 
-        self.ports = prt.Ports()
+        self.ports = _PrimitivePorts()
         self.params = _Params()
 
         self._rules = None
@@ -108,6 +108,19 @@ class _Primitive(abc.ABC):
 
         return casted
 
+class _PrimitiveNet(net_.Net):
+    def __init__(self, prim, name):
+        assert all((
+            isinstance(prim, _Primitive),
+            isinstance(name, str),
+        )), "Internal error"
+
+        super().__init__(name)
+        self.prim = prim
+
+class _PrimitivePorts(net_.Nets):
+    tt_element_type = (_PrimitiveNet, wfr.SubstrateNet)
+
 class _MaskPrimitive(_Primitive):
     @abc.abstractmethod
     def __init__(self, *, mask, grid=None, **primitive_args):
@@ -120,7 +133,7 @@ class _MaskPrimitive(_Primitive):
                 self.__class__.__name__
             ))
         if isinstance(mask, msk.DesignMask):
-            self.ports += msk.MaskPort("conn", mask)
+            self.ports += _PrimitiveNet(self, "conn")
         self.mask = mask
 
         if grid is not None:
@@ -1060,15 +1073,15 @@ class MOSFET(_Primitive):
             self.model = model
 
         # MOSFET is symmetric so both diffusion regions can be source or drain
-        bulkport = (
-            msk.MaskPort("bulk", well.mask) if well is not None
-            else wfr.SubstratePort("bulk")
+        bulknet = (
+            _PrimitiveNet(self, "bulk") if well is not None
+            else wfr.SubstrateNet("bulk")
         )
         self.ports += (
-            msk.MaskPort("sourcedrain1", gate.active.mask),
-            msk.MaskPort("sourcedrain2", gate.active.mask),
-            msk.MaskPort("gate", gate.poly.mask),
-            bulkport,
+            _PrimitiveNet(self, "sourcedrain1"),
+            _PrimitiveNet(self, "sourcedrain2"),
+            _PrimitiveNet(self, "gate"),
+            bulknet,
         )
 
         self.params += (
@@ -1153,6 +1166,7 @@ class UnusedPrimitiveError(Exception):
         super().__init__(
             f"primitive '{primitive.name}' defined but not used"
         )
+
 class UnconnectedPrimitiveError(Exception):
     def __init__(self, primitive):
         assert isinstance(primitive, _Primitive)

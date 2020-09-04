@@ -1,6 +1,6 @@
-from . import port as prt, mask as msk
+from . import net as net_, mask as msk
 
-__all__ = ["wafer", "SubstratePort"]
+__all__ = ["wafer", "SubstrateNet"]
 
 class _Wafer(msk._Mask):
     generated = False
@@ -21,7 +21,7 @@ class _Wafer(msk._Mask):
 
 wafer = _Wafer()
 
-class SubstratePort(prt.Port):
+class SubstrateNet(net_.Net):
     def __init__(self, name):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")

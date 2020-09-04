@@ -5,7 +5,7 @@ from shapely import geometry as sh_geo, ops as sh_ops
 
 from .. import _util
 from ..technology import (
-    mask as msk, primitive as prm, technology_ as tch, dispatcher as dsp
+    net as net_, mask as msk, primitive as prm, technology_ as tch, dispatcher as dsp
 )
 
 __all__ = [

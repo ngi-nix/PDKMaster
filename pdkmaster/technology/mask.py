@@ -1,9 +1,9 @@
 import abc
 
 from .. import _util
-from . import rule as rle, property_ as prp, port as prt
+from . import rule as rle, property_ as prp
 
-__all__ = ["DesignMask", "MaskPort"]
+__all__ = ["DesignMask"]
 
 class _MaskProperty(prp.Property):
     def __init__(self, mask, name):
@@ -321,13 +321,3 @@ class SameNet(_Mask):
     @property
     def designmasks(self):
         return self.mask.designmasks
-
-class MaskPort(prt.Port):
-    def __init__(self, name, mask):
-        if not isinstance(name, str):
-            raise TypeError("name has to be a string")
-        self.name = name
-
-        if not isinstance(mask, DesignMask):
-            raise TypeError("mask has to be of type 'DesignMask'")
-        self.mask = mask
