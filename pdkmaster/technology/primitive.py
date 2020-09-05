@@ -368,10 +368,7 @@ class WaferWire(_WidthSpacePrimitive):
         self.allow_in_substrate = allow_in_substrate
 
         implant = tuple(implant) if _util.is_iterable(implant) else (implant,)
-        if not all(
-            isinstance(impl, Implant) and not isinstance(impl, Well)
-            for impl in implant
-        ):
+        if not all(isinstance(impl, Implant) for impl in implant):
             raise TypeError("implant has to be of type 'Implant' that is not a 'Well' or an interable of that")
         self.implant = implant
         if isinstance(implant_abut, str):
