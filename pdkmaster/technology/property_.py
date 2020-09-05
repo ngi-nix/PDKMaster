@@ -58,11 +58,15 @@ class Property:
     value_type = float
     value_type_str = "float"
 
-    def __init__(self, name):
+    def __init__(self, name, *, allow_none=False):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
-
         self.name = name
+
+        if not isinstance(allow_none, bool):
+            raise TypeError("allow_none has to be a bool")
+        self.allow_none = allow_none
+
         self.dependencies = set()
 
     def __gt__(self, other):
@@ -82,17 +86,19 @@ class Property:
     def __hash__(self):
         return hash(self.name)
 
-    @classmethod
-    def cast(cls, value):
-        if cls.value_conv is not None:
+    def cast(self, value):
+        if self.allow_none and (value is None):
+            return None
+        value_conv = self.__class__.value_conv
+        if value_conv is not None:
             try:
-                value = cls.value_conv(value)
+                value = value_conv(value)
             except:
                 raise TypeError("could not convert property value {!r} to type '{}'".format(
-                    value, cls.value_type_str,
+                    value, self.value_type_str,
                 ))
-        if not isinstance(value, cls.value_type):
+        if not isinstance(value, self.value_type):
             raise TypeError("property value {!r} is not of type '{}'".format(
-                value, cls.value_type_str,
+                value, self.value_type_str,
             ))
         return value
