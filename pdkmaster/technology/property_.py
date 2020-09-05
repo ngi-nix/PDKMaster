@@ -102,3 +102,113 @@ class Property:
                 value, self.value_type_str,
             ))
         return value
+
+class Enclosure:
+    def __init__(self, spec):
+        if isinstance(spec, Enclosure):
+            spec = spec.spec
+        spec = _util.i2f_recursive(spec)
+        if not (
+            isinstance(spec, float)
+            or (
+                _util.is_iterable(spec)
+                and len(spec) == 2
+                and all(isinstance(v, float) for v in spec)
+            )
+        ):
+            raise TypeError("spec has to be a float or a pair of floats")
+        self.spec = spec
+
+    def _get_specs(self, other):
+        try:
+            other = Enclosure(other)
+        except:
+            raise TypeError(
+                "right side of operation has to be of type 'Enclosure',\n"
+                "a float or a pair of floats"
+            )
+        else:
+            return self.spec, other.spec
+
+    def __eq__(self, other):
+        spec1, spec2 = self._get_specs(other)
+        if type(spec1) != type(spec2):
+            return False
+        elif isinstance(spec1, float):
+            return spec1 == spec2
+        else: # Both pairs
+            return set(spec1) == set(spec2)
+
+    def __gt__(self, other):
+        spec1, spec2 = self._get_specs(other)
+
+        if isinstance(spec1, float):
+            if isinstance(spec2, float):
+                return spec1 > spec2
+            else:
+                return spec1 > max(spec2)
+        else:
+            if isinstance(spec2, float):
+                raise NotImplementedError()
+            else:
+                return (
+                    ((spec1[0] > spec2[0]) and (spec1[1] > spec2[1]))
+                    or ((spec1[0] > spec2[1]) and (spec1[1] > spec2[0]))
+                )
+
+    def __ge__(self, other):
+        spec1, spec2 = self._get_specs(other)
+
+        if isinstance(spec1, float):
+            if isinstance(spec2, float):
+                return spec1 >= spec2
+            else:
+                return spec1 >= max(spec2)
+        else:
+            if isinstance(spec2, float):
+                raise NotImplementedError()
+            else:
+                return (
+                    ((spec1[0] >= spec2[0]) and (spec1[1] >= spec2[1]))
+                    or ((spec1[0] >= spec2[1]) and (spec1[1] >= spec2[0]))
+                )
+
+    def __lt__(self, other):
+        spec1, spec2 = self._get_specs(other)
+
+        if isinstance(spec1, float):
+            if isinstance(spec2, float):
+                return spec1 < spec2
+            else:
+                raise NotImplementedError()
+        else:
+            if isinstance(spec2, float):
+                raise NotImplementedError()
+            else:
+                return (
+                    ((spec1[0] < spec2[0]) and (spec1[1] < spec2[1]))
+                    or ((spec1[0] < spec2[1]) and (spec1[1] < spec2[0]))
+                )
+
+    def __le__(self, other):
+        spec1, spec2 = self._get_specs(other)
+
+        if isinstance(spec1, float):
+            if isinstance(spec2, float):
+                return spec1 <= spec2
+            else:
+                raise NotImplementedError()
+        else:
+            if isinstance(spec2, float):
+                raise NotImplementedError()
+            else:
+                return (
+                    ((spec1[0] <= spec2[0]) and (spec1[1] <= spec2[1]))
+                    or ((spec1[0] <= spec2[1]) and (spec1[1] <= spec2[0]))
+                )
+
+class EnclosureProperty(Property):
+    value_type_str = "'Enclosure'"
+
+    def cast(self, value):
+        return Enclosure(value)

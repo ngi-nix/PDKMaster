@@ -5,7 +5,8 @@ from shapely import geometry as sh_geo, ops as sh_ops
 
 from .. import _util
 from ..technology import (
-    net as net_, mask as msk, primitive as prm, technology_ as tch, dispatcher as dsp
+    property_ as prp, net as net_, mask as msk, primitive as prm,
+    technology_ as tch, dispatcher as dsp
 )
 
 __all__ = [
@@ -16,6 +17,8 @@ __all__ = [
 
 def _rect(left, bottom, right, top, *, enclosure=None):
     if enclosure is not None:
+        if isinstance(enclosure, prp.Enclosure):
+            enclosure = enclosure.spec
         if isinstance(enclosure, float):
             left -= enclosure
             bottom -= enclosure

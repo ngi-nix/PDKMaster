@@ -371,17 +371,14 @@ class WaferWire(_WidthSpacePrimitive):
         if not all(isinstance(impl, Implant) for impl in implant):
             raise TypeError("implant has to be of type 'Implant' that is not a 'Well' or an interable of that")
         self.implant = implant
-        min_implant_enclosure = (
-            tuple(_util.i2f(enc) for enc in min_implant_enclosure)
-            if _util.is_iterable(min_implant_enclosure)
-            else (_util.i2f(min_implant_enclosure),)
-        )
+        min_implant_enclosure = _util.v2t(min_implant_enclosure)
+        if not all(isinstance(enc, prp.Enclosure) for enc in min_implant_enclosure):
+            raise TypeError(
+                "min_implant_enclosure has to be of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'"
+            )
         if len(min_implant_enclosure) == 1 and len(implant) > 1:
             min_implant_enclosure *= len(implant)
-        if not all(isinstance(enc, float) for enc in min_implant_enclosure):
-            raise TypeError(
-                "min_implant_enclosure has to be a float or an iterable of float"
-            )
         if len(implant) != len(min_implant_enclosure):
             raise ValueError(
                 "mismatch between number of implant and number of min_implant_enclosure"
@@ -410,16 +407,14 @@ class WaferWire(_WidthSpacePrimitive):
             if not any(impl.type_ == w.type_ for impl in implant):
                 raise UnconnectedPrimitiveError(well)
         self.well = well
-        min_well_enclosure = (
-            tuple(_util.i2f(enc) for enc in min_well_enclosure) if _util.is_iterable(min_well_enclosure)
-            else (_util.i2f(min_well_enclosure),)
-        )
+        min_well_enclosure = _util.v2t(min_well_enclosure)
+        if not all(isinstance(enc, prp.Enclosure) for enc in min_well_enclosure):
+            raise TypeError(
+                "min_well_enclosure has to be of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'"
+            )
         if len(min_well_enclosure) == 1 and len(well) > 1:
             min_well_enclosure *= len(well)
-        if not all(isinstance(enc, float) for enc in min_well_enclosure):
-            raise TypeError(
-                "min_well_enclosure has to be a float or an iterable of float"
-            )
         if len(well) != len(min_well_enclosure):
             raise ValueError(
                 "mismatch between number of well and number of min_well_enclosure"
@@ -433,10 +428,9 @@ class WaferWire(_WidthSpacePrimitive):
                     raise TypeError(
                         "min_substrate_enclosure has be provided when providing multi min_well_enclosure values"
                     )
-            min_substrate_enclosure = _util.i2f(min_substrate_enclosure)
-            if not isinstance(min_substrate_enclosure, float):
+            if not isinstance(min_substrate_enclosure, prp.Enclosure):
                 raise TypeError(
-                    "min_substrate_enclosure has to be 'None' or a float"
+                    "min_substrate_enclosure has to be 'None' or of type 'Enclosure'"
                 )
             self.min_substrate_enclosure = min_substrate_enclosure
         elif min_substrate_enclosure is not None:
@@ -468,7 +462,9 @@ class WaferWire(_WidthSpacePrimitive):
             enc = self.min_well_enclosure[i]
             self._rules += (self.mask.enclosed_by(w.mask) >= enc,)
         if hasattr(self, "min_substrate_enclosure"):
-            self._rules += (self.mask.enclosed_by(tech.substrate) >= self.min_substrate_enclosure,)
+            self._rules += (
+                self.mask.enclosed_by(tech.substrate) >= self.min_substrate_enclosure.spec,
+            )
         if not self.allow_well_crossing:
             mask_edge = edg.MaskEdge(self.mask)
             self._rules += tuple(mask_edge.interact_with(w.mask).length == 0 for w in self.well)
@@ -532,13 +528,12 @@ class Resistor(_WidthSpacePrimitive):
             widthspace_args["name"] = name
         super().__init__(**widthspace_args)
 
-        min_enclosure = (
-            tuple(_util.i2f(encl) for encl in min_enclosure)
-            if _util.is_iterable(min_enclosure)
-            else (_util.i2f(min_enclosure),)
-        )
-        if not all(isinstance(enc, float) for enc in min_enclosure):
-            raise TypeError("min_enclosure has to be a float or an iterable of float")
+        min_enclosure = _util.v2t(min_enclosure)
+        if not all(isinstance(enc, prp.Enclosure) for enc in min_enclosure):
+            raise TypeError(
+                "min_enclosure has to be of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'"
+            )
         if len(min_enclosure) == 1:
             min_enclosure = len(indicator)*min_enclosure
         if len(min_enclosure) != len(indicator):
@@ -560,90 +555,53 @@ class Resistor(_WidthSpacePrimitive):
 class Via(_MaskPrimitive):
     def __init__(self, name, *,
         bottom, top,
-        width, min_space, min_bottom_enclosure=0.0, min_top_enclosure=0.0,
+        width, min_space, min_bottom_enclosure, min_top_enclosure,
         **primitive_args,
     ):
         primitive_args["name"] = name
         self._designmask_from_name(primitive_args, fill_space="no")
         super().__init__(**primitive_args)
 
-        if _util.is_iterable(bottom):
-            bottom = tuple(bottom)
-            if _util.is_iterable(min_bottom_enclosure):
-                min_bottom_enclosure = tuple(min_bottom_enclosure)
-            else:
-                min_bottom_enclosure = len(bottom)*(min_bottom_enclosure,)
-        else:
-            bottom = (bottom,)
-            min_bottom_enclosure = (
-                tuple(min_bottom_enclosure) if _util.is_iterable(min_bottom_enclosure)
-                else min_bottom_enclosure,
-            )
-        if len(bottom) != len(min_bottom_enclosure):
+        bottom = _util.v2t(bottom)
+        min_bottom_enclosure = _util.v2t(min_bottom_enclosure)
+        if len(min_bottom_enclosure) == 1:
+            min_bottom_enclosure *= len(bottom)
+        if ((not all(isinstance(enc, prp.Enclosure) for enc in min_bottom_enclosure))
+            or (len(bottom) != len(min_bottom_enclosure))
+        ):
             raise ValueError(
-                "min_bottom_enclosure has to be single or an iterable with same length as the bottom parameter",
+                "min_bottom_enclosure has to of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'\n"
+                "with same length as the bottom parameter"
             )
-        for i in range(len(bottom)):
-            wire = bottom[i]
-            encl = min_bottom_enclosure[i]
-            if not (
-                isinstance(wire, (WaferWire, GateWire, MetalWire, Resistor))
-                and not isinstance(wire, TopMetalWire)
-            ):
+        if not all((
+            isinstance(wire, (WaferWire, GateWire, MetalWire, Resistor))
+            and not isinstance(wire, TopMetalWire)
+        ) for wire in bottom):
                 raise TypeError(
                     "bottom has to be of type '(Wafer|Gate|Metal)Wire' or 'Resistor'\n"
                     "or an iterable of those"
                 )
-            if not isinstance(encl, float):
-                try:
-                    ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
-                except TypeError:
-                    ok = False
-                if not ok:
-                    raise TypeError(dedent(
-                        """min_bottom_enclosure value has to be either:
-                        * single float
-                        * for non-iterable bottom: an iterable of float of length 2
-                        * for iterable bottom: an iterable with same length as bottom, elems have to be float or tuple of float of length 2
-                        """
-                    ))
         self.bottom = bottom
         self.min_bottom_enclosure = min_bottom_enclosure
 
-        if _util.is_iterable(top):
-            top = tuple(top)
-            if _util.is_iterable(min_top_enclosure):
-                min_top_enclosure = tuple(min_top_enclosure)
-            else:
-                min_top_enclosure = len(top)*(min_top_enclosure,)
-        else:
-            top = (top,)
-            min_top_enclosure = (
-                tuple(min_top_enclosure) if _util.is_iterable(min_top_enclosure)
-                else min_top_enclosure,
-            )
-        if len(top) != len(min_top_enclosure):
+        top = _util.v2t(top)
+        min_top_enclosure = _util.v2t(min_top_enclosure)
+        if len(min_top_enclosure) == 1:
+            min_top_enclosure *= len(top)
+        if ((not all(isinstance(enc, prp.Enclosure) for enc in min_top_enclosure))
+            or (len(top) != len(min_top_enclosure))
+        ):
             raise ValueError(
-                "min_top_enclosure has to be single or an iterable with same length as the top parameter",
+                "min_top_enclosure has to of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'\n"
+                "with same length as the top parameter"
             )
-        for i in range(len(top)):
-            wire = top[i]
-            encl = min_top_enclosure[i]
-            if not isinstance(wire, (MetalWire, Resistor)):
-                raise TypeError("top has to be of type 'MetalWire' or 'Resistor' or an iterable of those")
-            if not isinstance(encl, float):
-                try:
-                    ok = (len(encl) == 2) and all(isinstance(f, float) for f in encl)
-                except TypeError:
-                    ok = False
-                if not ok:
-                    raise TypeError(dedent(
-                        """min_top_enclosure value has to be either:
-                        * single float
-                        * for non-iterable top: an iterable of float of length 2
-                        * for iterable top: an iterable with same length as top, elems have to be float or tuple of float of length 2
-                        """
-                    ))
+        if not all(isinstance(wire, (MetalWire, Resistor)) for wire in top):
+                raise TypeError(
+                    "top has to be of type 'MetalWire' or 'Resistor'\n"
+                    "or an iterable of those"
+                )
         self.top = top
         self.min_top_enclosure = min_top_enclosure
         
@@ -666,16 +624,14 @@ class Via(_MaskPrimitive):
         )
         self._rules += (msk.Connect((b.mask for b in self.bottom), self.mask),)
         for i in range(len(self.bottom)):
-            if isinstance(self.min_bottom_enclosure[i], float):
-                self._rules += (self.mask.enclosed_by(self.bottom[i].mask) >= self.min_bottom_enclosure[i],)
-            else:
-                self._rules += (self.mask.enclosed_by_asymmetric(self.bottom[i].mask) >= self.min_bottom_enclosure[i],)
+            bot_mask = self.bottom[i].mask
+            enc = self.min_bottom_enclosure[i]
+            self._rules += (self.mask.enclosed_by(bot_mask) >= enc,)
         self._rules += (msk.Connect(self.mask, (b.mask for b in self.top)),)
         for i in range(len(self.top)):
-            if isinstance(self.min_top_enclosure[i], float):
-                self._rules += (self.mask.enclosed_by(self.top[i].mask) >= self.min_top_enclosure[i],)
-            else:
-                self._rules += (self.mask.enclosed_by_asymmetric(self.top[i].mask) >= self.min_top_enclosure[i],)
+            top_mask = self.top[i].mask
+            enc = self.min_top_enclosure[i]
+            self._rules += (self.mask.enclosed_by(top_mask) >= enc,)
 
     @property
     def designmasks(self):
@@ -694,15 +650,16 @@ class PadOpening(_WidthSpacePrimitive):
         if not (isinstance(bottom, MetalWire) and not isinstance(bottom, TopMetalWire)):
             raise TypeError("bottom has to be of type 'MetalWire'")
         self.bottom = bottom
-        min_bottom_enclosure = _util.i2f(min_bottom_enclosure)
-        if not isinstance(min_bottom_enclosure, float):
-            raise TypeError("min_bottom_enclosure has to be a float")
+        if not isinstance(min_bottom_enclosure, prp.Enclosure):
+            raise TypeError("min_bottom_enclosure has to be of type 'Enclosure'")
         self.min_bottom_enclosure = min_bottom_enclosure
 
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
-        self._rules += (self.mask.enclosed_by(self.bottom.mask) >= self.min_bottom_enclosure,)
+        self._rules += (
+            self.mask.enclosed_by(self.bottom.mask) >= self.min_bottom_enclosure,
+        )
 
     @property
     def designmasks(self):
@@ -1031,32 +988,18 @@ class MOSFET(_Primitive):
         elif not hasattr(gate, "min_polyactive_extension"):
             raise ValueError("min_polyactive_extension has to be either provided for the transistor gate or the transistor itself")
 
-        min_gateimplant_enclosure = (
-            tuple(tuple(
-                _util.i2f(v) for v in enc) if _util.is_iterable(enc) else _util.i2f(enc)
-                for enc in min_gateimplant_enclosure
-            )
-            if _util.is_iterable(min_gateimplant_enclosure)
-            else (_util.i2f(min_gateimplant_enclosure),)
-        )
-        if len(implant) == 1 and len(min_gateimplant_enclosure) == 2:
-            min_gateimplant_enclosure = (min_gateimplant_enclosure,)
-        if len(implant) > 1 and len(min_gateimplant_enclosure) == 1:
+        min_gateimplant_enclosure = _util.v2t(min_gateimplant_enclosure)
+        if len(min_gateimplant_enclosure) == 1:
             min_gateimplant_enclosure *= len(implant)
-        if not all(
-            (isinstance(enc, float)
-             or (len(enc) == 2 and all(isinstance(v, float) for v in enc))
-            ) for enc in min_gateimplant_enclosure
+        if not (
+            all(isinstance(enc, prp.Enclosure) for enc in min_gateimplant_enclosure)
+            and len(implant) == len(min_gateimplant_enclosure)
         ):
             raise TypeError(
-                "min_gateimplant_enclosure has to be either:\n"
-                "* a float\n"
-                "* an iterable with same length as implant and with elements eihter:\n"
-                "  * a float\n"
-                "  * a length 2 iterable of float"
+                "min_gateimplant_enclosure has to be of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'\n"
+                "with same length as the implant parameter"
             )
-        if len(implant) != len(min_gateimplant_enclosure):
-            raise ValueError("length mismatch between min_gateimplant_enclosure and implant")
         self.min_gateimplant_enclosure = min_gateimplant_enclosure
 
         if min_gate_space is not None:
@@ -1140,12 +1083,12 @@ class MOSFET(_Primitive):
         for i in range(len(self.implant)):
             impl_mask = self.implant[i].mask
             enc = self.min_gateimplant_enclosure[i]
-            if isinstance(enc, float):
+            if isinstance(enc.spec, float):
                 self._rules += (markedgate_mask.enclosed_by(impl_mask) >= enc,)
             else:
                 self._rules += (
-                    channel_edge.enclosed_by(impl_mask) >= enc[0],
-                    fieldgate_edge.enclosed_by(impl_mask) >= enc[1],
+                    channel_edge.enclosed_by(impl_mask) >= enc.spec[0],
+                    fieldgate_edge.enclosed_by(impl_mask) >= enc.spec[1],
                 )
         if hasattr(self, "min_gate_space"):
             self._rules += (markedgate_mask.space >= self.min_gate_space,)

@@ -1,4 +1,6 @@
-from ..technology import technology_ as tch, mask as msk, primitive as prm
+from ..technology import (
+    property_ as prp, mask as msk, primitive as prm, technology_ as tch
+)
 from ..design import layout as lay, circuit as ckt
 
 __all__ = ["technology"]
@@ -58,10 +60,12 @@ class _FreePDK45(tch.Technology):
             prm.WaferWire("active", allow_in_substrate=False,
                 min_width=0.090, # Active.1
                 min_space=0.080, # Active.2
-                implant=(prims.nimplant, prims.pimplant), implant_abut="all",
+                implant=(prims.nimplant, prims.pimplant),
+                min_implant_enclosure=prp.Enclosure(0.005), # Own rule
+                implant_abut="all",
                 allow_contactless_implant=False,
                 well=(prims.nwell, prims.pwell),
-                min_well_enclosure=0.055, # Active.3
+                min_well_enclosure=prp.Enclosure(0.055), # Active.3
                 allow_well_crossing=False,
             ),
             prm.GateWire("poly",
@@ -152,8 +156,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.075, # Contact.2
                         "bottom": (prims.active, prims.poly), # Contact.3
                         "top": prims.metal1, # Contact.3
-                        "min_bottom_enclosure": 0.005, # Contact.4+5
-                        "min_top_enclosure": (0.000, 0.035), # Metal1.3
+                        "min_bottom_enclosure": prp.Enclosure(0.005), # Contact.4+5
+                        "min_top_enclosure": prp.Enclosure((0.000, 0.035)), # Metal1.3
                     },
                     {
                         "name": "via1",
@@ -161,8 +165,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.075, # Contact.2
                         "bottom": prims.metal1, # Contact.3
                         "top": prims.metal2, # Contact.4
-                        "min_bottom_enclosure": (0.000, 0.035), # Metal1.4
-                        "min_top_enclosure": (0.000, 0.035), # MetalInt.3
+                        "min_bottom_enclosure": prp.Enclosure((0.000, 0.035)), # Metal1.4
+                        "min_top_enclosure": prp.Enclosure((0.000, 0.035)), # MetalInt.3
                     },
                     {
                         "name": "via2",
@@ -170,8 +174,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.085, # Via[2-3].2
                         "bottom": prims.metal2, # Via[2-3].3
                         "top": prims.metal3, # Via[2-3].4
-                        "min_bottom_enclosure": (0.000, 0.035), # MetalInt.4
-                        "min_top_enclosure": (0.000, 0.035), # MetalInt.4
+                        "min_bottom_enclosure": prp.Enclosure((0.000, 0.035)), # MetalInt.4
+                        "min_top_enclosure": prp.Enclosure((0.000, 0.035)), # MetalInt.4
                     },
                     {
                         "name": "via3",
@@ -179,7 +183,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.085, # Via[2-3].2
                         "bottom": prims.metal3, # Via[2-3].3
                         "top": prims.metal4, # Via[2-3].4, MetalSMG.3
-                        "min_bottom_enclosure": (0.000, 0.035), # MetalInt.4
+                        "min_bottom_enclosure": prp.Enclosure((0.000, 0.035)), # MetalInt.4
+                        "min_top_enclosure": prp.Enclosure(0.000),
                     },
                     {
                         "name": "via4",
@@ -187,6 +192,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.160, # Via[4-6].2
                         "bottom": prims.metal4, # Via[4-6].3, MetalSMG.3
                         "top": prims.metal5, # Via[4-6].4, MetalSMG.3
+                        "min_bottom_enclosure": prp.Enclosure(0.000),
+                        "min_top_enclosure": prp.Enclosure(0.000),
                     },
                     {
                         "name": "via5",
@@ -194,6 +201,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.160, # Via[4-6].2
                         "bottom": prims.metal5, # Via[4-6].3, MetalSMG.3
                         "top": prims.metal6, # Via[4-6].4, MetalSMG.3
+                        "min_bottom_enclosure": prp.Enclosure(0.000),
+                        "min_top_enclosure": prp.Enclosure(0.000),
                     },
                     {
                         "name": "via6",
@@ -201,6 +210,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.160, # Via[4-6].2
                         "bottom": prims.metal6, # Via[4-6].3, MetalSMG.3
                         "top": prims.metal7, # Via[4-6].4, MetalTNG.3
+                        "min_bottom_enclosure": prp.Enclosure(0.000),
+                        "min_top_enclosure": prp.Enclosure(0.000),
                     },
                     {
                         "name": "via7",
@@ -208,6 +219,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.440, # Via[7-8].2
                         "bottom": prims.metal7, # Via[7-8].3, MetalTNG.3
                         "top": prims.metal8, # Via[7-8].4, MetalTNG.3
+                        "min_bottom_enclosure": prp.Enclosure(0.000),
+                        "min_top_enclosure": prp.Enclosure(0.000),
                         "grid": 0.010, # Added rule
                     },
                     {
@@ -216,6 +229,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.440, # Via[7-8].2
                         "bottom": prims.metal8, # Via[7-8].3, MetalTNG.3
                         "top": prims.metal9, # Via[7-8].4, MetalG.3
+                        "min_bottom_enclosure": prp.Enclosure(0.000),
+                        "min_top_enclosure": prp.Enclosure(0.000),
                         "grid": 0.010, # Added rule
                     },
                     {
@@ -224,6 +239,8 @@ class _FreePDK45(tch.Technology):
                         "min_space": 0.880, # Via[9].2
                         "bottom": prims.metal9, # Via[9].3, MetalG.3
                         "top": prims.metal10, # Via[9].4, MetalG.3
+                        "min_bottom_enclosure": prp.Enclosure(0.000),
+                        "min_top_enclosure": prp.Enclosure(0.000),
                         "grid": 0.010, # Added rule
                     },
                 )
@@ -236,7 +253,7 @@ class _FreePDK45(tch.Technology):
             *(
                 prm.Resistor(name,
                     wire=wire, indicator=prims.sblock,
-                    min_enclosure=0.045, # Own rule
+                    min_enclosure=prp.Enclosure(0.045), # Own rule
                 )
                 for name, wire in (
                     ("active_res", prims.active),
@@ -270,7 +287,7 @@ class _FreePDK45(tch.Technology):
         prims += (
             prm.MOSFET(name,
                 gate=gate, implant=impl, well=well,
-                min_gateimplant_enclosure=0.070, # Implant.1
+                min_gateimplant_enclosure=prp.Enclosure(0.070), # Implant.1
             ) for name, gate, impl, well in (
                 ("nmos_vtl", prims.mosgate, (prims.nimplant, prims.vthl), prims.pwell),
                 ("pmos_vtl", prims.mosgate, (prims.pimplant, prims.vthl), prims.nwell),

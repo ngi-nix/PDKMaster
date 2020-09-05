@@ -21,10 +21,23 @@ class _DualMaskProperty(prp.Property):
         ), "Internal error"
 
         if commutative:
-            name = "{}({},{})".format(name, mask1.name, mask2.name)
+            supername = "{}({},{})".format(name, mask1.name, mask2.name)
         else:
-            name = "{}.{}({})".format(mask1.name, name, mask2.name)
-        super().__init__(name)
+            supername = "{}.{}({})".format(mask1.name, name, mask2.name)
+        super().__init__(supername)
+
+        self.mask1 = mask1
+        self.mask2 = mask2
+        self.prop_name = name
+
+class _DualMaskEnclosureProperty(prp.EnclosureProperty):
+    def __init__(self, mask1, mask2, name):
+        assert (
+            isinstance(mask1, _Mask) and isinstance(mask2, _Mask)
+            and isinstance(name, str)
+        ), "Internal error"
+
+        super().__init__("{}.{}({})".format(mask1.name, name, mask2.name))
 
         self.mask1 = mask1
         self.mask2 = mask2
@@ -93,13 +106,7 @@ class _Mask(abc.ABC):
         if not isinstance(other, _Mask):
             raise TypeError("other has to be of type 'Mask'")
 
-        return _DualMaskProperty(self, other, "enclosed_by", commutative=False)
-
-    def enclosed_by_asymmetric(self, other):
-        if not isinstance(other, _Mask):
-            raise TypeError("other has to be of type 'Mask'")
-
-        return _AsymmetricDualMaskProperty(self, other, "enclosed_by_asymmetric", commutative=False)
+        return _DualMaskEnclosureProperty(self, other, "enclosed_by")
 
     def is_inside(self, other, *others):
         if isinstance(other, _Mask):
