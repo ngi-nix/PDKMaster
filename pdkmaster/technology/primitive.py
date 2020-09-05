@@ -356,7 +356,7 @@ class WaferWire(_WidthSpacePrimitive):
     # and STI for other ones.
     def __init__(self, name, *,
         allow_in_substrate,
-        implant, implant_abut, allow_contactless_implant,
+        implant, min_implant_enclosure, implant_abut, allow_contactless_implant,
         well, min_well_enclosure, min_substrate_enclosure=None, allow_well_crossing,
         **widthspace_args
     ):
@@ -371,6 +371,22 @@ class WaferWire(_WidthSpacePrimitive):
         if not all(isinstance(impl, Implant) for impl in implant):
             raise TypeError("implant has to be of type 'Implant' that is not a 'Well' or an interable of that")
         self.implant = implant
+        min_implant_enclosure = (
+            tuple(_util.i2f(enc) for enc in min_implant_enclosure)
+            if _util.is_iterable(min_implant_enclosure)
+            else (_util.i2f(min_implant_enclosure),)
+        )
+        if len(min_implant_enclosure) == 1 and len(implant) > 1:
+            min_implant_enclosure *= len(implant)
+        if not all(isinstance(enc, float) for enc in min_implant_enclosure):
+            raise TypeError(
+                "min_implant_enclosure has to be a float or an iterable of float"
+            )
+        if len(implant) != len(min_implant_enclosure):
+            raise ValueError(
+                "mismatch between number of implant and number of min_implant_enclosure"
+            )
+        self.min_implant_enclosure = min_implant_enclosure
         if isinstance(implant_abut, str):
             _conv = {"all": implant, "none": tuple()}
             if implant_abut not in _conv:

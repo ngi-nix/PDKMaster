@@ -110,6 +110,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _params_WaferWire(self, prim):
         s = f"allow_in_substrate={prim.allow_in_substrate},\n"
         s += f"implant={_str_primtuple(prim.implant)},\n"
+        s += f"min_implant_enclosure={prim.min_implant_enclosure},\n"
         s += f"implant_abut={_str_primtuple(prim.implant_abut)},\n"
         s += f"allow_contactless_implant={prim.allow_contactless_implant},\n"
         s += f"well={_str_primtuple(prim.well)},\n"
