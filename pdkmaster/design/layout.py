@@ -46,11 +46,190 @@ class MaskPolygon:
         self.polygon = polygon
 
     def __iadd__(self, polygon):
-        if not isinstance(polygon, self._geometry_types):
+        if isinstance(polygon, MaskPolygon):
+            if self.mask == polygon.mask:
+                self.polygon = self.polygon.union(polygon.polygon)
+                return self
+            else:
+                return self + polygon
+        elif isinstance(polygon, MaskPolygons):
+            return polygon + self
+        elif isinstance(polygon, self._geometry_types):
+            self.polygon = self.polygon.union(polygon)
+            return self
+        else:
             raise TypeError(
-                f"can olny add object of type {self._geometry_types_str}"
+                "can only add object of type 'MaskPolygon', 'Maskpolygons' or \n"
+                f"{self._geometry_types_str}"
             )
-        self.polygon = self.polygon.union(polygon)
+    __ior__ = __iadd__
+
+    def __isub__(self, polygon):
+        if isinstance(polygon, MaskPolygon):
+            if self.mask == polygon.mask:
+                self.polygon = self.polygon.difference(polygon.polygon)
+        elif isinstance(polygon, MaskPolygons):
+            try:
+                polygon = polygon[self.mask]
+            except:
+                pass
+            else:
+                self.polygon = self.polygon.difference(polygon.polygon)
+        elif isinstance(polygon, self._geometry_types):
+            self.polygon = self.polygon.difference(polygon)
+        else:
+            raise TypeError(
+                "can only add object of type 'MaskPolygon', 'Maskpolygons' or \n"
+                f"{self._geometry_types_str}"
+            )
+        return self
+
+    def __iand__(self, polygon):
+        if isinstance(polygon, MaskPolygon):
+            if self.mask == polygon.mask:
+                self.polygon = self.polygon.intersection(polygon.polygon)
+            else:
+                self.polygon = sh_geo.Polygon()
+        elif isinstance(polygon, MaskPolygons):
+            try:
+                polygon = polygon[self.mask]
+            except:
+                self.polygon = sh_geo.Polygon()
+            else:
+                self.polygon = self.polygon.intersection(polygon.polygon)
+        elif isinstance(polygon, self._geometry_types):
+            self.polygon = self.polygon.intersection(polygon)
+        else:
+            raise TypeError(
+                "can only intersect object of type 'MaskPolygon', 'Maskpolygons' or \n"
+                f"{self._geometry_types_str}"
+            )
+    __imul__ = __iand__
+
+    def __add__(self, polygon):
+        if isinstance(polygon, MaskPolygon):
+            if self.mask == polygon.mask:
+                return MaskPolygon(self.mask, self.polygon.union(polygon.polygon))
+            else:
+                return MaskPolygons((self, polygon))
+        elif isinstance(polygon, MaskPolygons):
+            return polygon + self
+        elif isinstance(polygon, self._geometry_types):
+            return MaskPolygon(self.mask, self.polygon.union(polygon))
+        else:
+            raise TypeError(
+                "can only add object of type 'MaskPolygon', 'Maskpolygons' or \n"
+                f"{self._geometry_types_str}"
+            )
+    __or__ = __add__
+
+    def __sub__(self, polygon):
+        if isinstance(polygon, MaskPolygon):
+            if self.mask == polygon.mask:
+                newpolygon = self.polygon.difference(polygon.polygon)
+            else:
+                newpolygon = self.polygon
+        elif isinstance(polygon, MaskPolygons):
+            try:
+                polygon = polygon[self.mask]
+            except:
+                newpolygon = self.polygon
+            else:
+                newpolygon = self.polygon.difference(polygon.polygon)
+        elif isinstance(polygon, self._geometry_types):
+            newpolygon = self.polygon.difference(polygon)
+        else:
+            raise TypeError(
+                "can only add object of type 'MaskPolygon', 'Maskpolygons' or \n"
+                f"{self._geometry_types_str}"
+            )
+
+        return MaskPolygon(self.mask, newpolygon)
+
+    def __and__(self, polygon):
+        if isinstance(polygon, MaskPolygon):
+            if self.mask == polygon.mask:
+                newpolygon = self.polygon.intersection(polygon.polygon)
+            else:
+                newpolygon = sh_geo.Polygon()
+        elif isinstance(polygon, MaskPolygons):
+            try:
+                polygon = polygon[self.mask]
+            except:
+                newpolygon = sh_geo.Polygon()
+            else:
+                newpolygon = self.polygon.intersection(polygon.polygon)
+        elif isinstance(polygon, self._geometry_types):
+            newpolygon = self.polygon.intersection(polygon)
+        else:
+            raise TypeError(
+                "can only add object of type 'MaskPolygon', 'Maskpolygons' or \n"
+                f"{self._geometry_types_str}"
+            )
+
+        return MaskPolygon(self.mask, newpolygon)
+    __mul__ = __and__
+
+    def grow(self, size):
+        polygon = self.polygon.buffer(size, resolution=0)
+
+        def manhattan_coords(coords):
+            n_coords = len(coords)
+            idx = 0
+            prev = None
+            while idx < n_coords:
+                coord = coords[idx]
+
+                idx += 1
+                if idx == n_coords:
+                    yield coord
+                    break
+                next_coord = coords[idx]
+
+                if ((next_coord[0] != coord[0]) and (next_coord[1] != coord[1])):
+                    idx += 1
+                    if prev is None:
+                        next2_coord = coords[idx]
+                        if next_coord[0] == next2_coord[0]:
+                            coord = (next_coord[0], coord[1])
+                        elif next_coord[1] == next2_coord[1]:
+                            coord = (coord[0], next_coord[1])
+                        else:
+                            raise RuntimeError("two consecutive non-Manhattan points")
+                    else:
+                        if coord[0] == prev[0]:
+                            coord = (coord[0], next_coord[1])
+                        elif coord[1] == prev[1]:
+                            coord = (next_coord[0], coord[1])
+                        else:
+                            raise RuntimeError(
+                                "two consecutive non-Manhattan points:\n"
+                                f"  {prev}, {coord}, {next_coord}"
+                            )
+
+                yield coord
+                prev = coord
+
+        def manhattan_polygon(polygon):
+            return sh_geo.Polygon(
+                shell=manhattan_coords(tuple(polygon.exterior.coords)),
+                holes=tuple(
+                    manhattan_coords(tuple(interior.coords))
+                    for interior in polygon.interiors
+                )
+            )
+
+        if _util.is_iterable(polygon):
+            self.polygon = sh_ops.unary_union(
+                tuple(manhattan_polygon(subpolygon) for subpolygon in polygon)
+            )
+        else:
+            self.polygon = manhattan_polygon(polygon)
+
+    def grown(self, size):
+        polygon = MaskPolygon(self.mask, self.polygon)
+        polygon.grow(size)
+        return polygon
 
 class MaskPolygons(_util.TypedTuple):
     tt_index_attribute = "mask"
@@ -66,29 +245,62 @@ class MaskPolygons(_util.TypedTuple):
 
     def __iadd__(self, other):
         if self._frozen:
-            raise ValueError("Can't add layout to a frozen layout")
-        if isinstance(other, MaskPolygons):
-            self.update(other)
-        else:
-            super().__iadd__(other)
+            raise ValueError("Can't add layout to a frozen 'MaskPolygons' object")
+        if not isinstance(other, MaskPolygons):
+            other = tuple(other) if _util.is_iterable(other) else (other,)
+            if not all(isinstance(polygons, MaskPolygon) for polygons in other):
+                raise TypeError(
+                    "Element to add to object of type 'MaskPolygons' has to be of type\n"
+                    "'MaskPolygon', 'MaskPolygons' or an iterable of 'MaskPolygon'"
+                )
 
-        return self
-
-    def update(self, polygons):
-        if not isinstance(polygons, MaskPolygons):
-            raise TypeError(
-                "Can only add update object of type 'MaskPolygons'\n"
-                "with object of type 'MaskPolygons'"
-            )
+        # Join polygons on the same mask
         new = []
-        for polygon in polygons:
+        for polygon in other:
             try:
                 p2 = self[polygon.mask]
             except:
                 new.append(polygon)
             else:
                 p2 += polygon.polygon
-        self += new
+        super().__iadd__(new)
+
+        return self
+
+    def __isub__(self, other):
+        if self._frozen:
+            raise ValueError("Can't subtract from a frozen 'MaskPolygons' object")
+        if isinstance(other, MaskPolygons):
+            for polygon in self:
+                try:
+                    polygon2 = other[polygon.mask]
+                except:
+                    pass
+                else:
+                    polygon -= polygon2
+        elif isinstance(other, MaskPolygon):
+            try:
+                polygon = self[other.mask]
+            except:
+                pass
+            else:
+                polygon -= other
+        else:
+            raise TypeError(
+                "can only subtrast object of type 'MaskPolygon' or 'MaskPolygons' from\n"
+                "a 'MaskPolygons' object"
+            )
+        return self
+
+    def __add__(self, other):
+        newpolygons = MaskPolygons(self)
+        newpolygons += other
+        return newpolygons
+
+    def __sub__(self, other):
+        newpolygons = MaskPolygons(self)
+        newpolygons -= other
+        return newpolygons
 
 class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
     def __init__(self, tech):
