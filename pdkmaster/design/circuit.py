@@ -126,6 +126,10 @@ class CircuitLayouter:
             raise TypeError("circuit has to be of type '_Circuit'")
         self.circuit = circuit
 
+    @property
+    def tech(self):
+        return self.circuit.fab.tech
+
     def place(self, inst, *, x, y):
         if not isinstance(inst, _Instance):
             raise TypeError("inst has to be of type '_Instance'")
