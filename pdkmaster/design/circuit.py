@@ -3,7 +3,7 @@ from shapely import geometry as sh_geo
 
 from .. import _util
 from ..technology import (
-    property_ as prp, net as net_, primitive as prm, technology_ as tch,
+    property_ as prp, net as net_, mask as msk, primitive as prm, technology_ as tch,
 )
 from . import layout as lay
 
@@ -167,3 +167,26 @@ class CircuitLayouter:
 
         connect_ports(instlayout.sublayouts)
         self.circuit._layout += instlayout.sublayouts
+
+    def fill_space(self):
+        maskspaces = {}
+        for rule in self.tech.rules:
+            if isinstance(rule, prp.Ops.GE):
+                left = rule.left
+                if isinstance(left, msk._MaskProperty) and (left.prop_name == "space"):
+                    mask = left.mask
+                    if isinstance(mask, msk.DesignMask) and mask.fill_space != "no":
+                        maskspaces[mask] = rule.right
+
+        for polygon in self.circuit._layout.polygons:
+            try:
+                space = maskspaces[polygon.mask]
+            except KeyError:
+                pass
+            else:
+                try:
+                    polygon.grow(0.5*space)
+                except:
+                    # TODO: avoid two consecutive non-manhattan exception
+                    continue
+                polygon.grow(-0.5*space)
