@@ -717,6 +717,143 @@ class Via(_MaskPrimitive):
             raise TypeError("min_space has to be a float")
         self.min_space = min_space
 
+        self.params += (
+            _Param(self, "space", default=min_space),
+            _IntParam(self, "rows", allow_none=True),
+            _IntParam(self, "columns", allow_none=True),
+            _EnclosureParam(self, "bottom_enclosure", allow_none=True),
+            _Param(self, "bottom_width", allow_none=True),
+            _Param(self, "bottom_height", allow_none=True),
+            _EnclosureParam(self, "top_enclosure", allow_none=True),
+            _Param(self, "top_width", allow_none=True),
+            _Param(self, "top_height", allow_none=True),
+        )
+        if len(bottom) > 1:
+            self.params += _PrimitiveParam(self, "bottom", choices=bottom)
+        choices = sum(
+            (wire.implant for wire in filter(
+                lambda w: isinstance(w, WaferWire),
+                bottom,
+            )),
+            tuple(),
+        )
+        if choices:
+            self.params += (
+                _PrimitiveParam(
+                    self, "bottom_implant", allow_none=True, choices=choices,
+                ),
+                _EnclosureParam(
+                    self, "bottom_implant_enclosure", allow_none=True,
+                ),
+                _PrimitiveParam(self, "bottom_well", allow_none=True),
+                _EnclosureParam(self, "bottom_well_enclosure", allow_none=True),
+            )
+        if len(top) > 1:
+            self.params += _PrimitiveParam(self, "top", choices=top)
+
+    def cast_params(self, params):
+        params = super().cast_params(params)
+
+        def _check_param(name):
+            return (name in params) and (params[name] is not None)
+
+        has_bottom = _check_param("bottom")
+        # has_bottom_enclosure = _check_param("bottom_enclosure")
+        has_bottom_implant = _check_param("bottom_implant")
+        has_bottom_implant_enclosure = _check_param("bottom_implant_enclosure")
+        has_bottom_well = _check_param("bottom_well")
+        has_bottom_well_enclosure = _check_param("bottom_well_enclosure")
+        has_bottom_width = _check_param("bottom_width")
+        has_bottom_height = _check_param("bottom_height")
+
+        has_top = _check_param("top")
+
+        has_rows = _check_param("rows")
+        has_columns = _check_param("columns")
+        has_top_width = _check_param("top_width")
+        has_top_height = _check_param("top_height")
+
+        if has_bottom:
+            bottom = params["bottom"]
+        else:
+            bottom = params["bottom"] = self.bottom[0]
+        if bottom not in self.bottom:
+            raise ValueError(
+                f"bottom primitive '{bottom.name}' not valid for via '{self.name}'"
+            )
+        if isinstance(bottom, WaferWire):
+            impl = params["bottom_implant"]
+            if impl is None:
+                raise ValueError(
+                    "bottom_implant parameter not provided for use of\n"
+                    f"bottom '{bottom.name}' for via '{self.name}'"
+                )
+            elif impl not in bottom.implant:
+                raise ValueError(
+                    f"bottom_implant '{impl.name}' not a valid implant for "
+                    f"bottom wire '{bottom.name}'"
+                )
+
+            if not has_bottom_implant_enclosure:
+                idx = bottom.implant.index(impl)
+                params["bottom_implant_enclosure"] = bottom.min_implant_enclosure[idx]
+
+            if has_bottom_well:
+                bottom_well = params["bottom_well"]
+                if bottom_well not in bottom.well:
+                    raise ValueError(
+                        f"bottom_well '{bottom_well.name}' not a valid well for "
+                        f"bottom wire '{bottom.name}'"
+                    )
+                if not has_bottom_well_enclosure:
+                    idx = bottom.well.index(bottom_well)
+                    params["bottom_well_enclosure"] = (
+                        bottom.min_well_enclosure[idx]
+                    )
+            elif not bottom.allow_in_substrate:
+                raise ValueError(
+                    f"bottom wire '{bottom.name}' needs a well"
+                )
+        elif has_bottom_implant:
+            bottom_implant = params["bottom_implant"]
+            raise ValueError(
+                f"bottom_implant '{bottom_implant.name}' not a valid implant for "
+                f"bottom wire '{bottom.name}'"
+            )
+        elif has_bottom_implant_enclosure:
+            raise TypeError(
+                "bottom_implant_enclosure wrongly provided for bottom wire "
+                f"'{bottom.name}'"
+            )
+        elif has_bottom_well:
+            bottom_well = params["bottom_well"]
+            raise ValueError(
+                f"bottom_well '{bottom_well.name}' not a valid well for "
+                f"bottom wire '{bottom.name}'"
+            )
+        elif has_bottom_well_enclosure:
+            raise TypeError(
+                "bottom_well_enclosure wrongly provided for bottom wire "
+                f"'{bottom.name}'"
+            )
+
+        if has_top:
+            top = params["top"]
+        else:
+            top = params["top"] = self.top[0]
+        if top not in self.top:
+            raise ValueError(
+                f"top primitive '{top.name}' not valid for via '{self.name}'"
+            )
+
+        if not any((has_rows, has_bottom_height, has_top_height)):
+            params["rows"] = 1
+
+        if not any((has_columns, has_bottom_width, has_top_width)):
+            params["columns"] = 1
+
+        return params
+
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 

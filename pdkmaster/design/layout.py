@@ -1,4 +1,5 @@
-import abc
+import abc, logging
+from itertools import product
 from matplotlib import pyplot as plt
 import descartes
 from shapely import geometry as sh_geo, ops as sh_ops
@@ -35,6 +36,23 @@ def _rect(left, bottom, right, top, *, enclosure=None):
 
     return sh_geo.Polygon((
         (left, bottom), (right, bottom), (right, top), (left, top),
+    ))
+
+def _via_array(left, bottom, width, pitch, rows, columns):
+    def subrect(rc):
+        row = rc[0]
+        column = rc[1]
+        left2 = left + column*pitch
+        bottom2 = bottom + row*pitch
+        right2 = left2 + width
+        top2 = bottom2 + width
+
+        return sh_geo.Polygon((
+            (left2, bottom2), (right2, bottom2), (right2, top2), (left2, top2),
+        ))
+
+    return sh_geo.MultiPolygon(tuple(
+        map(subrect, product(range(rows), range(columns)))
     ))
 
 def _manhattan_polygon(polygon, *, outer=True):
@@ -701,6 +719,145 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
             f"Don't know how to generate minimal layout for primitive '{prim.name}'\n"
             f"of type '{prim.__class__.__name__}'"
         )
+
+    def Via(self, prim, *, center, **via_params):
+        if not isinstance(center, sh_geo.Point):
+            raise TypeError("center has to be of type Point from shapely")
+
+        centerx, centery = tuple(center.coords)[0]
+
+        bottom = via_params["bottom"]
+        bottom_enc = via_params["bottom_enclosure"]
+        if bottom_enc is None:
+            idx = prim.bottom.index(bottom)
+            bottom_enc = prim.min_bottom_enclosure[idx]
+        if isinstance(bottom_enc.spec, float):
+            bottom_enc_x = bottom_enc_y = bottom_enc.spec
+        else:
+            bottom_enc_x = bottom_enc.spec[0]
+            bottom_enc_y = bottom_enc.spec[1]
+
+        top = via_params["top"]
+        top_enc = via_params["top_enclosure"]
+        if top_enc is None:
+            idx = prim.top.index(top)
+            top_enc = prim.min_top_enclosure[idx]
+        if isinstance(top_enc.spec, float):
+            top_enc_x = top_enc_y = top_enc.spec
+        else:
+            top_enc_x = top_enc.spec[0]
+            top_enc_y = top_enc.spec[1]
+
+        width = prim.width
+        space = via_params["space"]
+        pitch = width + space
+
+        rows = via_params["rows"]
+        if rows is None:
+            bottom_height = via_params["bottom_height"]
+            if bottom_height is None:
+                top_height = via_params["top_height"]
+                assert top_height is not None, "Internal error"
+
+                rows = int((top_height - 2*top_enc_y - width)//pitch + 1)
+                via_height = rows*pitch - space
+                bottom_height = via_height + 2*bottom_enc_y
+            else:
+                rows = int((bottom_height - 2*bottom_enc_y - width)//pitch + 1)
+                via_height = rows*pitch - space
+                top_height = via_height + 2*top_enc_y
+        else:
+            via_height = rows*pitch - space
+            bottom_height = via_height + 2*bottom_enc_y
+            top_height = via_height + 2*top_enc_y
+
+        columns = via_params["columns"]
+        if columns is None:
+            bottom_width = via_params["bottom_width"]
+            if bottom_width is None:
+                top_width = via_params["top_width"]
+                assert top_width is not None, "Internal error"
+
+                columns = int((top_width - 2*top_enc_x - width)//pitch + 1)
+                via_width = columns*pitch - space
+                bottom_width = via_width + 2*bottom_enc_x
+            else:
+                columns = int((bottom_width - 2*bottom_enc_x - width)//pitch + 1)
+                via_width = columns*pitch - space
+                top_width = via_width + 2*top_enc_x
+        else:
+            via_width = columns*pitch - space
+            bottom_width = via_width + 2*bottom_enc_x
+            top_width = via_width + 2*top_enc_x
+
+        bottom_left = centerx - 0.5*bottom_width
+        bottom_bottom = centery - 0.5*bottom_height
+        bottom_right = bottom_left + bottom_width
+        bottom_top = bottom_bottom + bottom_height
+
+        top_left = centerx - 0.5*top_width
+        top_bottom = centery - 0.5*top_height
+        top_right = top_left + top_width
+        top_top = top_bottom + top_height
+
+        via_bottom = centery - 0.5*via_height
+        via_left = centerx - 0.5*via_width
+
+        assert len(prim.ports) == 1, "Internal error"
+        layout = Layout(
+            NetSubLayout(
+                prim.ports[0], MaskPolygons((
+                    MaskPolygon(
+                        bottom.mask,
+                        _rect(bottom_left, bottom_bottom, bottom_right, bottom_top),
+                    ),
+                    MaskPolygon(
+                        prim.mask,
+                        _via_array(via_left, via_bottom, width, pitch, rows, columns),
+                    ),
+                    MaskPolygon(
+                        top.mask,
+                        _rect(top_left, top_bottom, top_right, top_top),
+                    ),
+                )),
+            ),
+        )
+        try:
+            impl = via_params["bottom_implant"]
+        except KeyError:
+            pass
+        else:
+            enc = via_params["bottom_implant_enclosure"]
+            assert enc is not None, "Internal error"
+            layout += NetlessSubLayout(
+                MaskPolygon(
+                    impl.mask, _rect(
+                        bottom_left, bottom_bottom, bottom_right, bottom_top,
+                        enclosure=enc,
+                    ),
+                ),
+            )
+        try:
+            well = via_params["bottom_well"]
+        except KeyError:
+            pass
+        else:
+            enc = via_params["bottom_well_enclosure"]
+            assert enc is not None, "Internal error"
+            net = (
+                prim.ports[0] if (impl.type_ == well.type_)
+                else prm._PrimitiveNet(prim, "well")
+            )
+            layout += NetSubLayout(
+                net, MaskPolygon(
+                    well.mask, _rect(
+                        bottom_left, bottom_bottom, bottom_right, bottom_top,
+                        enclosure=enc,
+                    ),
+                )
+            )
+
+        return layout
 
     def MOSFET(self, prim, *, center, **mos_params):
         if not isinstance(center, sh_geo.Point):
