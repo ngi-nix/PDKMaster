@@ -18,6 +18,15 @@ def _str_primtuple(t):
     else:
         return f"({', '.join(_str_prim(p) for p in t)})"
 
+def _str_enclosure(enc):
+    return f"Enclosure({enc.spec})"
+
+def _str_enclosures(encs):
+    if len(encs) == 1:
+        return f"({_str_enclosure(encs[0])},)"
+    else:
+        return f"({','.join(_str_enclosure(enc) for enc in encs)})"
+
 class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _Primitive(self, prim):
         return self._prim_object(prim)
@@ -110,20 +119,23 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _params_WaferWire(self, prim):
         s = f"allow_in_substrate={prim.allow_in_substrate},\n"
         s += f"implant={_str_primtuple(prim.implant)},\n"
-        s += f"min_implant_enclosure={prim.min_implant_enclosure},\n"
+        s += f"min_implant_enclosure={_str_enclosures(prim.min_implant_enclosure)},\n"
         s += f"implant_abut={_str_primtuple(prim.implant_abut)},\n"
         s += f"allow_contactless_implant={prim.allow_contactless_implant},\n"
         s += f"well={_str_primtuple(prim.well)},\n"
-        s += f"min_well_enclosure={prim.min_well_enclosure},\n"
+        s += "min_well_enclosure="+_str_enclosures(prim.min_well_enclosure)+",\n"
         if hasattr(prim, "min_substrate_enclosure"):
-            s += f"min_substrate_enclosure={prim.min_substrate_enclosure},\n"
+            s += (
+                "min_substrate_enclosure="
+                f"{_str_enclosure(prim.min_substrate_enclosure)},\n"
+            )
         s += f"allow_well_crossing={prim.allow_well_crossing},\n"
         s += self._params_widthspace(prim)
         return s
 
     def _params_Resistor(self, prim):
         s = f"wire={_str_prim(prim.wire)}, indicator={_str_primtuple(prim.indicator)},\n"
-        s += f"min_enclosure={prim.min_enclosure},\n"
+        s += f"min_enclosure={_str_enclosures(prim.min_enclosure)},\n"
         s += self._params_widthspace(prim)
         return s
     
@@ -131,22 +143,14 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s = f"bottom={_str_primtuple(prim.bottom)},\n"
         s += f"top={_str_primtuple(prim.top)},\n"
         s += f"width={prim.width}, min_space={prim.min_space},\n"
-        bottom_enc = (
-            prim.min_bottom_enclosure
-            if len(prim.bottom) != 1
-            else prim.min_bottom_enclosure[0]
-        )
-        top_enc = (
-            prim.min_top_enclosure
-            if len(prim.top) != 1
-            else prim.min_top_enclosure[0]
-        )
-        s += f"min_bottom_enclosure={bottom_enc}, min_top_enclosure={top_enc},\n"
+        s += f"min_bottom_enclosure={_str_enclosures(prim.min_bottom_enclosure)},\n"
+        s += f"min_top_enclosure={_str_enclosures(prim.min_top_enclosure)},\n"
         s += self._params_mask(prim)
         return s
 
     def _params_PadOpening(self, prim):
-        s = f"bottom={_str_prim(prim.bottom)}, min_bottom_enclosure={prim.min_bottom_enclosure},\n"
+        s = f"bottom={_str_prim(prim.bottom)},\n"
+        s += f"min_bottom_enclosure={_str_enclosure(prim.min_bottom_enclosure)},\n"
         s += self._params_widthspace(prim)
         return s
 
@@ -188,7 +192,10 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             s += f"min_sd_width={prim.min_sd_width},\n"
         if hasattr(prim, "min_polyactive_extension"):
             s += f"min_polyactive_extension={prim.min_polyactive_extension},\n"
-        s += f"min_gateimplant_enclosure={prim.min_gateimplant_enclosure},\n"
+        s += (
+            "min_gateimplant_enclosure="
+            f"{_str_enclosures(prim.min_gateimplant_enclosure)},\n"
+        )
         if hasattr(prim, "min_gate_space"):
             s += f"min_gate_space={prim.min_gate_space},\n"
         if hasattr(prim, "contact"):
@@ -202,6 +209,7 @@ class PDKMasterGenerator:
         if not isinstance(tech, tch.Technology):
             raise TypeError("PDKMasterGenerator has to be called with tech as parameter")
         s = "from pdkmaster.technology.primitive import *\n"
+        s += "from pdkmaster.technology.property_ import Enclosure\n"
         s += "from pdkmaster.technology.technology_ import Technology\n"
         s += "\n"
         s += f"class {tech.name}(Technology):\n"
