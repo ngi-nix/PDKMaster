@@ -19,24 +19,6 @@ __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Spacing",
            "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
 
-class _Param(prp.Property):
-    def __init__(self, primitive, name, *, default=None):
-        if not isinstance(primitive, _Primitive):
-            raise RuntimeError("Internal error: primitive not of type 'Primitive'")
-        super().__init__(name)
-
-        if default is not None:
-            try:
-                default = self.cast(default)
-            except TypeError:
-                raise TypeError(
-                    f"default has to be 'None' or of type '{self.value_type_str}'"
-                )
-            self.default = default
-
-class _Params(_util.TypedTuple):
-    tt_element_type = _Param
-
 class _Primitive(abc.ABC):
     _names = set()
 
@@ -107,6 +89,115 @@ class _Primitive(abc.ABC):
             )
 
         return casted
+
+class _Param(prp.Property):
+    def __init__(self, primitive, name, *, allow_none=False, default=None):
+        if not isinstance(primitive, _Primitive):
+            raise RuntimeError("Internal error: primitive not of type 'Primitive'")
+        super().__init__(name, allow_none=allow_none)
+
+        if default is not None:
+            try:
+                default = self.cast(default)
+            except TypeError:
+                raise TypeError(
+                    f"default can't be converted to type '{self.value_type_str}'"
+                )
+            self.default = default
+
+class _IntParam(_Param):
+    value_conv = None
+    value_type = int
+    value_type_str = "int"
+
+class _PrimitiveParam(_Param):
+    value_conv = None
+    value_type = _Primitive
+    value_type_str = "'_Primitive'"
+
+    def __init__(self, primitive, name, *, allow_none=False, default=None, choices=None):
+        if choices is not None:
+            if not _util.is_iterable(choices):
+                raise TypeError(
+                    "choices has to be iterable of '_Primitive' objects"
+                )
+            choices = tuple(choices)
+            if not all(isinstance(prim, _Primitive) for prim in choices):
+                raise TypeError(
+                    "choices has to be iterable of '_Primitive' objects"
+                )
+            self.choices = choices
+
+        super().__init__(primitive, name, allow_none=allow_none, default=default)
+
+    def cast(self, value):
+        value = super().cast(value)
+        if hasattr(self, "choices"):
+            if value not in self.choices:
+                raise ValueError(
+                    f"Param '{self.name}' is not one of the allowed values:\n"
+                    f"    {self.choices}"
+            )
+
+class _EnclosureParam(_Param):
+    value_type_str = "'Enclosure'"
+
+    def cast(self, value):
+        if value is None:
+            if not self.allow_none:
+                raise TypeError(
+                    f"'None' value not allowed for parameter '{self.name}'"
+                )
+        elif not isinstance(value, prp.Enclosure):
+            try:
+                value = prp.Enclosure(value)
+            except:
+                raise TypeError(
+                    f"value {repr(value)} can't be converted to an Enclosure object"
+                )
+
+        return value
+
+class _EnclosuresParam(_Param):
+    value_type_str = "iterable of 'Enclosure'"
+
+    def __init__(self, primitive, name, *, allow_none=False, default=None, n, ):
+        if not isinstance(n, int):
+            raise TypeError("n has to be an int")
+        self.n = n
+        super().__init__(primitive, name, allow_none=allow_none, default=default)
+
+    def cast(self, value):
+        if value is None:
+            if not self.allow_none:
+                raise TypeError(
+                    f"'None' value not allowed for parameter '{self.name}'"
+                )
+        elif not _util.is_iterable(value):
+            try:
+                value = self.n*(prp.Enclosure(value),)
+            except:
+                raise TypeError(
+                    f"param '{self.name}' has to be an enclosure value or an iterable \n"
+                    f"of type 'Enclosure' with length {self.n}"
+                )
+        else:
+            try:
+                value = tuple(
+                    (None if elem is None
+                     else elem if isinstance(elem, prp.Enclosure)
+                     else prp.Enclosure(elem)
+                    ) for elem in value
+                )
+            except:
+                raise TypeError(
+                    f"param '{self.name}' has to be an iterable of enclosure values"
+                    f"with length {self.n}"
+                )
+        return value
+
+class _Params(_util.TypedTuple):
+    tt_element_type = _Param
 
 class _PrimitiveNet(net_.Net):
     def __init__(self, prim, name):
@@ -1040,15 +1131,35 @@ class MOSFET(_Primitive):
             bulknet,
         )
 
+        for impl in implant:
+            try:
+                idx = gate.active.implant.index(impl)
+            except:
+                continue
+            else:
+                impl_act_enc = gate.active.min_implant_enclosure[idx]
+                break
+        else:
+            raise AssertionError("Internal error")
+
         self.params += (
             _Param(self, "l", default=self.computed.min_l),
             _Param(self, "w", default=self.computed.min_w),
+            _EnclosureParam(
+                self, "activeimplant_enclosure",
+                default=impl_act_enc,
+            ),
             _Param(self, "sd_width", default=self.computed.min_sd_width),
             _Param(
                 self, "polyactive_extension",
                 default=self.computed.min_polyactive_extension,
             ),
+            _EnclosuresParam(
+                self, "gateimplant_enclosures", n=len(implant),
+                default=min_gateimplant_enclosure,
+            ),
         )
+
         spc = self.computed.min_gate_space
         if spc is not None:
             self.params += _Param(self, "gate_space", default=spc)

@@ -493,6 +493,8 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
 
         l = mos_params["l"]
         w = mos_params["w"]
+        impl_enc = mos_params["activeimplant_enclosure"]
+        gate_encs = mos_params["gateimplant_enclosures"]
 
         gate_left = centerx - 0.5*l
         gate_right = centerx + 0.5*l
@@ -529,6 +531,14 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
                 ),
             ),
         ))
+        for impl in prim.implant:
+            if impl in active.implant:
+                layout += NetlessSubLayout(MaskPolygon(
+                    impl.mask, _rect(
+                        active_left, active_bottom, active_right, active_top,
+                        enclosure=impl_enc
+                    ),
+                ))
 
         poly = prim.gate.poly
         ext = prim.computed.min_polyactive_extension
@@ -556,7 +566,7 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
 
         polygons = MaskPolygons()
         for i, impl in enumerate(prim.implant):
-            enc = prim.min_gateimplant_enclosure[i]
+            enc = gate_encs[i]
             polygons += MaskPolygon(
                 impl.mask,
                 _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
