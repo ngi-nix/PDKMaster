@@ -146,10 +146,20 @@ class CircuitLayouter:
             inst.prim, center=sh_geo.Point(x, y), **inst.params,
         )
 
+        def _portnets():
+            for net in self.circuit.nets:
+                for port in net.childports:
+                    yield (port, net)
+        portnets = dict(_portnets())
+
         def connect_ports(sublayouts):
             for sublayout in sublayouts:
                 if isinstance(sublayout, lay.NetSubLayout):
-                    sublayout.net = _InstanceNet(inst, sublayout.net)
+                    try:
+                        net = portnets[sublayout.net]
+                    except KeyError:
+                        net = _InstanceNet(inst, sublayout.net)
+                    sublayout.net = net
                 elif isinstance(sublayout, lay.MultiNetSubLayout):
                     connect_ports(sublayout.sublayouts)
                 elif not isinstance(sublayout, lay.NetlessSubLayout):
