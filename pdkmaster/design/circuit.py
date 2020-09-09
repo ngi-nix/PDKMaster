@@ -27,7 +27,17 @@ class _InstanceNet(net_.Net):
             isinstance(inst, _Instance),
             isinstance(net, net_.Net),
         )), "Internal error"
-        super().__init__(f"{inst.name}.{net.name}")
+        super().__init__(net.name)
+        self.full_name = f"{inst.name}.{net.name}"
+
+    def __hash__(self):
+        return hash(self.full_name)
+
+    def __eq__(self, other):
+        return isinstance(other, _InstanceNet) and ((self.full_name) == other.full_name)
+
+class _InstanceNets(net_.Nets):
+    tt_index_attribute = "full_name"
 
 class _Instances(_util.TypedTuple):
     tt_element_type = _Instance
@@ -39,7 +49,10 @@ class _PrimitiveInstance(_Instance):
             isinstance(prim, prm._Primitive),
         )), "Internal error"
 
-        super().__init__(name, prim.ports)
+        self.name = name
+        super().__init__(
+            name, net_.Nets(_InstanceNet(self, port) for port in prim.ports),
+        )
 
         self.prim = prim
         self.params = params
@@ -97,7 +110,7 @@ class _CircuitNet(net_.Net):
 
         super().__init__(name)
         self.circuit = circuit
-        self.childports = net_.Nets()
+        self.childports = _InstanceNets()
 
     def freeze(self):
         self.childports.tt_freeze()
@@ -149,6 +162,13 @@ class CircuitLayouter:
         instlayout = self.layoutfab(
             inst.prim, center=sh_geo.Point(x, y), **inst.params,
         )
+        for sublayout in instlayout.sublayouts:
+            if isinstance(sublayout, lay.NetSubLayout):
+                sublayout.net = _InstanceNet(inst, sublayout.net)
+            elif isinstance(sublayout, lay.MultiNetSubLayout):
+                for sublayout2 in sublayout.sublayouts:
+                    if isinstance(sublayout2, lay.NetSubLayout):
+                        sublayout2.net = _InstanceNet(inst, sublayout2.net)
 
         def _portnets():
             for net in self.circuit.nets:
