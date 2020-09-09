@@ -536,6 +536,46 @@ class MultiNetSubLayout(_SubLayout):
 
         return self
 
+    def merge_from(self, other):
+        """Extract overlapping polygon from other and add it to itself
+
+        return wether other is now empty"""
+        if not self.overlaps_with(other):
+            return False
+
+        if isinstance(other, MultiNetSubLayout):
+            self += other
+            return True
+        else:
+            assert len(self.polygons) == 1
+
+            def add_polygon(self, other_polygon):
+                if isinstance(other, NetSubLayout):
+                    self += NetSubLayout(other.net, other_polygon)
+                elif isinstance(other, NetlessSubLayout):
+                    self += NetlessSubLayout(other_polygon)
+                else:
+                    raise AssertionError("Internal error")
+
+            self_polygon = self.polygons[0]
+            other_polygon = other.polygons[self_polygon.mask]
+            if isinstance(other_polygon.polygon, sh_geo.Polygon):
+                add_polygon(self, other_polygon)
+                other.polygons.tt_pop(self_polygon.mask)
+            elif isinstance(other_polygon.polygon, sh_geo.MultiPolygon):
+                # Take only parts of other polygon that overlap with out polygon
+                for p2 in filter(
+                    lambda p: self_polygon.polygon.intersects(p),
+                    other_polygon.polygon,
+                ):
+                    add_polygon(self, p2)
+                    other_polygon.polygon = other_polygon.polygon.difference(p2)
+                if not other_polygon.polygon:
+                    other.polygons.tt_pop(self_polygon.mask)
+            else:
+                raise AssertionError("Internal error")
+
+            return not other.polygons
 
     def overlaps_with(self, other):
         super().overlaps_with(other)
