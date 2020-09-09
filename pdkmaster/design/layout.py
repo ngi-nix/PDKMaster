@@ -269,7 +269,17 @@ class MaskPolygon:
             ),
         )
 
+    def connect(self):
+        self.polygon = _manhattan_polygon(
+            self.polygon.simplify(1e-6).convex_hull, outer=False,
+        )
 
+    def connected(self):
+        return MaskPolygon(
+            self.mask, _manhattan_polygon(
+                self.polygon.simplify(1e-6).convex_hull, outer=False,
+            ),
+        )
 
 class MaskPolygons(_util.TypedTuple):
     tt_index_attribute = "mask"
