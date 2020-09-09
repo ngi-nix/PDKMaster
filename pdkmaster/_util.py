@@ -118,12 +118,15 @@ class TypedTuple(abc.ABC):
     def __len__(self):
         return len(self._t)
 
-    def tt_pop(self, key):
-        elem = self[key]
+    def tt_remove(self, elem):
         idx = self.index(elem)
         self._t = self._t[:idx] + self._t[idx+1:]
         if self.tt_index_attribute is not None:
             self._d.pop(getattr(elem, self.tt_index_attribute))
+
+    def tt_pop(self, key):
+        elem = self[key]
+        self.tt_remove(elem)
 
     def tt_keys(self):
         if not hasattr(self, "_d"):
