@@ -34,6 +34,78 @@ def _rect(left, bottom, right, top, *, enclosure=None):
         (left, bottom), (right, bottom), (right, top), (left, top),
     ))
 
+def _manhattan_polygon(polygon, *, outer=True):
+    def _manhattan_coords(coords, outer):
+        n_coords = len(coords)
+        idx = 0
+        prev = None
+        while idx < n_coords:
+            coord = coords[idx]
+
+            idx += 1
+            if idx == n_coords:
+                yield coord
+                break
+            next_coord = coords[idx]
+
+            if ((next_coord[0] != coord[0]) and (next_coord[1] != coord[1])):
+                idx += 1
+                if prev is None:
+                    next2_coord = coords[idx]
+                    if next_coord[0] == next2_coord[0]:
+                        if outer:
+                            coord = (next_coord[0], coord[1])
+                        else:
+                            yield coord
+                            yield (coord[0], next_coord[1])
+                            coord = next_coord
+                    elif next_coord[1] == next2_coord[1]:
+                        if outer:
+                            coord = (coord[0], next_coord[1])
+                        else:
+                            yield coord
+                            yield (next_coord[0], coord[1])
+                            coord = next_coord
+                    else:
+                        raise RuntimeError("two consecutive non-Manhattan points")
+                else:
+                    if coord[0] == prev[0]:
+                        if outer:
+                            coord = (coord[0], next_coord[1])
+                        else:
+                            yield coord
+                            yield (next_coord[0], coord[1])
+                            coord = next_coord
+                    elif coord[1] == prev[1]:
+                        if outer:
+                            coord = (next_coord[0], coord[1])
+                        else:
+                            yield coord
+                            yield (coord[0], next_coord[1])
+                            coord = next_coord
+                    else:
+                        raise RuntimeError(
+                            "two consecutive non-Manhattan points:\n"
+                            f"  {prev}, {coord}, {next_coord}"
+                        )
+
+            yield coord
+            prev = coord
+
+    if _util.is_iterable(polygon):
+        return sh_ops.unary_union(tuple(
+            _manhattan_polygon(subpolygon, outer=outer)
+            for subpolygon in polygon
+        ))
+    else:
+        return sh_geo.Polygon(
+            shell=_manhattan_coords(tuple(polygon.exterior.coords), outer),
+            holes=tuple(
+                _manhattan_coords(tuple(interior.coords), not outer)
+                for interior in polygon.interiors
+            )
+        )
+
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
     _geometry_types_str = "'Polygon'/'MultiPolygon' from shapely"
@@ -174,66 +246,20 @@ class MaskPolygon:
         return MaskPolygon(self.mask, newpolygon)
     __mul__ = __and__
 
+
     def grow(self, size):
-        polygon = self.polygon.buffer(size, resolution=0)
-
-        def manhattan_coords(coords):
-            n_coords = len(coords)
-            idx = 0
-            prev = None
-            while idx < n_coords:
-                coord = coords[idx]
-
-                idx += 1
-                if idx == n_coords:
-                    yield coord
-                    break
-                next_coord = coords[idx]
-
-                if ((next_coord[0] != coord[0]) and (next_coord[1] != coord[1])):
-                    idx += 1
-                    if prev is None:
-                        next2_coord = coords[idx]
-                        if next_coord[0] == next2_coord[0]:
-                            coord = (next_coord[0], coord[1])
-                        elif next_coord[1] == next2_coord[1]:
-                            coord = (coord[0], next_coord[1])
-                        else:
-                            raise RuntimeError("two consecutive non-Manhattan points")
-                    else:
-                        if coord[0] == prev[0]:
-                            coord = (coord[0], next_coord[1])
-                        elif coord[1] == prev[1]:
-                            coord = (next_coord[0], coord[1])
-                        else:
-                            raise RuntimeError(
-                                "two consecutive non-Manhattan points:\n"
-                                f"  {prev}, {coord}, {next_coord}"
-                            )
-
-                yield coord
-                prev = coord
-
-        def manhattan_polygon(polygon):
-            return sh_geo.Polygon(
-                shell=manhattan_coords(tuple(polygon.exterior.coords)),
-                holes=tuple(
-                    manhattan_coords(tuple(interior.coords))
-                    for interior in polygon.interiors
-                )
-            )
-
-        if _util.is_iterable(polygon):
-            self.polygon = sh_ops.unary_union(
-                tuple(manhattan_polygon(subpolygon) for subpolygon in polygon)
-            )
-        else:
-            self.polygon = manhattan_polygon(polygon)
+        self.polygon = _manhattan_polygon(
+            self.polygon.buffer(size, resolution=0), outer=True,
+        )
 
     def grown(self, size):
-        polygon = MaskPolygon(self.mask, self.polygon)
-        polygon.grow(size)
-        return polygon
+        return MaskPolygon(
+            self.mask, _manhattan_polygon(
+                self.polygon.buffer(size, resolution=0), outer=True,
+            ),
+        )
+
+
 
 class MaskPolygons(_util.TypedTuple):
     tt_index_attribute = "mask"
