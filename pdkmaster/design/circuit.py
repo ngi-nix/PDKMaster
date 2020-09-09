@@ -192,6 +192,38 @@ class CircuitLayouter:
         connect_ports(instlayout.sublayouts)
         self.circuit._layout += instlayout.sublayouts
 
+    def add_wire(self, *, net, well_net=None, wire, x, y, **wire_params):
+        if not isinstance(net, net_.Net):
+            raise TypeError("net has to be of type 'Net'")
+        if net not in self.circuit.nets:
+            raise ValueError(
+                f"net '{net.name}' is not a net from circuit '{self.circuit.name}'"
+            )
+        if not (
+            hasattr(wire, "ports")
+            and (len(wire.ports) == 1)
+            and (wire.ports[0].name == "conn")
+        ):
+            raise TypeError("A wire has to have one port named 'conn'")
+
+        wirelayout = self.layoutfab.new_layout(
+            wire, center=sh_geo.Point(x, y), **wire_params,
+        )
+        for sublayout in wirelayout.sublayouts:
+            if isinstance(sublayout, lay.NetSubLayout):
+                if sublayout.net.name == "well":
+                    if well_net is None:
+                        raise TypeError(
+                            "No well_net provided for WaferWire with a well"
+                        )
+                    sublayout.net = well_net
+                else:
+                    assert sublayout.net.name == "conn", "Internal error"
+                    sublayout.net = net
+            elif not isinstance(sublayout, lay.NetlessSubLayout):
+                raise AssertionError("Internal error")
+
+        self.circuit._layout += wirelayout.sublayouts
 
     def connect(self, *, masks=None):
         for polygon in self.circuit._layout.polygons:
