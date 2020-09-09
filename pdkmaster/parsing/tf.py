@@ -333,7 +333,17 @@ def _constraintGroups(elems, **kwargs):
         for constraint in v[start:]:
             for rulename, rules in constraint.items():
                 if rulename in constraints:
-                    constraints[rulename].update(rules)
+                    c2 = constraints[rulename]
+                    def add2layer(rule):
+                        layer, spec = rule
+                        if layer in c2:
+                            c2[layer].update(spec)
+                            return True
+                        else:
+                            return False
+                    c2.update(filter(
+                        lambda r: not add2layer(r), rules.items(),
+                    ))
                 else:
                     constraints[rulename] = rules
 
