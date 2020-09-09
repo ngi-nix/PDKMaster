@@ -66,22 +66,21 @@ class _Primitive(abc.ABC):
         casted = {}
         for param in self.params:
             try:
-                v = param.cast(params.pop(param.name, param.default))
+                default = param.default
             except AttributeError:
-                raise TypeError(
-                    f"missing required argument with name '{param.name}'"
-                )
-            except TypeError:
-                raise TypeError(
-                    f"param '{param.name}' is not of type '{param.value_type_str}'"
-                )
+                try:
+                    v = params.pop(param.name)
+                except KeyError:
+                    if param.allow_none:
+                        v = None
+                    else:
+                        raise ValueError(
+                            f"Missing required parameter '{param.name}'"
+                        )
             else:
-                casted[param.name] = v
-            conv = param.__class__.value_conv
-            if conv is not None:
-                v = conv(v)
-            if not isinstance(v, param.value_type):
-                pass
+                v = params.pop(param.name, default)
+            casted[param.name] = param.cast(v)
+
         if len(params) > 0:
             raise TypeError(
                 f"primitive '{self.name}' got unexpected parameters "
@@ -104,6 +103,12 @@ class _Param(prp.Property):
                     f"default can't be converted to type '{self.value_type_str}'"
                 )
             self.default = default
+
+    def cast(self, value):
+        if (value is None) and hasattr(self, "default"):
+            return self.default
+        else:
+            return super().cast(value)
 
 class _IntParam(_Param):
     value_conv = None
@@ -139,12 +144,16 @@ class _PrimitiveParam(_Param):
                     f"    {self.choices}"
             )
 
+        return value
+
 class _EnclosureParam(_Param):
     value_type_str = "'Enclosure'"
 
     def cast(self, value):
         if value is None:
-            if not self.allow_none:
+            if hasattr(self, "default"):
+                value = self.default
+            elif not self.allow_none:
                 raise TypeError(
                     f"'None' value not allowed for parameter '{self.name}'"
                 )
@@ -169,7 +178,9 @@ class _EnclosuresParam(_Param):
 
     def cast(self, value):
         if value is None:
-            if not self.allow_none:
+            if hasattr(self, "default"):
+                value = self.default
+            elif not self.allow_none:
                 raise TypeError(
                     f"'None' value not allowed for parameter '{self.name}'"
                 )
