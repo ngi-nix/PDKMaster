@@ -15,6 +15,9 @@ __all__ = [
     "Layout", "PrimitiveLayoutFactory", "Plotter",
 ]
 
+class NetOverlapError(Exception):
+    pass
+
 def _rect(left, bottom, right, top, *, enclosure=None):
     if enclosure is not None:
         if isinstance(enclosure, prp.Enclosure):
@@ -246,6 +249,13 @@ class MaskPolygon:
         return MaskPolygon(self.mask, newpolygon)
     __mul__ = __and__
 
+    def overlaps_with(self, other):
+        if not isinstance(other, MaskPolygon):
+            raise TypeError("other has to be of type 'MaskPolygon'")
+        return (
+            (self.mask == other.mask)
+            and self.polygon.intersects(other.polygon)
+        )
 
     def grow(self, size):
         self.polygon = _manhattan_polygon(
@@ -338,6 +348,12 @@ class _SubLayout(abc.ABC):
         assert isinstance(polygons, MaskPolygons), "Internal error"
         self.polygons = polygons
 
+    @abc.abstractmethod
+    def overlaps_with(self, sublayout):
+        if not isinstance(sublayout, _SubLayout):
+            raise TypeError("sublayout has to be of type '_SubLayout'")
+        return False
+
 class NetSubLayout(_SubLayout):
     def __init__(self, net, polygons):
         if not isinstance(net, net_.Net):
@@ -359,6 +375,30 @@ class NetSubLayout(_SubLayout):
 
         return self
 
+    def overlaps_with(self, other):
+        super().overlaps_with(other)
+
+        if isinstance(other, MultiNetSubLayout):
+            return other.overlaps_with(self)
+
+        assert isinstance(other, (NetSubLayout, NetlessSubLayout)), "Internal error"
+
+        self_polygons = dict((p.mask, p) for p in self.polygons)
+        self_masks = set(self_polygons.keys())
+        other_polygons = dict((p.mask, p) for p in other.polygons)
+        other_masks = set(other_polygons.keys())
+        common_masks = self_masks.intersection(other_masks)
+
+        same_net = (not isinstance(other, NetlessSubLayout)) and (self.net == other.net)
+        for mask in common_masks:
+            if self_polygons[mask].overlaps_with(other_polygons[mask]):
+                if same_net:
+                    return True
+                else:
+                    raise NetOverlapError("Overlapping polygons on different nets")
+        else:
+            return False
+
 class NetlessSubLayout(_SubLayout):
     def __init__(self, polygons):
         if isinstance(polygons, MaskPolygon):
@@ -372,6 +412,25 @@ class NetlessSubLayout(_SubLayout):
         self.polygons += other.polygons
 
         return self
+
+    def overlaps_with(self, other):
+        super().overlaps_with(other)
+
+        if isinstance(other, (NetSubLayout, MultiNetSubLayout)):
+            return other.overlaps_with(self)
+
+        assert isinstance(other, NetlessSubLayout), "Internal error"
+
+        self_polygons = dict((p.mask, p) for p in self.polygons)
+        self_masks = set(self_polygons.keys())
+        other_polygons = dict((p.mask, p) for p in other.polygons)
+        other_masks = set(other_polygons.keys())
+        common_masks = self_masks.intersection(other_masks)
+        for mask in common_masks:
+            if self_polygons[mask].overlaps_with(other_polygons[mask]):
+                return True
+        else:
+            return False
 
 class MultiNetSubLayout(_SubLayout):
     def __init__(self, sublayouts):
@@ -420,6 +479,28 @@ class MultiNetSubLayout(_SubLayout):
 
         self.sublayouts = sublayouts
         super().__init__(MaskPolygons(maskpolygon))
+
+    def overlaps_with(self, other):
+        super().overlaps_with(other)
+
+        assert len(self.polygons) == 1, "Internal error"
+        self_polygon = self.polygons[0]
+
+        for other_polygon in filter(
+            lambda p: p.mask == self_polygon.mask,
+            other.polygons,
+        ):
+            if self_polygon.overlaps_with(other_polygon):
+                # Recursively call overlaps_with to check for wrong net overlaps.
+                for sublayout in self.sublayouts:
+                    if other.overlaps_with(sublayout):
+                        return True
+                else:
+                    # This should not happen: joined polygon overlaps but none of
+                    # the sublayout overlaps.
+                    raise AssertionError("Internal error")
+        else:
+            return False
 
 class SubLayouts(_util.TypedTuple):
     tt_element_type = _SubLayout
