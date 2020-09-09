@@ -458,27 +458,34 @@ class MultiNetSubLayout(_SubLayout):
                 "sublayouts has to be an iterable of 'NetSubLayout' and "
                 "'NetlessSubLayout'"
             )
+        self.sublayouts = sublayouts
 
-        def _netmasks():
-            for netlayout in sublayouts:
-                for polygon in netlayout.polygons:
-                    yield polygon.mask
-        netmasks = set(_netmasks())
+        super().__init__(MaskPolygons())
+        self._update_maskpolygon()
 
-        def _netpolygons():
-            for netlayout in sublayouts:
-                for polygon in netlayout.polygons:
-                    yield polygon.polygon
-        netpolygons = tuple(_netpolygons())
+    @property
+    def _netmasks(self):
+        for netlayout in self.sublayouts:
+            for polygon in netlayout.polygons:
+                yield polygon.mask
 
-        if len(set(netmasks)) != 1:
+    @property
+    def _netpolygons(self):
+        for netlayout in self.sublayouts:
+            for polygon in netlayout.polygons:
+                yield polygon.polygon
+
+    def _update_maskpolygon(self):
+        netmasks = set(self._netmasks)
+        if len(netmasks) != 1:
             raise ValueError(
                 "all layouts in sublayouts have to be on the same mask"
             )
-        netmask = next(iter(netmasks))
+        netmask = netmasks.pop()
 
+        netpolygons = tuple(self._netpolygons)
         maskpolygon = MaskPolygon(netmask, sh_ops.unary_union(netpolygons))
-        area = sum(polygon.area for polygon in _netpolygons())
+        area = sum(polygon.area for polygon in netpolygons)
         if not all((
             isinstance(maskpolygon.polygon, sh_geo.Polygon),
             abs(area - maskpolygon.polygon.area)/area < 1e-4,
@@ -486,9 +493,49 @@ class MultiNetSubLayout(_SubLayout):
             raise ValueError(
                 "sublayouts has to consist of touching, non-overlapping subblocks"
             )
+        self.polygons = MaskPolygons(maskpolygon)
 
-        self.sublayouts = sublayouts
-        super().__init__(MaskPolygons(maskpolygon))
+    def __iadd__(self, other):
+        if not isinstance(other, _SubLayout):
+            raise TypeError("Can only add object of type '_SubLayout'")
+
+        assert len(self.polygons) == 1, "Internal error"
+        self_polygon = self.polygons[0]
+
+        if isinstance(other, (NetSubLayout, NetlessSubLayout)):
+            if len(other.polygons) != 1:
+                raise ValueError(
+                    "Can only add single polygon sublayout to 'MultiNetSubLayout'"
+                )
+            else:
+                other_polygon = other.polygons[0]
+                if self_polygon.mask != other_polygon.mask:
+                    raise ValueError(
+                        f"Polygon on mask {other_polygon.mask.name} can't be added to\n"
+                        f"'MultiNetSubLayout' polygon on mask {self_polygon.mask.name}"
+                    )
+                for self_sublayout in self.sublayouts:
+                    if self_sublayout.overlaps_with(other):
+                        self_sublayout += other
+                        self._update_maskpolygon()
+                        break
+                else:
+                    raise ValueError(
+                        "Can only add overlapping polygon to 'MultiNetSubLayout'"
+                    )
+        else:
+            assert isinstance(other, MultiNetSubLayout), "Internal error"
+            for other_sublayout in other.sublayouts:
+                for self_sublayout in self.sublayouts:
+                    if other_sublayout.overlaps_with(self_sublayout):
+                        self_sublayout += other_sublayout
+                        break
+                else:
+                    self.sublayouts += other_sublayout
+            self._update_maskpolygon()
+
+        return self
+
 
     def overlaps_with(self, other):
         super().overlaps_with(other)
