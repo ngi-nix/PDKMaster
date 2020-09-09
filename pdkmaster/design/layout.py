@@ -586,7 +586,7 @@ class MultiNetSubLayout(_SubLayout):
                     lambda p: self_polygon.polygon.intersects(p),
                     other_polygon.polygon,
                 ):
-                    add_polygon(self, p2)
+                    add_polygon(self, MaskPolygon(other_polygon.mask, p2))
                     other_polygon.polygon = other_polygon.polygon.difference(p2)
                 if not other_polygon.polygon:
                     other.polygons.tt_pop(self_polygon.mask)
@@ -644,10 +644,9 @@ class SubLayouts(_util.TypedTuple):
             if isinstance(other_sublayout, MultiNetSubLayout):
                 for sublayout in self:
                     if sublayout.overlaps_with(other_sublayout):
-                        logging.warning(
-                            "Adding MultiNetSubLayout that overlaps with existing polygon "
-                            "not implemented"
-                        )
+                        if other_sublayout.merge_from(sublayout):
+                            self.tt_remove(sublayout)
+                return False
             else:
                 # Can only add to same type
                 for sublayout in self.tt_iter_type(other_sublayout.__class__):
