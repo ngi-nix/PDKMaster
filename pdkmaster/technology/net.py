@@ -11,5 +11,11 @@ class Net(abc.ABC):
 
         self.name = name
 
+    def __eq__(self, other):
+        return isinstance(other, Net) and (self.name == other.name)
+
+    def __hash__(self):
+        return hash(self.name)
+
 class Nets(_util.TypedTuple):
     tt_element_type = Net

@@ -118,6 +118,13 @@ class TypedTuple(abc.ABC):
     def __len__(self):
         return len(self._t)
 
+    def tt_pop(self, key):
+        elem = self[key]
+        idx = self.index(elem)
+        self._t = self._t[:idx] + self._t[idx+1:]
+        if self.tt_index_attribute is not None:
+            self._d.pop(getattr(elem, self.tt_index_attribute))
+
     def tt_keys(self):
         if not hasattr(self, "_d"):
             raise TypeError("typed tuple elements don't an index")

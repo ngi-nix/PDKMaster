@@ -130,6 +130,10 @@ class CircuitLayouter:
     def tech(self):
         return self.circuit.fab.tech
 
+    @property
+    def layoutfab(self):
+        return self.circuit.fab.layoutfab
+
     def place(self, inst, *, x, y):
         if not isinstance(inst, _Instance):
             raise TypeError("inst has to be of type '_Instance'")
@@ -142,7 +146,7 @@ class CircuitLayouter:
         if not all((isinstance(x, float), isinstance(y, float))):
             raise TypeError("x and y have to be floats")
 
-        instlayout = self.circuit.fab.layoutfab.new_layout(
+        instlayout = self.layoutfab(
             inst.prim, center=sh_geo.Point(x, y), **inst.params,
         )
 

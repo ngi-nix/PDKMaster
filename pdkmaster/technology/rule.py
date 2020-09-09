@@ -13,7 +13,7 @@ class _Rule(abc.ABC):
         return (self.__class__ == other.__class__) and (hash(self) == hash(other))
 
     def __ne__(self, other):
-        return not self.__ne__(other)
+        return not self.__eq__(other)
 
     def __bool__(self):
         raise ValueError("Condition can't be converted to 'bool'")

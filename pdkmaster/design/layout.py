@@ -10,9 +10,9 @@ from ..technology import (
 )
 
 __all__ = [
-    "MaskPolygon", "MaskPolygons", "PrimitiveLayoutFactory",
-    "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "Layout",
-    "Plotter",
+    "MaskPolygon", "MaskPolygons",
+    "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
+    "Layout", "PrimitiveLayoutFactory", "Plotter",
 ]
 
 def _rect(left, bottom, right, top, *, enclosure=None):
@@ -442,8 +442,12 @@ class Layout:
     def __init__(self, sublayouts=None):
         if sublayouts is None:
             sublayouts = SubLayouts()
+        if isinstance(sublayouts, _SubLayout):
+            sublayouts = SubLayouts(sublayouts)
         if not isinstance(sublayouts, SubLayouts):
-            raise TypeError("netlayouts has to be of type 'SubLayouts'")
+            raise TypeError(
+                "sublayouts has to be of type '_SubLayout' or 'SubLayouts'"
+            )
         self.sublayouts = sublayouts
 
     @property

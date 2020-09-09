@@ -87,8 +87,14 @@ class Property:
         return hash(self.name)
 
     def cast(self, value):
-        if self.allow_none and (value is None):
-            return None
+        if value is None:
+            if self.allow_none:
+                return None
+            else:
+                raise TypeError("property value {!r} is not of type '{}'".format(
+                    value, self.value_type_str,
+                ))
+
         value_conv = self.__class__.value_conv
         if value_conv is not None:
             try:
@@ -98,8 +104,8 @@ class Property:
                     value, self.value_type_str,
                 ))
         if not isinstance(value, self.value_type):
-            raise TypeError("property value {!r} is not of type '{}'".format(
-                value, self.value_type_str,
+            raise TypeError("value {!r} for property '{}' is not of type '{}'".format(
+                value, self.name, self.value_type_str,
             ))
         return value
 
@@ -208,7 +214,6 @@ class Enclosure:
                 )
 
 class EnclosureProperty(Property):
+    value_conv = Enclosure
+    value_type = Enclosure
     value_type_str = "'Enclosure'"
-
-    def cast(self, value):
-        return Enclosure(value)
