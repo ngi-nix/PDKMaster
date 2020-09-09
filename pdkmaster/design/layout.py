@@ -611,34 +611,43 @@ class SubLayouts(_util.TypedTuple):
                 "to an 'SubLayouts' object"
             )
 
-        forsuper = []
-        for sublayout in other:
-            if isinstance(sublayout, NetlessSubLayout):
-                for sublayout2 in self:
-                    if isinstance(sublayout2, NetlessSubLayout):
-                        sublayout2 += sublayout
-                        break
-                else:
-                    forsuper.append(sublayout)
-            elif isinstance(sublayout, NetSubLayout):
-                # TODO: implement overlap of a MaskPolygon on added net layout
-                # with a MultiNetSubLayout
-                for sublayout2 in self:
-                    if (isinstance(sublayout2, NetSubLayout)
-                        and (sublayout.net == sublayout2.net)
-                       ):
-                        sublayout2 += sublayout
-                        break
-                else:
-                    forsuper.append(sublayout)
-            elif isinstance(sublayout, MultiNetSubLayout):
-                # TODO: implement overlap with other MaskPolygons
-                forsuper.append(sublayout)
+        # First try to add the sublayout to the multinet polygons
+        multinets = tuple(self.tt_iter_type(MultiNetSubLayout))
+        def add2multinet(other_sublayout):
+            for multinet in multinets:
+                if multinet.overlaps_with(other_sublayout):
+                    return multinet.merge_from(other_sublayout)
             else:
-                raise AssertionError("Internal error")
+                return False
+        other = filter(lambda sl: not add2multinet(sl), other)
 
-        if forsuper:
-            return super().__iadd__(forsuper)
+        # Now try to add to other sublayouts
+        def add2other(other_sublayout):
+            if isinstance(other_sublayout, MultiNetSubLayout):
+                for sublayout in self:
+                    if sublayout.overlaps_with(other_sublayout):
+                        logging.warning(
+                            "Adding MultiNetSubLayout that overlaps with existing polygon "
+                            "not implemented"
+                        )
+            else:
+                # Can only add to same type
+                for sublayout in self.tt_iter_type(other_sublayout.__class__):
+                    if (
+                        # Add all netless together
+                        isinstance(other_sublayout, NetlessSubLayout)
+                        # or polygons on same net
+                        or (sublayout.net == other_sublayout.net)
+                    ):
+                        sublayout += other_sublayout
+                        return True
+                else:
+                    return False
+        other = tuple(filter(lambda sl: not add2other(sl), other))
+
+        if other:
+            # Append remaining sublayouts
+            return super().__iadd__(other)
         else:
             return self
 
