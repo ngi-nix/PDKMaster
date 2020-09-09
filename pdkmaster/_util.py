@@ -1,4 +1,5 @@
 import abc
+from itertools import islice
 
 __all__ = ["i2f", "is_iterable"]
 
@@ -22,6 +23,12 @@ def is_iterable(it):
         return False
     else:
         return True
+
+def nth(it, n):
+    return next(islice(it, n, None))
+
+def first(it):
+    return nth(it, 0)
 
 class TypedTuple(abc.ABC):
     tt_element_type = abc.abstractproperty()
