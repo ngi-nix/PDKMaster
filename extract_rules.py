@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 """Script to extract the rules from PDK files"""
 # Currently this is manual extraction for a signal TSMC 0.18um
 # Plan is to update this is the future to make it generic and driven

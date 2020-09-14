@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 """Python code for parsing a Cadence technology file"""
 import sys
 import yaml

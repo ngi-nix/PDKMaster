@@ -1,9 +1,9 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 """Convert all the SKILL files to yaml files"""
 import yaml
 
 from files import techfiles, assurafiles, ilfiles, displayfiles
-from pdkmaster import SkillFile, TechFile, AssuraFile, DisplayFile
+from pdkmaster.io.parsing import SkillFile, TechFile, AssuraFile, DisplayFile
 
 # techfiles
 for techfile, yamlfile in techfiles:

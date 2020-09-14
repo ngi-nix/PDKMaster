@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 from files import techfiles, assurafiles, ilfiles, displayfiles
 from pdkmaster.io.parsing import SkillFile
 
