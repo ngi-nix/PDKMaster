@@ -6,7 +6,7 @@ from ...technology import (
     primitive as prm, dispatcher as dsp, technology_ as tch,
 )
 
-__all__ = ["CoriolisGenerator", "generate"]
+__all__ = ["generate"]
 
 def _str_create_basic(name, mat):
         return (

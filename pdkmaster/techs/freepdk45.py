@@ -3,7 +3,10 @@ from ..technology import (
 )
 from ..design import layout as lay, circuit as ckt
 
-__all__ = ["technology"]
+__all__ = [
+    "tech", "technology", "layoutfab", "layout_factory",
+    "cktfab", "circuit_factory",
+]
 
 class _FreePDK45(tch.Technology):
     name = "FreePDK45"
