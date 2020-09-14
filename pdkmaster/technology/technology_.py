@@ -97,30 +97,31 @@ class Technology(abc.ABC):
             yield wire
 
         connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))
-        while connvias:
-            viabottoms = set()
-            viatops = set()
-            for via in connvias:
-                viabottoms.update(via.bottom)
-                viatops.update(via.top)
+        if connvias:
+            while connvias:
+                viabottoms = set()
+                viatops = set()
+                for via in connvias:
+                    viabottoms.update(via.bottom)
+                    viatops.update(via.top)
 
-            noconn = viabottoms - bottomwires
-            if noconn:
-                raise Technology.ConnectionError(
-                    f"wires ({', '.join(wire.name) for wire in noconn}) not connected from bottom"
-                )
+                noconn = viabottoms - bottomwires
+                if noconn:
+                    raise Technology.ConnectionError(
+                        f"wires ({', '.join(wire.name) for wire in noconn}) not connected from bottom"
+                    )
 
-            for bottom in viabottoms:
-                add_prims(allwires(bottom))
+                for bottom in viabottoms:
+                    add_prims(allwires(bottom))
 
-            bottomwires -= viabottoms
-            bottomwires.update(viatops)
+                bottomwires -= viabottoms
+                bottomwires.update(viatops)
 
-            vias -= connvias
-            connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))
-        # Add the top layers of last via to the prims
-        for top in viatops:
-            add_prims(allwires(top))
+                vias -= connvias
+                connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))
+            # Add the top layers of last via to the prims
+            for top in viatops:
+                add_prims(allwires(top))
 
         if vias:
             raise Technology.ConnectionError(
