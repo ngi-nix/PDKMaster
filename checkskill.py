@@ -1,6 +1,6 @@
 #!/bin/env python3
 from files import techfiles, assurafiles, ilfiles, displayfiles
-from pdkmaster import SkillFile
+from pdkmaster.io.parsing import SkillFile
 
 ilfiles2 = tuple((ilfile, "ilfile"+str(i)) for i, ilfile in enumerate(ilfiles))
 

@@ -2,7 +2,9 @@
 from textwrap import dedent, indent
 from itertools import product
 
-from .. import primitive as prm, dispatcher as dsp, technology_ as tch
+from ...technology import (
+    primitive as prm, dispatcher as dsp, technology_ as tch,
+)
 
 __all__ = ["CoriolisGenerator", "generate"]
 

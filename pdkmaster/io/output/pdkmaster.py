@@ -2,7 +2,7 @@
 from textwrap import indent
 from logging import warn
 
-from .. import dispatcher as dsp, technology_ as tch
+from ...technology import dispatcher as dsp, technology_ as tch
 
 __all__ = ["PDKMasterGenerator", "generate"]
 
