@@ -30,6 +30,12 @@ def nth(it, n):
 def first(it):
     return nth(it, 0)
 
+def strip_literal(s):
+    if (s[0] == '"') and (s[-1] == '"'):
+        return s[1:-1]
+    else:
+        return s
+
 class TypedTuple(abc.ABC):
     tt_element_type = abc.abstractproperty()
     tt_index_attribute = "name"

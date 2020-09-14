@@ -158,7 +158,7 @@ class String(_BaseGrammar):
     grammar = RE(r'"([^"\\]+|\\(.|\n))*"')
 
     def grammar_elem_init(self, sessiondata):
-        self.value = self.string[1:-1]
+        self.value = self.string
         self.ast = {"String": self.value}
 
 class SignSymbol(_BaseGrammar):

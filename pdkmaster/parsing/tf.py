@@ -1,3 +1,4 @@
+from ... import _util
 from .skill_grammar import SkillFile, _skill_functionlist
 
 __all__ = ["TechFile"]
@@ -11,11 +12,11 @@ def _get_layername(v):
     and purpose
     """
     if isinstance(v, str):
-        return v
+        return _util.strip_literal(v)
     elif len(v) == 1:
-        return v[0]
+        return _util.strip_literal(v[0])
     elif len(v) == 2:
-        return v[0]+"."+v[1]
+        return _util.strip_literal(v[0])+"."+_util.strip_literal(v[1])
     else:
         raise ValueError("{!r} is not a valid layer specification")
 
@@ -42,7 +43,7 @@ def _prop_value(elems, **kwargs):
     ret = {}
     for v in elems:
         assert 2 <= len(v) <= 4
-        prop = v[0]
+        prop = _util.strip_literal(v[0])
         value = v[1]
         ret[prop] = value
         if len(v) > 2:
@@ -322,7 +323,7 @@ def _antennaModels(elems, **kwargs):
 def _constraintGroups(elems, **kwargs):
     ret = {}
     for v in elems:
-        groupname = v[0]
+        groupname = _util.strip_literal(v[0])
         override = _get_bool(v[1])
         constraints = {"override": override}
         if (len(v) > 2) and isinstance(v[2], str):
@@ -414,7 +415,7 @@ def _functions(elems, **kwargs):
         assert 2 <= len(v) <= 3
         layer = _get_layername(v[0])
         assert layer not in ret
-        ret[layer] = {"function": v[1]}
+        ret[layer] = {"function": _util.strip_literal(v[1])}
         if len(v) > 2:
             ret[layer]["mask_number"] = v[2]
 
