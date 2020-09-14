@@ -28,7 +28,7 @@ class _Primitive(abc.ABC):
             raise TypeError(f"name argument of '{self.__class__.__name__}' is not a string")
         if name in _Primitive._names:
             raise ValueError(f"primitive with name '{name}' already exists")
-        _Primitive._names.update(name)
+        _Primitive._names.add(name)
         self.name = name
 
         self.ports = _PrimitivePorts()
