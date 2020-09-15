@@ -207,29 +207,40 @@ class PDKMasterGenerator:
     def __call__(self, tech):
         if not isinstance(tech, tch.Technology):
             raise TypeError("PDKMasterGenerator has to be called with tech as parameter")
-        s = dedent("""
+        s = dedent(f"""
             from pdkmaster.technology.primitive import *
             from pdkmaster.technology.property_ import Enclosure
             from pdkmaster.technology.technology_ import Technology
+            from pdkmaster.design.layout import PrimitiveLayoutFactory
+            from pdkmaster.design.circuit import CircuitFactory
             
-            __all__ = ["technology", "tech"]
+            __all__ = [
+                "technology", "tech",
+                "layoutfab", "layout_factory",
+                "cktfab", "circuit_factory",
+            ]
 
+            class {tech.name}(Technology):
+                name = "{tech.name}"
+                grid = {tech.grid}
+                substrate_type = "{tech.substrate_type}"
+            
+                def _init(self):
+                    prims = self._primitives
+            
         """[1:])
-        s += f"class {tech.name}(Technology):\n"
-        s += f"    name = '{tech.name}'\n"
-        s += f"    grid = {tech.grid}\n"
-        s += f"    substrate_type = '{tech.substrate_type}'\n"
-        s += "\n"
-        s += "    def _init(self):\n"
-        s += "        prims = self._primitives\n"
-        s += "\n"
         gen = _PrimitiveGenerator()
         s += indent(
             "".join(gen(prim) for prim in tech.primitives),
             prefix="        "
         )
-        s += "\n"
-        s += f"technology = tech = {tech.name}()"
+        s += dedent(f"""
+
+            technology = tech = {tech.name}()
+            layoutfab = layout_factory = PrimitiveLayoutFactory(tech)
+            cktfab = circuit_factory = CircuitFactory(tech, layoutfab)
+        """[1:])
+
         return s
 
 generate = PDKMasterGenerator()
