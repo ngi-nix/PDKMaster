@@ -1,5 +1,5 @@
 """Generate a pdkmaster technology file"""
-from textwrap import indent
+from textwrap import indent, dedent
 from logging import warn
 
 from ...technology import dispatcher as dsp, technology_ as tch
@@ -207,10 +207,14 @@ class PDKMasterGenerator:
     def __call__(self, tech):
         if not isinstance(tech, tch.Technology):
             raise TypeError("PDKMasterGenerator has to be called with tech as parameter")
-        s = "from pdkmaster.technology.primitive import *\n"
-        s += "from pdkmaster.technology.property_ import Enclosure\n"
-        s += "from pdkmaster.technology.technology_ import Technology\n"
-        s += "\n"
+        s = dedent("""
+            from pdkmaster.technology.primitive import *
+            from pdkmaster.technology.property_ import Enclosure
+            from pdkmaster.technology.technology_ import Technology
+            
+            __all__ = ["technology", "tech"]
+
+        """[1:])
         s += f"class {tech.name}(Technology):\n"
         s += f"    name = '{tech.name}'\n"
         s += f"    grid = {tech.grid}\n"
