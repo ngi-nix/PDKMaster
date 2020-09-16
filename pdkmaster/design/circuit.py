@@ -88,7 +88,7 @@ class _Circuit:
         self.instances += inst
         return inst
 
-    def new_net(self, name, *, external):
+    def new_net(self, name, *, external, childports=None):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
         if not isinstance(external, bool):
@@ -98,6 +98,8 @@ class _Circuit:
         self.nets += net
         if external:
             self.ports += net
+        if childports:
+            net.childports += childports
         return net
 
 class _CircuitNet(net_.Net):
