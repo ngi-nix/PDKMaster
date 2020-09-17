@@ -219,7 +219,7 @@ class PDKMasterGenerator:
             from pdkmaster.technology.primitive import *
             from pdkmaster.technology.property_ import Enclosure
             from pdkmaster.technology.technology_ import Technology
-            from pdkmaster.design.layout import PrimitiveLayoutFactory
+            from pdkmaster.design.layout import LayoutFactory
             from pdkmaster.design.circuit import CircuitFactory
             
             __all__ = [
@@ -246,7 +246,7 @@ class PDKMasterGenerator:
 
             technology = tech = {tech.name}()
             cktfab = circuit_factory = CircuitFactory(tech)
-            layoutfab = layout_factory = PrimitiveLayoutFactory(tech)
+            layoutfab = layout_factory = LayoutFactory(tech)
         """[1:])
 
         return s

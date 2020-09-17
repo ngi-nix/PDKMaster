@@ -14,7 +14,7 @@ from . import circuit as ckt
 __all__ = [
     "MaskPolygon", "MaskPolygons",
     "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
-    "Layout", "PrimitiveLayoutFactory", "CircuitLayouter", "Plotter",
+    "Layout", "LayoutFactory", "Plotter",
 ]
 
 class NetOverlapError(Exception):
@@ -703,15 +703,14 @@ class Layout:
     def freeze(self):
         self.sublayouts.tt_freeze()
 
-class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
-    def __init__(self, tech):
-        if not isinstance(tech, tch.Technology):
-            raise TypeError("tech has to be of type Technology")
-        self.tech = tech
+class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
+    def __init__(self, fab):
+        assert isinstance(fab, LayoutFactory), "Internal error"
+        self.fab = fab
 
-    def new_layout(self, prim, *, center=sh_geo.Point(0.0, 0.0), **prim_params):
-        prim_params = prim.cast_params(prim_params)
-        return self(prim, center=center, **prim_params)
+    @property
+    def tech(self):
+        return self.fab.tech
 
     # Dispatcher implementation
     def _Primitive(self, prim, **params):
@@ -949,13 +948,16 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
 
         return layout
 
-class CircuitLayouter:
-    def __init__(self, circuit, layoutfab):
+class _CircuitLayouter:
+    def __init__(self, fab, circuit):
+        assert isinstance(fab, LayoutFactory), "Internal error"
+        self.fab = fab
+
         if not isinstance(circuit, ckt._Circuit):
             raise TypeError("circuit has to be of type '_Circuit'")
         self.circuit = circuit
+
         self.layout = Layout()
-        self.layoutfab = layoutfab
 
     @property
     def tech(self):
@@ -973,7 +975,7 @@ class CircuitLayouter:
         if not all((isinstance(x, float), isinstance(y, float))):
             raise TypeError("x and y have to be floats")
 
-        instlayout = self.layoutfab(
+        instlayout = self.fab.new_primitivelayout(
             inst.prim, center=sh_geo.Point(x, y), **inst.params,
         )
         for sublayout in instlayout.sublayouts:
@@ -1020,7 +1022,7 @@ class CircuitLayouter:
         ):
             raise TypeError("A wire has to have one port named 'conn'")
 
-        wirelayout = self.layoutfab.new_layout(
+        wirelayout = self.fab.new_primitivelayout(
             wire, center=sh_geo.Point(x, y), **wire_params,
         )
         for sublayout in wirelayout.sublayouts:
@@ -1045,6 +1047,22 @@ class CircuitLayouter:
                 continue
             if polygon.mask.fill_space != "no":
                 polygon.connect()
+
+class LayoutFactory:
+    def __init__(self, tech):
+        if not isinstance(tech, tch.Technology):
+            raise TypeError("tech has to be of type Technology")
+        self.tech = tech
+        self.gen_primlayout = _PrimitiveLayouter(self)
+
+    def new_primitivelayout(self, prim, *,
+        center=sh_geo.Point(0.0, 0.0), **prim_params
+    ):
+        prim_params = prim.cast_params(prim_params)
+        return self.gen_primlayout(prim, center=center, **prim_params)
+
+    def new_circuitlayouter(self, circuit):
+        return _CircuitLayouter(self, circuit)
 
 class Plotter:
     def __init__(self, plot_specs={}):
