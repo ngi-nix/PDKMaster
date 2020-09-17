@@ -245,8 +245,8 @@ class PDKMasterGenerator:
         s += dedent(f"""
 
             technology = tech = {tech.name}()
+            cktfab = circuit_factory = CircuitFactory(tech)
             layoutfab = layout_factory = PrimitiveLayoutFactory(tech)
-            cktfab = circuit_factory = CircuitFactory(tech, layoutfab)
         """[1:])
 
         return s

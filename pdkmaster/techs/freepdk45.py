@@ -304,5 +304,5 @@ class _FreePDK45(tch.Technology):
         )
 
 tech = technology = _FreePDK45()
+cktfab = circuit_factory = ckt.CircuitFactory(tech)
 layoutfab = layout_factory = lay.PrimitiveLayoutFactory(tech)
-cktfab = circuit_factory = ckt.CircuitFactory(tech, layoutfab)

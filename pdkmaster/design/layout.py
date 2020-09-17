@@ -9,11 +9,12 @@ from ..technology import (
     property_ as prp, net as net_, mask as msk, primitive as prm,
     technology_ as tch, dispatcher as dsp
 )
+from . import circuit as ckt
 
 __all__ = [
     "MaskPolygon", "MaskPolygons",
     "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
-    "Layout", "PrimitiveLayoutFactory", "Plotter",
+    "Layout", "PrimitiveLayoutFactory", "CircuitLayouter", "Plotter",
 ]
 
 class NetOverlapError(Exception):
@@ -947,6 +948,103 @@ class PrimitiveLayoutFactory(dsp.PrimitiveDispatcher):
         layout += NetlessSubLayout(polygons)
 
         return layout
+
+class CircuitLayouter:
+    def __init__(self, circuit, layoutfab):
+        if not isinstance(circuit, ckt._Circuit):
+            raise TypeError("circuit has to be of type '_Circuit'")
+        self.circuit = circuit
+        self.layout = Layout()
+        self.layoutfab = layoutfab
+
+    @property
+    def tech(self):
+        return self.circuit.layoutfab.tech
+
+    def place(self, inst, *, x, y):
+        if not isinstance(inst, ckt._Instance):
+            raise TypeError("inst has to be of type '_Instance'")
+        if inst not in self.circuit.instances:
+            raise ValueError(
+                f"inst '{inst.name}' is not part of circuit '{self.circuit.name}'"
+            )
+        x = _util.i2f(x)
+        y = _util.i2f(y)
+        if not all((isinstance(x, float), isinstance(y, float))):
+            raise TypeError("x and y have to be floats")
+
+        instlayout = self.layoutfab(
+            inst.prim, center=sh_geo.Point(x, y), **inst.params,
+        )
+        for sublayout in instlayout.sublayouts:
+            if isinstance(sublayout, NetSubLayout):
+                sublayout.net = ckt._InstanceNet(inst, sublayout.net)
+            elif isinstance(sublayout, MultiNetSubLayout):
+                for sublayout2 in sublayout.sublayouts:
+                    if isinstance(sublayout2, NetSubLayout):
+                        sublayout2.net = ckt._InstanceNet(inst, sublayout2.net)
+
+        def _portnets():
+            for net in self.circuit.nets:
+                for port in net.childports:
+                    yield (port, net)
+        portnets = dict(_portnets())
+
+        def connect_ports(sublayouts):
+            for sublayout in sublayouts:
+                if isinstance(sublayout, NetSubLayout):
+                    try:
+                        net = portnets[sublayout.net]
+                    except KeyError:
+                        net = ckt._InstanceNet(inst, sublayout.net)
+                    sublayout.net = net
+                elif isinstance(sublayout, MultiNetSubLayout):
+                    connect_ports(sublayout.sublayouts)
+                elif not isinstance(sublayout, NetlessSubLayout):
+                    raise AssertionError("Internal error")
+
+        connect_ports(instlayout.sublayouts)
+        self.layout += instlayout.sublayouts
+
+    def add_wire(self, *, net, well_net=None, wire, x, y, **wire_params):
+        if not isinstance(net, net_.Net):
+            raise TypeError("net has to be of type 'Net'")
+        if net not in self.circuit.nets:
+            raise ValueError(
+                f"net '{net.name}' is not a net from circuit '{self.circuit.name}'"
+            )
+        if not (
+            hasattr(wire, "ports")
+            and (len(wire.ports) == 1)
+            and (wire.ports[0].name == "conn")
+        ):
+            raise TypeError("A wire has to have one port named 'conn'")
+
+        wirelayout = self.layoutfab.new_layout(
+            wire, center=sh_geo.Point(x, y), **wire_params,
+        )
+        for sublayout in wirelayout.sublayouts:
+            if isinstance(sublayout, NetSubLayout):
+                if sublayout.net.name == "well":
+                    if well_net is None:
+                        raise TypeError(
+                            "No well_net provided for WaferWire with a well"
+                        )
+                    sublayout.net = well_net
+                else:
+                    assert sublayout.net.name == "conn", "Internal error"
+                    sublayout.net = net
+            elif not isinstance(sublayout, NetlessSubLayout):
+                raise AssertionError("Internal error")
+
+        self.layout += wirelayout.sublayouts
+
+    def connect(self, *, masks=None):
+        for polygon in self.layout.polygons:
+            if (masks is not None) and (polygon.mask not in masks):
+                continue
+            if polygon.mask.fill_space != "no":
+                polygon.connect()
 
 class Plotter:
     def __init__(self, plot_specs={}):
