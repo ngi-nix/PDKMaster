@@ -28,6 +28,7 @@ class _InstanceNet(net_.Net):
             isinstance(net, net_.Net),
         )), "Internal error"
         super().__init__(net.name)
+        self.inst = inst
         self.full_name = f"{inst.name}.{net.name}"
 
     def __hash__(self):
