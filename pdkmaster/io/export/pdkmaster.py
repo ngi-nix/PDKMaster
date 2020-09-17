@@ -4,7 +4,7 @@ from textwrap import indent, dedent
 from logging import warn
 
 from ...technology import dispatcher as dsp, technology_ as tch
-from ...design import circuit as ckt
+from ...design import circuit as ckt, library as lib
 
 __all__ = ["generate"]
 
@@ -211,8 +211,46 @@ class PDKMasterGenerator:
             return self._gen_tech(obj)
         elif isinstance(obj, ckt._Circuit):
             return self._gen_ckt(obj)
+        elif isinstance(obj, lib.Library):
+            return self._gen_lib(obj)
         else:
             raise TypeError("obj has to be of type 'Technology' or '_Circuit'")
+
+    def _gen_header(self, tech, cktfab):
+        assert (
+            isinstance(tech, tch.Technology)
+            and isinstance(cktfab, ckt.CircuitFactory)
+        ), "Internal error"
+
+        s = ""
+
+        mod = tech.__class__.__module__
+        mod_split = mod.split(".")
+        if mod.startswith("pdkmaster.techs"):
+            module = import_module(".".join(mod_split[:3]))
+        else:
+            module = None
+        if module and hasattr(module, "tech") and (tech == module.tech):
+            s += f"from {module.__name__} import tech\n"
+        else:
+            mod_name = type(tech).__module__
+            class_name = type(tech).__name__
+            s += (
+                f"from {mod_name} import {class_name}\n"
+                f"tech = {class_name}()\n"
+            )
+        if module and hasattr(module, "cktfab") and (cktfab == module.cktfab):
+            s += f"from {module.__name__} import cktfab\n"
+        else:
+            s += dedent(f"""
+                from pdkmaster.design.layout import PrimitiveLayoutFactory
+                layoutfab = PrimitiveLayoutFactory(tech)
+                from pdkmaster.design.circuit import CircuitFactory
+                cktfab = CircuitFactory(tech, layoutfab)
+            """[1:])
+        s += "\n"
+
+        return s
 
     def _gen_tech(self, tech):
         s = dedent(f"""
@@ -251,44 +289,17 @@ class PDKMasterGenerator:
 
         return s
 
-    def _gen_ckt(self, circuit):
-        cktfab = circuit.fab
-        tech = cktfab.tech
+    def _gen_ckt(self, circuit, header=True):
+        s = ""
+        if header:
+            s += self._gen_header(circuit.fab.tech, circuit.fab)
 
-        s = "from pdkmaster.design import circuit as ckt\n\n"
-
-        mod = tech.__class__.__module__
-        mod_split = mod.split(".")
-        if mod.startswith("pdkmaster.techs"):
-            module = import_module(".".join(mod_split[:3]))
-        else:
-            module = None
-        if module and hasattr(module, "tech") and (tech == module.tech):
-            s += f"from {module.__name__} import tech\n"
-        else:
-            mod_name = type(tech).__module__
-            class_name = type(tech).__name__
-            s += (
-                f"from {mod_name} import {class_name}\n"
-                f"tech = {class_name}()\n"
-            )
-        if module and hasattr(module, "cktfab") and (cktfab == module.cktfab):
-            s += f"from {module.__name__} import cktfab\n"
-        else:
             s += dedent(f"""
-                from pdkmaster.design.layout import PrimitiveLayoutFactory
-                layoutfab = PrimitiveLayoutFactory(tech)
-                from pdkmaster.design.circuit import CircuitFactory
-                cktfab = CircuitFactory(tech, layoutfab)
-            """[1:])
-        s += "\n"
+                __all__ ["circuit", "ckt"]
 
-        s += dedent(f"""
-            __all__ ["circuit", "ckt"]
+                circuit = ckt = cktfab.new_circuit("{circuit.name}")
 
-            circuit = ckt = cktfab.new_circuit("{circuit.name}")
-
-        """)
+            """)
 
         for net in circuit.nets:
             external = net in circuit.ports
@@ -313,6 +324,30 @@ class PDKMasterGenerator:
                     f"    ckt.instances['{inst.name}'].ports['{port.name}'],\n"
                 )
             s += ")\n"
+
+        return s
+
+    def _gen_lib(self, library, header=True):
+        s = ""
+        if header:
+            s += "from pdkmaster.design.library import Library\n\n"
+
+            s += self._gen_header(library.tech, library.cktfab)
+
+            s += dedent("""
+                __all__ = ["library", "lib"]
+
+                library = lib = Library(tech, cktfab)
+            """)
+
+        for cell in library.cells:
+            s += f"\ncell = lib.new_cell('{cell.name}')\n"
+            for circuit in cell.circuits:
+                s += f"ckt = cell.new_circuit('{circuit.name}')\n"
+                s += self._gen_ckt(circuit, header=False)
+
+        if cell.layouts:
+            raise NotImplementedError("Library cells export with layout")
 
         return s
 
