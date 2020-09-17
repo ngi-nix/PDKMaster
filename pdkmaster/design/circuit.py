@@ -97,6 +97,9 @@ class _Circuit:
             net.childports += childports
         return net
 
+class _Circuits(_util.TypedTuple):
+    tt_element_type = _Circuit
+
 class _CircuitNet(net_.Net):
     def __init__(self, circuit, name, external):
         assert all((
