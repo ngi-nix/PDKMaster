@@ -1,8 +1,10 @@
 """Generate a pdkmaster technology file"""
+from importlib import import_module
 from textwrap import indent, dedent
 from logging import warn
 
 from ...technology import dispatcher as dsp, technology_ as tch
+from ...design import circuit as ckt
 
 __all__ = ["generate"]
 
@@ -204,9 +206,15 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         return s
 
 class PDKMasterGenerator:
-    def __call__(self, tech):
-        if not isinstance(tech, tch.Technology):
-            raise TypeError("PDKMasterGenerator has to be called with tech as parameter")
+    def __call__(self, obj):
+        if isinstance(obj, tch.Technology):
+            return self._gen_tech(obj)
+        elif isinstance(obj, ckt._Circuit):
+            return self._gen_ckt(obj)
+        else:
+            raise TypeError("obj has to be of type 'Technology' or '_Circuit'")
+
+    def _gen_tech(self, tech):
         s = dedent(f"""
             from pdkmaster.technology.primitive import *
             from pdkmaster.technology.property_ import Enclosure
@@ -240,6 +248,71 @@ class PDKMasterGenerator:
             layoutfab = layout_factory = PrimitiveLayoutFactory(tech)
             cktfab = circuit_factory = CircuitFactory(tech, layoutfab)
         """[1:])
+
+        return s
+
+    def _gen_ckt(self, circuit):
+        cktfab = circuit.fab
+        tech = cktfab.tech
+
+        s = "from pdkmaster.design import circuit as ckt\n\n"
+
+        mod = tech.__class__.__module__
+        mod_split = mod.split(".")
+        if mod.startswith("pdkmaster.techs"):
+            module = import_module(".".join(mod_split[:3]))
+        else:
+            module = None
+        if module and hasattr(module, "tech") and (tech == module.tech):
+            s += f"from {module.__name__} import tech\n"
+        else:
+            mod_name = type(tech).__module__
+            class_name = type(tech).__name__
+            s += (
+                f"from {mod_name} import {class_name}\n"
+                f"tech = {class_name}()\n"
+            )
+        if module and hasattr(module, "cktfab") and (cktfab == module.cktfab):
+            s += f"from {module.__name__} import cktfab\n"
+        else:
+            s += dedent(f"""
+                from pdkmaster.design.layout import PrimitiveLayoutFactory
+                layoutfab = PrimitiveLayoutFactory(tech)
+                from pdkmaster.design.circuit import CircuitFactory
+                cktfab = CircuitFactory(tech, layoutfab)
+            """[1:])
+        s += "\n"
+
+        s += dedent(f"""
+            __all__ ["circuit", "ckt"]
+
+            circuit = ckt = cktfab.new_circuit("{circuit.name}")
+
+        """)
+
+        for net in circuit.nets:
+            external = net in circuit.ports
+            s += f"ckt.new_net('{net.name}', external={external})\n"
+        s += "\n"
+
+        for inst in circuit.instances:
+            assert (
+                isinstance(inst, ckt._PrimitiveInstance),
+                "Unsupported instance class",
+            )
+            s += (
+                f"ckt.new_instance('{inst.name}', tech.primitives['{inst.prim.name}'])\n"
+            )
+        s += "\n"
+
+        for net in circuit.nets:
+            s += f"ckt.nets['{net.name}'].childports += (\n"
+            for port in net.childports:
+                inst = port.inst
+                s += (
+                    f"    ckt.instances['{inst.name}'].ports['{port.name}'],\n"
+                )
+            s += ")\n"
 
         return s
 
