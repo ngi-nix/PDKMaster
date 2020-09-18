@@ -68,6 +68,10 @@ class _CellLayout:
 class _CellLayouts(_util.TypedTuple):
     tt_element_type = _CellLayout
 
+    def __getitem__(self, item):
+        elem = super().__getitem__(item)
+        return elem.layout
+
     
 class Library:
     def __init__(self, tech, cktfab):
