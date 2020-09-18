@@ -213,6 +213,9 @@ class Enclosure:
                     or ((spec1[0] <= spec2[1]) and (spec1[1] <= spec2[0]))
                 )
 
+    def __repr__(self):
+        return f"Enclosure({self.spec})"
+
 class EnclosureProperty(Property):
     value_conv = Enclosure
     value_type = Enclosure
