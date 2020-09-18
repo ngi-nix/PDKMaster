@@ -425,7 +425,16 @@ class NetSubLayout(_SubLayout):
                 if same_net:
                     return True
                 else:
-                    raise NetOverlapError("Overlapping polygons on different nets")
+                    try:
+                        net = other.net
+                    except:
+                        othernet = "None"
+                    else:
+                        othernet = net.name
+                    raise NetOverlapError(
+                        f"Overlapping polygons for mask {mask.name} "
+                        f"on net '{self.net.name}' and net '{othernet}'"
+                    )
         else:
             return False
 
