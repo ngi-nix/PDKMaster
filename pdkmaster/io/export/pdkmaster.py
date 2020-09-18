@@ -216,7 +216,7 @@ class PDKMasterGenerator:
         else:
             raise TypeError("obj has to be of type 'Technology' or '_Circuit'")
 
-    def _gen_header(self, tech, cktfab):
+    def _gen_header(self, tech, cktfab, layoutfab):
         assert (
             isinstance(tech, tch.Technology)
             and isinstance(cktfab, ckt.CircuitFactory)
@@ -230,6 +230,7 @@ class PDKMasterGenerator:
             module = import_module(".".join(mod_split[:3]))
         else:
             module = None
+
         if module and hasattr(module, "tech") and (tech == module.tech):
             s += f"from {module.__name__} import tech\n"
         else:
@@ -239,15 +240,27 @@ class PDKMasterGenerator:
                 f"from {mod_name} import {class_name}\n"
                 f"tech = {class_name}()\n"
             )
-        if module and hasattr(module, "cktfab") and (cktfab == module.cktfab):
-            s += f"from {module.__name__} import cktfab\n"
-        else:
-            s += dedent(f"""
-                from pdkmaster.design.layout import PrimitiveLayoutFactory
-                layoutfab = PrimitiveLayoutFactory(tech)
-                from pdkmaster.design.circuit import CircuitFactory
-                cktfab = CircuitFactory(tech, layoutfab)
-            """[1:])
+
+        if cktfab is not None:
+            if module and hasattr(module, "cktfab") and (cktfab == module.cktfab):
+                s += f"from {module.__name__} import cktfab\n"
+            else:
+                s += dedent(f"""
+                    from pdkmaster.design.circuit import CircuitFactory
+                    cktfab = CircuitFactory(tech)
+                """[1:])
+
+        if layoutfab is not None:
+            if (module and hasattr(module, "layoutfab")
+                and (layoutfab == module.layoutfab)
+            ):
+                s += f"from {module.__name__} import layoutfab\n"
+            else:
+                s += dedent(f"""
+                    from pdkmaster.design.layout import LayoutFactory
+                    layoutfab = LayoutFactory(tech)
+                """[1:])
+
         s += "\n"
 
         return s
@@ -292,7 +305,7 @@ class PDKMasterGenerator:
     def _gen_ckt(self, circuit, header=True):
         s = ""
         if header:
-            s += self._gen_header(circuit.fab.tech, circuit.fab)
+            s += self._gen_header(circuit.fab.tech, circuit.fab, None)
 
             s += dedent(f"""
                 __all__ ["circuit", "ckt"]
@@ -311,9 +324,11 @@ class PDKMasterGenerator:
                 isinstance(inst, ckt._PrimitiveInstance),
                 "Unsupported instance class",
             )
-            s += (
-                f"ckt.new_instance('{inst.name}', tech.primitives['{inst.prim.name}'])\n"
-            )
+            primname = inst.prim.name
+            s += f"ckt.new_instance('{inst.name}', tech.primitives['{primname}'],\n"
+            for param in inst.prim.params:
+                s += f"    {param.name}={inst.params[param.name]!r},\n"
+            s += ")\n"
         s += "\n"
 
         for net in circuit.nets:
@@ -330,14 +345,18 @@ class PDKMasterGenerator:
     def _gen_lib(self, library, header=True):
         s = ""
         if header:
-            s += "from pdkmaster.design.library import Library\n\n"
+            s += dedent("""
+                from pdkmaster.design.library import Library
+                from pdkmaster.technology.property_ import Enclosure
 
-            s += self._gen_header(library.tech, library.cktfab)
+            """[1:])
+
+            s += self._gen_header(library.tech, library.cktfab, library.layoutfab)
 
             s += dedent("""
                 __all__ = ["library", "lib"]
 
-                library = lib = Library(tech, cktfab)
+                library = lib = Library(tech, cktfab, layoutfab)
             """)
 
         for cell in library.cells:
@@ -350,8 +369,8 @@ class PDKMasterGenerator:
                 s += f"ckt = cell.new_circuit('{circuit.name}')\n"
                 s += self._gen_ckt(circuit, header=False)
 
-        if cell.layouts:
-            raise NotImplementedError("Library cells export with layout")
+        # if cell.layouts:
+        #     raise NotImplementedError("Library cells export with layout")
 
         return s
 
