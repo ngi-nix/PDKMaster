@@ -50,6 +50,19 @@ class _Cell:
 
         self.layouts += _CellLayout(name, layout)
 
+    def new_circuitlayouter(self, name=None):
+        if name is None:
+            name = self.name
+        if not isinstance(name, str):
+            raise TypeError("name has to be a string")
+        try:
+            circuit = self.circuits[name]
+        except KeyError:
+            raise ValueError(f"circuit with name '{name}' not present")
+
+        layouter = self.lib.layoutfab.new_circuitlayouter(circuit)
+        self.layouts += _CellLayout(name, layouter.layout)
+        return layouter
 
 class _Cells(_util.TypedTuple):
     tt_element_type = _Cell
@@ -74,7 +87,7 @@ class _CellLayouts(_util.TypedTuple):
 
     
 class Library:
-    def __init__(self, tech, cktfab):
+    def __init__(self, tech, cktfab, layoutfab):
         if not isinstance(tech, tch.Technology):
             raise TypeError("tech has to be of type 'Technology'")
         self.tech = tech
@@ -82,6 +95,10 @@ class Library:
         if not isinstance(cktfab, ckt.CircuitFactory):
             raise TypeError("cktfab has to be of type 'CircuitFactory'")
         self.cktfab = cktfab
+
+        if not isinstance(layoutfab, lay.LayoutFactory):
+            raise TypeError("layoutfab has to be of type 'LayoutFactory'")
+        self.layoutfab = layoutfab
 
         self.cells = _Cells()
     
