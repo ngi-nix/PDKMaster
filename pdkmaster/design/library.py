@@ -33,8 +33,11 @@ class _Cell:
             return self.layouts[self.name]
         except KeyError:
             raise ValueError(f"Cell '{self.name}' has not default layout")
+
+    def new_circuit(self, name=None):
+        if name is None:
+            name = self.name
         
-    def new_circuit(self, name):
         circuit = self.cktfab.new_circuit(name)
         self.circuits += circuit
         return circuit
