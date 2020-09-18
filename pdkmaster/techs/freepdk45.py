@@ -306,3 +306,16 @@ class _FreePDK45(tch.Technology):
 tech = technology = _FreePDK45()
 cktfab = circuit_factory = ckt.CircuitFactory(tech)
 layoutfab = layout_factory = lay.LayoutFactory(tech)
+plotter = lay.Plotter({
+    "pwell": {"fc": (1.0, 1.0, 0.0, 0.2), "ec": "orange", "zorder": 10},
+    "nwell": {"fc": (0.0, 0.0, 0.0, 0.1), "ec": "grey", "zorder": 10},
+    "active": {"fc": "lawngreen", "ec": "lawngreen", "zorder": 11},
+    "poly": {"fc": "red", "ec": "red", "zorder": 12},
+    "nimplant": {"fc": "purple", "ec": "purple", "alpha": 0.3, "zorder": 13},
+    "pimplant": {"fc": "blueviolet", "ec": "blueviolet", "alpha": 0.3, "zorder": 13},
+    "vthg": {"fc": (0.0, 0.0, 0.0, 0.0), "ec": "grey", "zorder": 13},
+    "vthl": {"fc": (1, 1, 1, 0.3), "ec": "whitesmoke", "zorder": 13},
+    "vthh": {"fc": (0.0, 0.0, 0.0, 0.2), "ec": "dimgrey", "zorder": 13},
+    "contact": {"fc": "black", "ec": "black", "zorder": 14},
+    "metal1": {"fc": (0.1, 0.1, 1, 0.4), "ec": "blue", "zorder": 15},
+})
