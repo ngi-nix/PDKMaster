@@ -341,7 +341,11 @@ class PDKMasterGenerator:
             """)
 
         for cell in library.cells:
-            s += f"\ncell = lib.new_cell('{cell.name}')\n"
+            s += dedent(f"""
+
+                # cell: {cell.name}
+                cell = lib.new_cell('{cell.name}')
+            """)
             for circuit in cell.circuits:
                 s += f"ckt = cell.new_circuit('{circuit.name}')\n"
                 s += self._gen_ckt(circuit, header=False)
