@@ -27,7 +27,7 @@ setup(
     license="GPL2.0+",
     python_requires="~=3.6",
     setup_requires=["setuptools_scm"],
-    install_requires=["setuptools", "modgrammar"],
+    install_requires=["setuptools", "modgrammar", "shapely"],
     include_package_data=True,
     packages=find_packages(),
     project_urls={
