@@ -138,7 +138,7 @@ class _PrimitiveParam(_Param):
     def cast(self, value):
         value = super().cast(value)
         if hasattr(self, "choices"):
-            if value not in self.choices:
+            if not ((value is None) or (value in self.choices)):
                 raise ValueError(
                     f"Param '{self.name}' is not one of the allowed values:\n"
                     f"    {self.choices}"
@@ -371,6 +371,11 @@ class _WidthSpacePrimitive(_MaskPrimitive):
 
         super().__init__(**maskprimitive_args)
 
+        self.params += (
+            _Param(self, "width", default=self.min_width),
+            _Param(self, "height", default=self.min_width),
+        )
+
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
@@ -544,6 +549,57 @@ class WaferWire(_WidthSpacePrimitive):
         self.allow_well_crossing = allow_well_crossing
 
         super().__init__(**widthspace_args)
+
+        if len(implant) > 1:
+            self.params += (
+                _PrimitiveParam(self, "implant", choices=self.implant),
+                _EnclosureParam(self, "implant_enclosure", allow_none=True),
+            )
+        else:
+            self.params += (
+                _EnclosureParam(
+                    self, "implant_enclosure",
+                    default=min_implant_enclosure[0],
+                ),
+            )
+        if (len(well) > 1) or allow_in_substrate:
+            self.params += (
+                _PrimitiveParam(
+                    self, "well", allow_none=allow_in_substrate,
+                    choices=self.well
+                ),
+                _EnclosureParam(self, "well_enclosure", allow_none=True),
+            )
+        else:
+            self.params += (
+                _EnclosureParam(
+                    self, "well_enclosure", default=min_well_enclosure[0],
+                ),
+            )
+
+    def cast_params(self, params):
+        params = super().cast_params(params)
+
+        def _check_param(name):
+            return (name in params) and (params[name] is not None)
+
+        if "implant" in params:
+            implant = params["implant"]
+        else:
+            params["implant"] = implant = self.implant[0]
+        if params["implant_enclosure"] is None:
+            idx = self.implant.index(implant)
+            params["implant_enclosure"] = self.min_implant_enclosure[idx]
+
+        if "well" in params:
+            well = params["well"]
+            if (well is not None) and (params["well_enclosure"] is None):
+                idx = self.well.index(well)
+                params["well_enclosure"] = self.min_well_enclosure[idx]
+        elif (len(self.well) == 1) and (not self.allow_in_substrate):
+            params["well"] = self.well[0]
+
+        return params
 
     def _generate_rules(self, tech):
         super()._generate_rules(tech)

@@ -785,6 +785,67 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             f"of type '{prim.__class__.__name__}'"
         )
 
+    def _WidthSpacePrimitive(self, prim, *, center, **widthspace_params):
+        if not isinstance(center, sh_geo.Point):
+            raise TypeError("center has to be of type Point from shapely")
+
+        centerx, centery = tuple(center.coords)[0]
+
+        width = widthspace_params["width"]
+        height = widthspace_params["height"]
+
+        left = centerx - 0.5*width
+        right = left + width
+        bottom = centery - 0.5*height
+        top = bottom + height
+
+        return Layout(
+            NetSubLayout(
+                prim.ports[0], MaskPolygon(
+                    prim.mask, _rect(left, bottom, right, top),
+                ),
+            ),
+        )
+
+    def WaferWire(self, prim, *, center, **waferwire_params):
+        implant = waferwire_params.pop("implant")
+        implant_enclosure = waferwire_params.pop("implant_enclosure")
+        assert implant_enclosure is not None
+
+        well = waferwire_params.pop("well", None)
+        well_enclosure = waferwire_params.pop("well_enclosure", None)
+
+
+        centerx, centery = tuple(center.coords)[0]
+
+        width = waferwire_params["width"]
+        height = waferwire_params["height"]
+
+        left = centerx - 0.5*width
+        right = left + width
+        bottom = centery - 0.5*height
+        top = bottom + height
+
+        layout = self._WidthSpacePrimitive(prim, center=center, **waferwire_params)
+
+        layout += NetlessSubLayout(MaskPolygon(
+                implant.mask,
+                _rect(left, bottom, right, top, enclosure=implant_enclosure),
+        ))
+        if well is not None:
+            net = (
+                prim.ports[0] if (implant.type_ == well.type_)
+                else prm._PrimitiveNet(prim, "well")
+            )
+            layout += NetSubLayout(
+                net, MaskPolygon(
+                    well.mask,
+                    _rect(left, bottom, right, top, enclosure=well_enclosure),
+                ),
+            )
+
+        return layout
+
     def Via(self, prim, *, center, **via_params):
         if not isinstance(center, sh_geo.Point):
             raise TypeError("center has to be of type Point from shapely")
