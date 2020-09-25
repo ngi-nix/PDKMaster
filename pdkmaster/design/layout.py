@@ -148,6 +148,9 @@ class MaskPolygon:
         return MaskPolygon(self.mask, self.polygon)
 
     @property
+    def bounds(self):
+        return self.polygon.bounds
+
     def __iadd__(self, polygon):
         if isinstance(polygon, MaskPolygon):
             if self.mask == polygon.mask:
@@ -315,6 +318,18 @@ class MaskPolygons(_util.TypedTuple):
 
     def dup(self):
         return MaskPolygons(mp.dup() for mp in self)
+
+    def mps_bounds(self, *, mask=None):
+        mps = self if mask is None else filter(
+            lambda mp: mp.mask == mask, self,
+        )
+        boundslist = tuple(mp.bounds for mp in mps)
+        return [
+            min(bds[0] for bds in boundslist),
+            min(bds[1] for bds in boundslist),
+            max(bds[2] for bds in boundslist),
+            max(bds[3] for bds in boundslist),
+        ]
 
     def __getattr__(self, name):
         if isinstance(name, str):
@@ -725,6 +740,18 @@ class Layout:
 
     def dup(self):
         return Layout(SubLayouts(sl.dup() for sl in self.sublayouts))
+
+    def bounds(self, *, mask=None):
+        mps = self.polygons if mask is None else filter(
+            lambda mp: mp.mask == mask, self.polygons,
+        )
+        boundslist = tuple(mp.bounds for mp in mps)
+        return [
+            min(bds[0] for bds in boundslist),
+            min(bds[1] for bds in boundslist),
+            max(bds[2] for bds in boundslist),
+            max(bds[3] for bds in boundslist),
+        ]
 
     def __iadd__(self, other):
         if self.sublayouts._frozen:
