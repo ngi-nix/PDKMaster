@@ -953,35 +953,37 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         except KeyError:
             pass
         else:
-            enc = via_params["bottom_implant_enclosure"]
-            assert enc is not None, "Internal error"
-            layout += NetlessSubLayout(
-                MaskPolygon(
-                    impl.mask, _rect(
-                        bottom_left, bottom_bottom, bottom_right, bottom_top,
-                        enclosure=enc,
+            if impl is not None:
+                enc = via_params["bottom_implant_enclosure"]
+                assert enc is not None, "Internal error"
+                layout += NetlessSubLayout(
+                    MaskPolygon(
+                        impl.mask, _rect(
+                            bottom_left, bottom_bottom, bottom_right, bottom_top,
+                            enclosure=enc,
+                        ),
                     ),
-                ),
-            )
+                )
         try:
             well = via_params["bottom_well"]
         except KeyError:
             pass
         else:
-            enc = via_params["bottom_well_enclosure"]
-            assert enc is not None, "Internal error"
-            net = (
-                prim.ports[0] if (impl.type_ == well.type_)
-                else prm._PrimitiveNet(prim, "well")
-            )
-            layout += NetSubLayout(
-                net, MaskPolygon(
-                    well.mask, _rect(
-                        bottom_left, bottom_bottom, bottom_right, bottom_top,
-                        enclosure=enc,
-                    ),
+            if well is not None:
+                enc = via_params["bottom_well_enclosure"]
+                assert enc is not None, "Internal error"
+                net = (
+                    prim.ports[0] if (impl.type_ == well.type_)
+                    else prm._PrimitiveNet(prim, "well")
                 )
-            )
+                layout += NetSubLayout(
+                    net, MaskPolygon(
+                        well.mask, _rect(
+                            bottom_left, bottom_bottom, bottom_right, bottom_top,
+                            enclosure=enc,
+                        ),
+                    )
+                )
 
         return layout
 
