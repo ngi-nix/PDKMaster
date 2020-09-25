@@ -294,9 +294,12 @@ class MaskPolygon:
         )
 
     def connect(self):
-        self.polygon = _manhattan_polygon(
-            self.polygon.simplify(1e-6).convex_hull, outer=False,
-        )
+        try:
+            self.polygon = _manhattan_polygon(
+                self.polygon.simplify(1e-6).convex_hull, outer=False,
+            )
+        except:
+            logging.warning(f"Polygon.connect() failed for '{self}'")
 
     def connected(self):
         return MaskPolygon(
