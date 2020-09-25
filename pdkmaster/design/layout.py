@@ -144,6 +144,10 @@ class MaskPolygon:
             )
         self.polygon = polygon
 
+    def dup(self):
+        return MaskPolygon(self.mask, self.polygon)
+
+    @property
     def __iadd__(self, polygon):
         if isinstance(polygon, MaskPolygon):
             if self.mask == polygon.mask:
@@ -306,6 +310,9 @@ class MaskPolygons(_util.TypedTuple):
     tt_index_type = msk.DesignMask
     tt_element_type = MaskPolygon
 
+    def dup(self):
+        return MaskPolygons(mp.dup() for mp in self)
+
     def __getattr__(self, name):
         if isinstance(name, str):
             for elem in self._t:
@@ -384,6 +391,10 @@ class _SubLayout(abc.ABC):
             raise TypeError("sublayout has to be of type '_SubLayout'")
         return False
 
+    @abc.abstractmethod
+    def dup(self):
+        raise AssertionError("Internal error")
+
 class NetSubLayout(_SubLayout):
     def __init__(self, net, polygons):
         if not isinstance(net, net_.Net):
@@ -395,6 +406,9 @@ class NetSubLayout(_SubLayout):
         if not isinstance(polygons, MaskPolygons):
             raise TypeError("polygons has to be of type 'MaskPolygon' or 'MaskPolygons'")
         super().__init__(polygons)
+
+    def dup(self):
+        return NetSubLayout(self.net, self.polygons.dup())
 
     def __iadd__(self, other):
         assert (
@@ -446,6 +460,9 @@ class NetlessSubLayout(_SubLayout):
             raise TypeError("polygons has to be of type 'MaskPolygon' or 'MaskPolygons'")
         super().__init__(polygons)
 
+    def dup(self):
+        return NetlessSubLayout(self.polygons.dup())
+
     def __iadd__(self, other):
         assert isinstance(other, NetlessSubLayout), "Internal error"
         self.polygons += other.polygons
@@ -491,6 +508,9 @@ class MultiNetSubLayout(_SubLayout):
 
         super().__init__(MaskPolygons())
         self._update_maskpolygon()
+
+    def dup(self):
+        return MultiNetSubLayout(sl.dup() for sl in self.sublayouts)
 
     @property
     def _netmasks(self):
@@ -632,6 +652,9 @@ class SubLayouts(_util.TypedTuple):
     tt_element_type = _SubLayout
     tt_index_attribute = None
 
+    def dup(self):
+        return SubLayouts(l.dup() for l in self)
+
     def __iadd__(self, other):
         other = tuple(other) if _util.is_iterable(other) else (other,)
         if not all(isinstance(sublayout, _SubLayout) for sublayout in other):
@@ -696,6 +719,9 @@ class Layout:
         for sublayout in self.sublayouts:
             for polygon in sublayout.polygons:
                 yield polygon
+
+    def dup(self):
+        return Layout(SubLayouts(sl.dup() for sl in self.sublayouts))
 
     def __iadd__(self, other):
         if self.sublayouts._frozen:
