@@ -1137,6 +1137,8 @@ class _CircuitLayouter:
         connect_ports(instlayout.sublayouts)
         self.layout += instlayout.sublayouts
 
+        return instlayout
+
     def add_wire(self, *, net, well_net=None, wire, x, y, **wire_params):
         if not isinstance(net, net_.Net):
             raise TypeError("net has to be of type 'Net'")
@@ -1169,6 +1171,8 @@ class _CircuitLayouter:
                 raise AssertionError("Internal error")
 
         self.layout += wirelayout.sublayouts
+
+        return wirelayout
 
     def connect(self, *, masks=None):
         for polygon in self.layout.polygons:
