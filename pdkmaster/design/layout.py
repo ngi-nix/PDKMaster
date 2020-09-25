@@ -1191,6 +1191,154 @@ class LayoutFactory:
     def new_circuitlayouter(self, circuit):
         return _CircuitLayouter(self, circuit)
 
+    def spec4bound(self, *, bound_spec, via=None):
+        spec_out = {}
+        if via is None:
+            specs = ("left", "bottom", "right", "top")
+            if not all(spec in specs for spec in bound_spec.keys()):
+                raise ValueError(f"Bound spec for non-Via are {specs}")
+
+            if "left" in bound_spec:
+                if "right" not in bound_spec:
+                    raise ValueError(
+                        "expecting both 'left' and 'right' spec or none of them"
+                    )
+                left = bound_spec["left"]
+                right = bound_spec["right"]
+                spec_out.update({"x": (left + right)/2.0, "width": right - left})
+            elif "right" in bound_spec:
+                raise ValueError(
+                    "expecting both 'left' and 'right' or none of them"
+                )
+
+            if "bottom" in bound_spec:
+                if "top" not in bound_spec:
+                    raise ValueError(
+                        "expecting both 'bottom' and 'top' spec or none of them"
+                    )
+                bottom = bound_spec["bottom"]
+                top = bound_spec["top"]
+                spec_out.update({"y": (bottom + top)/2.0, "height": top - bottom})
+            elif "top" in bound_spec:
+                raise ValueError(
+                    "expecting both 'bottom' and 'top' spec or none of them"
+                )
+        else:
+            if not isinstance(via, prm.Via):
+                raise TypeError("via has to be 'None' or of type 'Via'")
+            specs = (
+                "bottom_layer", "bottom_enclosure",
+                "top_layer", "top_enclosure",
+                "bottom_left", "bottom_bottom", "bottom_right", "bottom_top",
+                "top_left", "top_bottom", "top_right", "top_top",
+            )
+            if not all(spec in specs for spec in bound_spec.keys()):
+                raise ValueError(f"Bound specs for a Via are:\n  {specs}")
+
+            try:
+                bottom_layer = bound_spec["bottom_layer"]
+            except KeyError:
+                bottom_layer = via.bottom[0]
+                idx = 0
+            else:
+                idx = via.bottom.index(bottom_layer)
+            try:
+                bottom_enc = bound_spec["bottom_enclosure"]
+            except KeyError:
+                bottom_enc = via.min_bottom_enclosure[idx]
+            bottom_enc = bottom_enc.spec
+            if isinstance(bottom_enc, float):
+                bottom_enc = (bottom_enc, bottom_enc)
+
+            try:
+                top_layer = bound_spec["top_layer"]
+            except KeyError:
+                top_layer = via.top[0] if len(via.top) == 1 else None
+                idx = 0
+            else:
+                idx = via.top.index(top_layer)
+            try:
+                top_enc = bound_spec["top_enclosure"]
+            except KeyError:
+                top_enc = via.min_top_enclosure[idx]
+            top_enc = top_enc.spec
+            if isinstance(top_enc, float):
+                top_enc = (top_enc, top_enc)
+
+            via_left = via_bottom = via_right = via_top = None
+            if "bottom_left" in bound_spec:
+                if "top_left" in bound_spec:
+                    via_left = max((
+                        bound_spec["bottom_left"] + bottom_enc[0],
+                        bound_spec["top_left"] + top_enc[0],
+                    ))
+                else:
+                    via_left = bound_spec["bottom_left"] + bottom_enc[0]
+            elif "top_left" in bound_spec:
+                via_left = bound_spec["top_left"] + top_enc[0]
+
+            if "bottom_bottom" in bound_spec:
+                if "top_bottom" in bound_spec:
+                    via_bottom = max((
+                        bound_spec["bottom_bottom"] + bottom_enc[1],
+                        bound_spec["top_bottom"] + top_enc[1],
+                    ))
+                else:
+                    via_bottom = bound_spec["bottom_bottom"] + bottom_enc[1]
+            elif "top_bottom" in bound_spec:
+                via_bottom = bound_spec["top_bottom"] + top_enc[1]
+
+            if "bottom_right" in bound_spec:
+                if "top_right" in bound_spec:
+                    via_right = min((
+                        bound_spec["bottom_right"] - bottom_enc[0],
+                        bound_spec["top_right"] - top_enc[0],
+                    ))
+                else:
+                    via_right = bound_spec["bottom_right"] - bottom_enc[0]
+            elif "top_right" in bound_spec:
+                via_right = bound_spec["top_right"] - top_enc[0]
+
+            if "bottom_top" in bound_spec:
+                if "top_top" in bound_spec:
+                    via_top = min((
+                        bound_spec["bottom_top"] - bottom_enc[1],
+                        bound_spec["top_top"] - top_enc[1],
+                    ))
+                else:
+                    via_top = bound_spec["bottom_top"] - bottom_enc[1]
+            elif "top_top" in bound_spec:
+                via_top = bound_spec["top_top"] - top_enc[1]
+
+            if (via_left is not None) and (via_right is not None):
+                width = via_right - via_left
+                columns = int((width - via.width)/(via.width + via.min_space)) + 1
+                if columns < 1:
+                    raise ValueError("Not enough widht for fitting one column")
+                spec_out.update({
+                    "x": (via_left + via_right)/2.0,
+                    "columns": columns,
+                })
+            elif (via_left is not None) or (via_right is not None):
+                raise ValueError("left/right spec mismatch")
+
+            if (via_bottom is not None) and (via_top is not None):
+                height = via_top - via_bottom
+                rows = int((height - via.width)/(via.width + via.min_space)) + 1
+                if rows < 1:
+                    raise ValueError("Not enough height for fitting one row")
+                spec_out.update({
+                    "y": (via_bottom + via_top)/2.0,
+                    "rows": rows,
+                })
+            elif (via_bottom is not None) or (via_top is not None):
+                raise ValueError("bottom/top spec mismatch")
+
+        if not spec_out:
+            raise ValueError("No specs found")
+
+        return spec_out
+
 class Plotter:
     def __init__(self, plot_specs={}):
         self.plot_specs = dict(plot_specs)
