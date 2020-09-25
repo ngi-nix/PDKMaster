@@ -131,6 +131,7 @@ def _manhattan_polygon(polygon, *, outer=True):
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
     _geometry_types_str = "'Polygon'/'MultiPolygon' from shapely"
+
     def __init__(self, mask, polygon):
         if not isinstance(mask, msk.DesignMask):
             raise TypeError("mask has to be of type 'DesignMask'")

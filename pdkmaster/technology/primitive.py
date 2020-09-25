@@ -244,8 +244,6 @@ class _MaskPrimitive(_Primitive):
                 raise TypeError("grid parameter for '{}' has to be a float".format(self.__class__.__name__))
             self.grid = grid
 
-
-
     @abc.abstractmethod
     def _generate_rules(self, tech, *, gen_mask=True):
         super()._generate_rules(tech)
@@ -261,7 +259,9 @@ class _MaskPrimitive(_Primitive):
 
     def _designmask_from_name(self, args, *, fill_space):
         if "mask" in args:
-            raise TypeError(f"{self.__class__.__name__} got unexpected keyword argument 'mask'")
+            raise TypeError(
+                f"{self.__class__.__name__} got unexpected keyword argument 'mask'",
+            )
         args["mask"] = msk.DesignMask(
             args["name"], gds_layer=args.pop("gds_layer", None),
             fill_space=fill_space,
