@@ -1,5 +1,6 @@
 import abc, logging
 from itertools import product
+from collections import namedtuple
 from matplotlib import pyplot as plt
 import descartes
 from shapely import geometry as sh_geo, ops as sh_ops
@@ -12,7 +13,7 @@ from ..technology import (
 from . import circuit as ckt
 
 __all__ = [
-    "MaskPolygon", "MaskPolygons",
+    "Rect", "MaskPolygon", "MaskPolygons",
     "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
     "Layout", "LayoutFactory", "Plotter",
 ]
@@ -128,6 +129,8 @@ def _manhattan_polygon(polygon, *, outer=True):
             )
         )
 
+Rect = namedtuple("Rect", ("left", "bottom", "right", "top"))
+
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
     _geometry_types_str = "'Polygon'/'MultiPolygon' from shapely"
@@ -149,7 +152,7 @@ class MaskPolygon:
 
     @property
     def bounds(self):
-        return self.polygon.bounds
+        return Rect(*self.polygon.bounds)
 
     def __iadd__(self, polygon):
         if isinstance(polygon, MaskPolygon):
@@ -324,12 +327,12 @@ class MaskPolygons(_util.TypedTuple):
             lambda mp: mp.mask == mask, self,
         )
         boundslist = tuple(mp.bounds for mp in mps)
-        return [
+        return Rect(
             min(bds[0] for bds in boundslist),
             min(bds[1] for bds in boundslist),
             max(bds[2] for bds in boundslist),
             max(bds[3] for bds in boundslist),
-        ]
+        )
 
     def __getattr__(self, name):
         if isinstance(name, str):
@@ -746,12 +749,12 @@ class Layout:
             lambda mp: mp.mask == mask, self.polygons,
         )
         boundslist = tuple(mp.bounds for mp in mps)
-        return [
+        return Rect(
             min(bds[0] for bds in boundslist),
             min(bds[1] for bds in boundslist),
             max(bds[2] for bds in boundslist),
             max(bds[3] for bds in boundslist),
-        ]
+        )
 
     def __iadd__(self, other):
         if self.sublayouts._frozen:
@@ -1200,35 +1203,45 @@ class LayoutFactory:
     def spec4bound(self, *, bound_spec, via=None):
         spec_out = {}
         if via is None:
-            specs = ("left", "bottom", "right", "top")
-            if not all(spec in specs for spec in bound_spec.keys()):
-                raise ValueError(f"Bound spec for non-Via are {specs}")
+            if isinstance(bound_spec, dict):
+                specs = ("left", "bottom", "right", "top")
+                if not all(spec in specs for spec in bound_spec.keys()):
+                    raise ValueError(f"Bound spec for non-Via are {specs}")
 
-            if "left" in bound_spec:
-                if "right" not in bound_spec:
+                if "left" in bound_spec:
+                    if "right" not in bound_spec:
+                        raise ValueError(
+                            "expecting both 'left' and 'right' spec or none of them"
+                        )
+                    left = bound_spec["left"]
+                    right = bound_spec["right"]
+                    spec_out.update({"x": (left + right)/2.0, "width": right - left})
+                elif "right" in bound_spec:
                     raise ValueError(
-                        "expecting both 'left' and 'right' spec or none of them"
+                        "expecting both 'left' and 'right' or none of them"
                     )
-                left = bound_spec["left"]
-                right = bound_spec["right"]
-                spec_out.update({"x": (left + right)/2.0, "width": right - left})
-            elif "right" in bound_spec:
-                raise ValueError(
-                    "expecting both 'left' and 'right' or none of them"
-                )
 
-            if "bottom" in bound_spec:
-                if "top" not in bound_spec:
+                if "bottom" in bound_spec:
+                    if "top" not in bound_spec:
+                        raise ValueError(
+                            "expecting both 'bottom' and 'top' spec or none of them"
+                        )
+                    bottom = bound_spec["bottom"]
+                    top = bound_spec["top"]
+                    spec_out.update({"y": (bottom + top)/2.0, "height": top - bottom})
+                elif "top" in bound_spec:
                     raise ValueError(
                         "expecting both 'bottom' and 'top' spec or none of them"
                     )
-                bottom = bound_spec["bottom"]
-                top = bound_spec["top"]
-                spec_out.update({"y": (bottom + top)/2.0, "height": top - bottom})
-            elif "top" in bound_spec:
-                raise ValueError(
-                    "expecting both 'bottom' and 'top' spec or none of them"
-                )
+            else:
+                if not isinstance(bound_spec, Rect):
+                    bound_spec = Rect(*bound_spec)
+                spec_out = {
+                    "x": (bound_spec.left + bound_spec.right)/2.0,
+                    "y": (bound_spec.bottom + bound_spec.top)/2.0,
+                    "width": bound_spec.right - bound_spec.left,
+                    "height": bound_spec.top - bound_spec.bottom,
+                }
         else:
             if not isinstance(via, prm.Via):
                 raise TypeError("via has to be 'None' or of type 'Via'")
