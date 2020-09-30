@@ -141,6 +141,8 @@ class TypedTuple(abc.ABC):
         elem = self[key]
         self.tt_remove(elem)
 
+        return elem
+
     def tt_keys(self):
         if not hasattr(self, "_d"):
             raise TypeError("typed tuple elements don't an index")
