@@ -106,9 +106,3 @@ class Library:
         cell = _Cell(self, name)
         self.cells += cell
         return cell
-
-    def __getitem__(self, item):
-        return self.cells[item]
-
-    def __getattr__(self, attr):
-        return getattr(self.cells, attr)
