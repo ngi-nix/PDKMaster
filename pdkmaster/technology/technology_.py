@@ -94,6 +94,9 @@ class Technology(abc.ABC):
                 yield allwires(wire.wire)
                 for m in wire.marker:
                     yield m
+            if hasattr(wire, "pin"):
+                for p in wire.pin:
+                    yield p
             yield wire
 
         connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))

@@ -802,13 +802,23 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         bottom = centery - 0.5*height
         top = bottom + height
 
-        return Layout(
+        layout = Layout(
             NetSubLayout(
                 prim.ports[0], MaskPolygon(
                     prim.mask, _rect(left, bottom, right, top),
                 ),
             ),
         )
+
+        pin = widthspace_params.get("pin", None)
+        if pin is not None:
+            layout += NetSubLayout(
+                prim.ports[0], MaskPolygon(
+                    pin.mask, _rect(left, bottom, right, top),
+                ),
+            )
+
+        return layout
 
     def WaferWire(self, prim, *, center, **waferwire_params):
         implant = waferwire_params.pop("implant")

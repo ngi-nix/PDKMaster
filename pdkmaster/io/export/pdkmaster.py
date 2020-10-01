@@ -79,6 +79,8 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             s += f"min_density={prim.min_density},\n"
         if hasattr(prim, "max_density"):
             s += f"max_density={prim.max_density},\n"
+        if hasattr(prim, "pin"):
+            s += f"pin={_str_primtuple(prim.pin)},\n"
         s += self._params_mask(prim, add_fill_space=add_fill_space)
         
         return s

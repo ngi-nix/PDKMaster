@@ -327,6 +327,15 @@ class CoriolisGenerator:
         s_prims = ""
         written_prims = set()
         
+        def add_pin(wire):
+            s = ""
+            for pin in getattr(wire, "pin", []):
+                if pin not in written_prims:
+                    s += gen(pin)
+                    written_prims.add(pin)
+
+            return s
+
         for waferwire in tech.primitives.tt_iter_type(prm.WaferWire):
             for implant in (*waferwire.implant, *waferwire.well):
                 if implant not in written_prims:
@@ -337,11 +346,13 @@ class CoriolisGenerator:
             assert waferwire not in written_prims
             s_prims += gen(waferwire)
             written_prims.add(waferwire)
+            s_prims += add_pin(waferwire)
 
         for gatewire in tech.primitives.tt_iter_type(prm.GateWire):
             assert gatewire not in written_prims
             s_prims += gen(gatewire)
             written_prims.add(gatewire)
+            s_prims += add_pin(gatewire)
 
         for via in tech.primitives.tt_iter_type((prm.Via, prm.PadOpening)):
             assert via not in written_prims
@@ -350,6 +361,7 @@ class CoriolisGenerator:
                 if bottom not in written_prims:
                     s_prims += gen(bottom)
                     written_prims.add(bottom)
+                    s_prims += add_pin(bottom)
             s_prims += gen(via)
             written_prims.add(via)
 

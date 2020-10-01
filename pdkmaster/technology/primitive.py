@@ -376,6 +376,23 @@ class _WidthSpacePrimitive(_MaskPrimitive):
             _Param(self, "height", default=self.min_width),
         )
 
+    def _pin_attribute(self, args):
+        pin = args.pop("pin", None)
+        if pin is not None:
+            pin = _util.v2t(pin)
+            if not all(isinstance(p, Marker) for p in pin):
+                raise ValueError(
+                    f"pin argument for {self.__class_.__name} has to None, "
+                    "of type 'Marker' or an iterable of type 'Marker'"
+                )
+            self.pin = pin
+
+    def _pin_params(self):
+        if hasattr(self, "pin"):
+            self.params += _PrimitiveParam(
+                self, "pin", allow_none=True, choices=self.pin,
+            )
+
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
@@ -548,7 +565,9 @@ class WaferWire(_WidthSpacePrimitive):
             raise TypeError("allow_well_crossing has to be a bool")
         self.allow_well_crossing = allow_well_crossing
 
+        self._pin_attribute(widthspace_args)
         super().__init__(**widthspace_args)
+        self._pin_params()
 
         if len(implant) > 1:
             self.params += (
@@ -631,13 +650,17 @@ class GateWire(_WidthSpacePrimitive):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="same_net")
+        self._pin_attribute(widthspace_args)
         super().__init__(**widthspace_args)
+        self._pin_params()
 
 class MetalWire(_WidthSpacePrimitive):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="same_net")
+        self._pin_attribute(widthspace_args)
         super().__init__(**widthspace_args)
+        self._pin_params()
 
 class TopMetalWire(MetalWire):
     pass
