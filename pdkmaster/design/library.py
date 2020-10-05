@@ -85,9 +85,13 @@ class _CellLayouts(_util.TypedTuple):
         elem = super().__getitem__(item)
         return elem.layout
 
-    
+
 class Library:
-    def __init__(self, tech, cktfab, layoutfab):
+    def __init__(self, name, tech, cktfab, layoutfab):
+        if not isinstance(name, str):
+            raise TypeError("name has to be a string")
+        self.name = name
+
         if not isinstance(tech, tch.Technology):
             raise TypeError("tech has to be of type 'Technology'")
         self.tech = tech
