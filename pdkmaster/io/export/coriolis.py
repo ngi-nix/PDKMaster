@@ -1,10 +1,12 @@
 """Generate coriolis setup file"""
 from textwrap import dedent, indent
 from itertools import product
+import shapely.geometry as sh_geo
 
 from ...technology import (
     primitive as prm, dispatcher as dsp, technology_ as tch,
 )
+from ...design import layout as lay, library as lbr
 
 __all__ = ["generate"]
 
@@ -286,22 +288,153 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         return s
 
 
-class CoriolisGenerator:
-    def __call__(self, tech):
-        return (
-            self._s_head()
-            + "\n"
-            + self._s_technology(tech)
-            + "\n"
-            + self._s_analog(tech)
+class _LibraryGenerator:
+    def __init__(self, tech):
+        assert isinstance(tech, tch.Technology)
+        self.tech = tech
+        self.pinmasks = pinmasks = set()
+        for prim in filter(lambda p: hasattr(p, "pin"), tech.primitives):
+            pinmasks.update(set(p.mask for p in prim.pin))
+
+    def __call__(self, lib):
+        assert isinstance(lib, lbr.Library)
+        s = dedent(f"""
+            def {lib.name}_load():
+                db = Hurricane.DataBase.getDB()
+                tech = db.getTechnology()
+
+                lib = Hurricane.Library.create(db, '{lib.name}')
+        """[1:])
+
+        s += indent(
+            "".join(self._s_cell(cell) for cell in lib.cells),
+            prefix="    ",
         )
+
+        s += "\n    return lib\n"
+
+        s += dedent(f"""
+        def {lib.name}_config():
+            # Configuration for etesian/katana/anabatic should be put here
+            pass
+        """)
+
+        return s
+
+    def _s_cell(self, cell):
+        try:
+            s = dedent(f"""
+                cell = Hurricane.Cell.create(lib, '{cell.name}')
+                with UpdateSession():
+            """)
+
+            if hasattr(cell, "layout"):
+                layout = cell.layout
+
+                def get_netname(sl):
+                    if isinstance(sl, lay.NetSubLayout):
+                        return sl.net.name
+                    elif isinstance(
+                        sl, (lay.MultiNetSubLayout, lay.NetlessSubLayout),
+                    ):
+                        return "*"
+                    else:
+                        raise AssertionError("Internal error: unhandled sublayout type")
+
+                netnames = set(get_netname(sl) for sl in layout.sublayouts)
+
+                s += (
+                    "    nets = {\n"
+                    + "\n".join(
+                        f"        '{net}': Hurricane.Net.create(cell, '{net}'),"
+                        for net in sorted(netnames)
+                    )
+                    + "\n    }\n"
+                )
+
+                for sl in layout.sublayouts:
+                    s += indent(
+                        f"net = nets['{get_netname(sl)}']\n" +
+                        "".join(
+                            self._s_polygon(mp.mask, mp.polygon)
+                            for mp in sl.polygons
+                        ),
+                        prefix="    ",
+                    )
+
+            return s
+        except NotImplementedError:
+            return f"# Export failed for cell '{cell.name}'"
+
+    def _s_polygon(self, mask, polygon):
+        if isinstance(polygon, sh_geo.MultiPolygon):
+            return "".join(
+                self._s_polygon(mask, poly2)
+                for poly2 in polygon
+            )
+        elif isinstance(polygon, sh_geo.Polygon):
+            if tuple(polygon.interiors):
+                raise NotImplementedError("shapely polygon with interiors")
+            coords = polygon.exterior.coords
+            if mask in self.pinmasks:
+                if len(coords) != 5:
+                    raise NotImplementedError("Non-rectangular pin")
+                xs = tuple(coord[0] for coord in coords)
+                ys = tuple(coord[1] for coord in coords)
+                left = min(xs)
+                right = max(xs)
+                bottom = round(min(ys), 6)
+                top = round(max(ys), 6)
+                x = round(0.5*(left + right), 6)
+                width = round(right - left, 6)
+                s = dedent(f"""
+                    pin = Hurricane.Vertical.create(
+                        net, tech.getLayer('{mask.name}'),
+                        u({x}), u({width}), u({bottom}), u({top}),
+                    )
+                    net.setExternal(True)
+                    Hurricane.NetExternalComponents.setExternal(pin)
+                """[1:])
+            else:
+                s = (
+                    f"Hurricane.Rectilinear.create(net, "
+                    f"tech.getLayer('{mask.name}'), [\n"
+                )
+                s += "".join(
+                    f"    {self._s_point(point)},\n" for point in coords
+                )
+                s += "])\n"
+
+        return s
+
+    def _s_point(self, point):
+        assert (
+            isinstance(point, tuple) and (len(point) == 2)
+        )
+        # TODO: put on grid
+        x = round(point[0], 6)
+        y = round(point[1], 6)
+
+        return f"Hurricane.Point(u({x}), u({y}))"
+
+
+class CoriolisGenerator:
+    def __call__(self, tech, *, lib=None):
+        s = "\n".join((
+            self._s_head(), self._s_technology(tech), self._s_analog(tech)
+        ))
+
+        if lib is not None:
+            s += f"\n{self._s_lib(tech, lib)}"
+
+        return s
 
     def _s_head(self):
         return dedent(f"""
             import CRL, Hurricane
             from Hurricane import DbU
             from helpers import u
-            from helpers.overlay import Configuration
+            from helpers.overlay import Configuration, UpdateSession
             from helpers.analogtechno import Length, Area, Unit, Asymmetric
         """[1:])
     
@@ -416,5 +549,10 @@ class CoriolisGenerator:
         s += ")\n"
 
         return s
+
+    def _s_lib(self, tech, lib):
+        gen = _LibraryGenerator(tech)
+        return gen(lib)
+
 
 generate = CoriolisGenerator()
