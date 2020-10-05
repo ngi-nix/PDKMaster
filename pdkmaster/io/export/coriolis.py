@@ -10,8 +10,8 @@ __all__ = ["generate"]
 
 def _str_create_basic(name, mat):
         return (
-            f"l = BasicLayer.create(tech, '{name}',"
-            f" BasicLayer.Material(BasicLayer.Material.{mat}))\n"
+            f"l = Hurricane.BasicLayer.create(tech, '{name}',"
+            f" Hurricane.BasicLayer.Material(Hurricane.BasicLayer.Material.{mat}))\n"
         )
 
 def _str_gds_layer(prim):
@@ -75,7 +75,10 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         return _str_create_basic(prim.name, "cut") + _str_gds_layer(prim)
 
     def Auxiliary(self, prim):
-        return _str_create_basic(prim.name, "other") + _str_gds_layer(prim)
+        return indent(
+            _str_create_basic(prim.name, "other") + _str_gds_layer(prim),
+            prefix="# ",
+        )
 
     def PadOpening(self, prim):
         return _str_create_basic(prim.name, "cut") + _str_gds_layer(prim)
@@ -148,7 +151,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         s = self._rows_widthspace(prim)
         for i in range(len(prim.well)):
             well = prim.well[i]
-            enc = prim.min_well_enclosure[i]
+            enc = prim.min_well_enclosure[i].spec
             s += (
                 f"('minEnclosure', '{well.name}', '{prim.name}', {enc},"
                 " Length|Asymmetric, ''),\n"
@@ -157,7 +160,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             for well in self.tech.primitives.tt_iter_type(prm.Well):
                 s += (
                     f"('minSpacing', '{well.name}', '{prim.name}',"
-                    f" {prim.min_substrate_enclosure}, ''),\n"
+                    f" {prim.min_substrate_enclosure.spec}, ''),\n"
                 )
         s += (
             f"# TODO for {prim.name}:\n"
@@ -176,7 +179,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         s = self._rows_widthspace(prim)
         for i in range(len(prim.indicator)):
             ind = prim.indicator[i]
-            enc = prim.min_enclosure[i]
+            enc = prim.min_enclosure[i].spec
             s += (
                 f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
@@ -190,14 +193,14 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         s += f"('minSpacing', '{prim.name}', {prim.min_space}, Length, ''),\n"
         for i in range(len(prim.bottom)):
             bottom = prim.bottom[i]
-            enc = prim.min_bottom_enclosure[i]
+            enc = prim.min_bottom_enclosure[i].spec
             s += (
                 f"('minEnclosure', '{bottom.name}', '{prim.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
             )
         for i in range(len(prim.top)):
             top = prim.top[i]
-            enc = prim.min_top_enclosure[i]
+            enc = prim.min_top_enclosure[i].spec
             s += (
                 f"('minEnclosure', '{top.name}', '{prim.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
@@ -208,7 +211,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         s = self._rows_widthspace(prim)
         s += (
             f"('minEnclosure', '{prim.bottom.name}', '{prim.name}', "
-            f"{prim.min_bottom_enclosure}, Length|Asymmetric, ''),\n"
+            f"{prim.min_bottom_enclosure.spec}, Length|Asymmetric, ''),\n"
         )
         return s
 
@@ -265,7 +268,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             )
         for i in range(len(prim.implant)):
             impl = prim.implant[i]
-            enc = prim.min_gateimplant_enclosure[i]
+            enc = prim.min_gateimplant_enclosure[i].spec
             s += (
                 f"('minGateEnclosure', '{impl.name}', '{prim.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
@@ -314,7 +317,7 @@ class CoriolisGenerator:
                 db = Hurricane.DataBase.create()
                 CRL.System.get()
 
-                Hurricane.Technology.create('{tech.name}')
+                tech = Hurricane.Technology.create(db, '{tech.name}')
 
                 DbU.setPrecision(2)
                 DbU.setPhysicalsPerGrid({tech.grid}, DbU.UnitPowerMicro)
