@@ -87,7 +87,7 @@ class _CellLayouts(_util.TypedTuple):
 
 
 class Library:
-    def __init__(self, name, tech, cktfab, layoutfab):
+    def __init__(self, name, *, tech, cktfab=None, layoutfab=None):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
         self.name = name
@@ -96,11 +96,15 @@ class Library:
             raise TypeError("tech has to be of type 'Technology'")
         self.tech = tech
 
-        if not isinstance(cktfab, ckt.CircuitFactory):
+        if cktfab is None:
+            cktfab = ckt.CircuitFactory(tech)
+        elif not isinstance(cktfab, ckt.CircuitFactory):
             raise TypeError("cktfab has to be of type 'CircuitFactory'")
         self.cktfab = cktfab
 
-        if not isinstance(layoutfab, lay.LayoutFactory):
+        if layoutfab is None:
+            layoutfab = lay.LayoutFactory(tech)
+        elif not isinstance(layoutfab, lay.LayoutFactory):
             raise TypeError("layoutfab has to be of type 'LayoutFactory'")
         self.layoutfab = layoutfab
 
