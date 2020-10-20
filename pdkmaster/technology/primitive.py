@@ -382,7 +382,7 @@ class _WidthSpacePrimitive(_MaskPrimitive):
             pin = _util.v2t(pin)
             if not all(isinstance(p, Marker) for p in pin):
                 raise ValueError(
-                    f"pin argument for {self.__class_.__name} has to None, "
+                    f"pin argument for {self.__class__.__name__} has to None, "
                     "of type 'Marker' or an iterable of type 'Marker'"
                 )
             self.pin = pin
