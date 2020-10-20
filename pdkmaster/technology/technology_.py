@@ -11,6 +11,59 @@ class Technology(abc.ABC):
     class ConnectionError(Exception):
         pass
 
+    class _ComputedSpecs:
+        def __init__(self, tech):
+            assert isinstance(tech, Technology), "Internal error"
+            self.tech = tech
+
+        def min_space(self, primitive1, primitive2):
+            prims = self.tech.primitives
+            for spacing in prims.tt_iter_type(prm.Spacing):
+                if ((
+                    (primitive1 in spacing.primitives1)
+                    and (primitive2 in spacing.primitives2)
+                ) or (
+                    (primitive1 in spacing.primitives2)
+                    and (primitive2 in spacing.primitives1)
+                )):
+                    return spacing.min_space
+
+        def min_width(self, primitive, *, up=False, down=False, min_enclosure=False):
+            if (
+                (not isinstance(primitive, prm._Primitive))
+                and hasattr(primitive, "min_width")
+            ):
+                raise TypeError(
+                    "primitive has to be a '_Primitive' object with"
+                    " the min_with attribute"
+                )
+            if not (isinstance(up, bool) and isinstance(down, bool)):
+                raise TypeError("up and down have to be bools")
+
+            def wupdown(via):
+                if up and (primitive in via.bottom):
+                    idx = via.bottom.index(primitive)
+                    enc = via.min_bottom_enclosure[idx]
+                    w = via.width
+                elif down and (primitive in via.top):
+                    idx = via.top.index(primitive)
+                    enc = via.min_top_enclosure[idx]
+                    w = via.width
+                else:
+                    enc = prp.Enclosure(0.0)
+                    w = 0.0
+
+                enc = enc.min if min_enclosure else enc.max()
+                return w + 2*enc
+
+            return max((
+                primitive.min_width,
+                *(wupdown(via) for via in self.tech.primitives.tt_iter_type(prm.Via)),
+            ))
+
+        def min_pitch(self, primitive, **kwargs):
+            return self.min_width(primitive, **kwargs) + primitive.min_space
+
     name = abc.abstractproperty()
     grid = abc.abstractproperty()
     substrate_type = abc.abstractproperty()
@@ -39,6 +92,8 @@ class Technology(abc.ABC):
         self._build_rules()
 
         prims.tt_freeze()
+
+        self.computed = self._ComputedSpecs(self)
 
     @abc.abstractmethod
     def _init(self):
