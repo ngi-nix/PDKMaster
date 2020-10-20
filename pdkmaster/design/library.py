@@ -1,8 +1,8 @@
 from .. import _util
-from ..technology import technology_ as tch
+from ..technology import primitive as prm, technology_ as tch
 from . import layout as lay, circuit as ckt
 
-__all__ = ["Library"]
+__all__ = ["RoutingGauge", "Library", "StdCellLibrary"]
 
 class _Cell:
     def __init__(self, lib, name):
@@ -86,8 +86,72 @@ class _CellLayouts(_util.TypedTuple):
         return elem.layout
 
 
+class RoutingGauge:
+    directions = frozenset(("horizontal", "vertical"))
+
+    def __init__(
+        self, *, tech, bottom, bottom_direction, top, pitches={}, offsets={},
+    ):
+        if not isinstance(tech, tch.Technology):
+            raise TypeError("tech has to be of type 'Technology")
+        self.tech = tech
+
+        if (
+            (not isinstance(bottom, prm.MetalWire))
+            or (not isinstance(top, prm.MetalWire))
+        ):
+            raise TypeError("bottom and top have to be of type 'MetalWire'")
+        metals = tuple(tech.primitives.tt_iter_type(prm.MetalWire))
+        if bottom not in metals:
+            raise ValueError(f"bottom is not a MetalWire of technology '{tech.name}'")
+        if top not in metals:
+            raise ValueError(f"top is not a MetalWire of technology '{tech.name}'")
+        bottom_idx = metals.index(bottom)
+        top_idx = metals.index(top)
+        if bottom_idx >= top_idx:
+            raise ValueError("bottom layer has to be below top layer")
+        self.bottom = bottom
+        self.top = top
+
+        if not isinstance(bottom_direction, str):
+            raise TypeError("bottom_direction has to be a string")
+        if not bottom_direction in self.directions:
+            raise ValueError(f"bottom_direction has to be one of {self.directions}")
+        self.bottom_direction = bottom_direction
+
+        pitches = {wire: _util.i2f(pitch) for wire, pitch in pitches.items()}
+        for wire, pitch in pitches.items():
+            if not isinstance(wire, prm.MetalWire):
+                raise TypeError(f"key '{wire!r}' in pitches is not of type 'MetalWire'")
+            if not isinstance(pitch, float):
+                raise TypeError(
+                    f"pitch {pitch} for wire '{wire.name}' is not a float"
+                )
+            if not (
+                (wire in metals)
+                and (bottom_idx <= metals.index(wire) <= top_idx)
+            ):
+                raise ValueError(f"wire '{wire.name}' is not part of the Gauge set")
+        self.pitches = pitches
+
+        offsets = {wire: _util.i2f(offset) for wire, offset in offsets.items()}
+        for wire, offset in offsets.items():
+            if not isinstance(wire, prm.MetalWire):
+                raise TypeError(f"key '{wire!r}' in offsets is not of type 'MetalWire'")
+            if not isinstance(offset, float):
+                raise TypeError(
+                    f"offset {offset} for wire '{wire.name}' is not a float"
+                )
+            if not (
+                (wire in metals)
+                and (bottom_idx <= metals.index(wire) <= top_idx)
+            ):
+                raise ValueError(f"wire '{wire.name}' is not part of the Gauge set")
+        self.offsets = offsets
+
+
 class Library:
-    def __init__(self, name, *, tech, cktfab=None, layoutfab=None):
+    def __init__(self, name, *, tech, cktfab=None, layoutfab=None, global_nets=None):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
         self.name = name
@@ -108,9 +172,45 @@ class Library:
             raise TypeError("layoutfab has to be of type 'LayoutFactory'")
         self.layoutfab = layoutfab
 
+        if global_nets is not None:
+            global_nets = _util.v2t(global_nets)
+            if not all(isinstance(net, str) for net in global_nets):
+                raise TypeError(
+                    "global_nets has to be None, a string or an iterable of strings"
+                )
+            self.global_nets=frozenset(global_nets)
+
         self.cells = _Cells()
     
     def new_cell(self, name):
         cell = _Cell(self, name)
         self.cells += cell
         return cell
+
+
+class StdCellLibrary(Library):
+    def __init__(
+        self, name, *, tech, cktfab=None, layoutfab=None, global_nets,
+        routinggauge, pingrid_pitch, row_height,
+    ):
+        super().__init__(name,
+            tech=tech, cktfab=cktfab, layoutfab=layoutfab, global_nets=global_nets,
+        )
+
+        routinggauge = _util.v2t(routinggauge)
+        if not all(isinstance(gauge, RoutingGauge) for gauge in routinggauge):
+            raise TypeError(
+                "routinggauge has to be 'None, of type 'RoutingGauge' "
+                "or an iterable of type 'RoutingGauge'"
+            )
+        self.routinggauge = routinggauge
+
+        pingrid_pitch = _util.i2f(pingrid_pitch)
+        if not isinstance(pingrid_pitch, float):
+            raise TypeError("pingrid_pitch has to be a float")
+        self.pingrid_pitch = pingrid_pitch
+
+        row_height = _util.i2f(row_height)
+        if not isinstance(row_height, float):
+            raise TypeError("row_height has to be a float")
+        self.row_height = row_height
