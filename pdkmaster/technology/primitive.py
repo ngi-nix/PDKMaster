@@ -1278,7 +1278,7 @@ class MOSFET(_Primitive):
             min_l = _util.i2f(min_l)
             if not isinstance(min_l, float):
                 raise TypeError("min_l has to be 'None' or a float")
-            if min_l <= gate.min_l:
+            if min_l <= gate.computed.min_l:
                 raise ValueError("min_l has to be bigger than gate min_l if not 'None'")
             self.min_l = min_l
 
@@ -1286,7 +1286,7 @@ class MOSFET(_Primitive):
             min_w = _util.i2f(min_w)
             if not isinstance(min_w, float):
                 raise TypeError("min_w has to be 'None' or a float")
-            if min_w <= gate.min_w:
+            if min_w <= gate.computed.min_w:
                 raise ValueError("min_w has to be bigger than gate min_w if not 'None'")
             self.min_w = min_w
 
