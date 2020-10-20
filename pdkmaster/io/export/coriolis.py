@@ -330,6 +330,8 @@ class _LibraryGenerator:
 
             if hasattr(cell, "layout"):
                 layout = cell.layout
+                bnd = layout.boundary
+                assert bnd is not None, f"Cell boundary needed for {cell.name}"
 
                 def get_netname(sl):
                     if isinstance(sl, lay.NetSubLayout):
@@ -344,6 +346,9 @@ class _LibraryGenerator:
                 netnames = set(get_netname(sl) for sl in layout.sublayouts)
 
                 s += (
+                    "    cell.setAbutmentBox(Hurricane.Box(\n"
+                    f"        u({bnd.left}), u({bnd.bottom}), u({bnd.right}), u({bnd.top}),\n"
+                    "    ))\n"
                     "    nets = {\n"
                     + "\n".join(
                         f"        '{net}': Hurricane.Net.create(cell, '{net}'),"

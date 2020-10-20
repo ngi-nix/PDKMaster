@@ -50,7 +50,7 @@ class _Cell:
 
         self.layouts += _CellLayout(name, layout)
 
-    def new_circuitlayouter(self, name=None):
+    def new_circuitlayouter(self, name=None, *, boundary=None):
         if name is None:
             name = self.name
         if not isinstance(name, str):
@@ -60,7 +60,7 @@ class _Cell:
         except KeyError:
             raise ValueError(f"circuit with name '{name}' not present")
 
-        layouter = self.lib.layoutfab.new_circuitlayouter(circuit)
+        layouter = self.lib.layoutfab.new_circuitlayouter(circuit, boundary=boundary)
         self.layouts += _CellLayout(name, layouter.layout)
         return layouter
 

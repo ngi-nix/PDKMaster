@@ -724,7 +724,7 @@ class SubLayouts(_util.TypedTuple):
             return self
 
 class Layout:
-    def __init__(self, sublayouts=None):
+    def __init__(self, sublayouts=None, *, boundary=None):
         if sublayouts is None:
             sublayouts = SubLayouts()
         if isinstance(sublayouts, _SubLayout):
@@ -734,6 +734,10 @@ class Layout:
                 "sublayouts has to be of type '_SubLayout' or 'SubLayouts'"
             )
         self.sublayouts = sublayouts
+
+        if not ((boundary is None) or isinstance(boundary, Rect)):
+            raise TypeError("boundary has to be 'None' or of type 'Rect'")
+        self.boundary = boundary
 
     @property
     def polygons(self):
@@ -1091,7 +1095,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         return layout
 
 class _CircuitLayouter:
-    def __init__(self, fab, circuit):
+    def __init__(self, fab, circuit, *, boundary):
         assert isinstance(fab, LayoutFactory), "Internal error"
         self.fab = fab
 
@@ -1099,7 +1103,7 @@ class _CircuitLayouter:
             raise TypeError("circuit has to be of type '_Circuit'")
         self.circuit = circuit
 
-        self.layout = Layout()
+        self.layout = Layout(boundary=boundary)
 
     @property
     def tech(self):
@@ -1207,8 +1211,8 @@ class LayoutFactory:
         prim_params = prim.cast_params(prim_params)
         return self.gen_primlayout(prim, center=center, **prim_params)
 
-    def new_circuitlayouter(self, circuit):
-        return _CircuitLayouter(self, circuit)
+    def new_circuitlayouter(self, circuit, *, boundary=None):
+        return _CircuitLayouter(self, circuit, boundary=boundary)
 
     def spec4bound(self, *, bound_spec, via=None):
         spec_out = {}
