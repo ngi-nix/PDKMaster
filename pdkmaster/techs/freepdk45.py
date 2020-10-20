@@ -70,6 +70,7 @@ class _FreePDK45(tch.Technology):
                 well=(prims.nwell, prims.pwell),
                 min_well_enclosure=prp.Enclosure(0.055), # Active.3
                 allow_well_crossing=False,
+                oxide=prims.thkox,
             ),
             prm.GateWire("poly",
                 min_width=0.050, # Poly.1

@@ -86,6 +86,11 @@ class Technology(abc.ABC):
         add_prims(sorted(implants, key=get_name))
         implants = set()
 
+        # Add the oxides
+        for ww in waferwires:
+            if hasattr(ww, "oxide"):
+                add_prims(sorted(ww.oxide))
+
         # process vias
         vias = set(prims.tt_iter_type(prm.Via))
 
@@ -139,10 +144,6 @@ class Technology(abc.ABC):
         actives = set(gate.active for gate in gates)
         polys = set(gate.poly for gate in gates)
         bottomwires.update(polys) # Also need to be connected
-        oxides = set()
-        for gate in gates:
-            if hasattr(gate, "oxide"):
-                oxides.add(gate.oxide)
         for mosfet in mosfets:
             implants.update(mosfet.implant)
             if hasattr(mosfet, "well"):
@@ -151,8 +152,7 @@ class Technology(abc.ABC):
         add_prims((
             *sorted(implants, key=get_name),
             *sorted(actives, key=get_name), *sorted(polys, key=get_name),
-            *sorted(oxides, key=get_name), *sorted(gates, key=get_name),
-            *sorted(mosfets, key=get_name),
+            *sorted(gates, key=get_name), *sorted(mosfets, key=get_name),
         ))
         implants = set()
         markers = set()

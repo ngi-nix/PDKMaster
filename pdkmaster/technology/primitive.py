@@ -482,6 +482,7 @@ class WaferWire(_WidthSpacePrimitive):
         allow_in_substrate,
         implant, min_implant_enclosure, implant_abut, allow_contactless_implant,
         well, min_well_enclosure, min_substrate_enclosure=None, allow_well_crossing,
+        oxide=None, min_oxide_enclosure=None,
         **widthspace_args
     ):
         widthspace_args["name"] = name
@@ -564,6 +565,28 @@ class WaferWire(_WidthSpacePrimitive):
         if not isinstance(allow_well_crossing, bool):
             raise TypeError("allow_well_crossing has to be a bool")
         self.allow_well_crossing = allow_well_crossing
+
+        if oxide is not None:
+            oxide = _util.v2t(oxide)
+            if not all(isinstance(o, Insulator) for o in oxide):
+                raise TypeError(
+                    "oxide has to be 'None', of type 'Insulator' or "
+                    "an iterable of type 'Insulator'"
+                )
+            self.oxide = oxide
+
+            min_oxide_enclosure = _util.v2t(min_oxide_enclosure, n=len(oxide))
+            if not all(
+                (enc is None) or isinstance(enc, prp.Enclosure)
+                for enc in min_oxide_enclosure
+            ):
+                raise TypeError(
+                    "min_oxide_enclosure has to be 'None', of type 'Enclosure'\n"
+                    "or an iterable of 'None' and type 'Enclosure'"
+                )
+            self.min_oxide_enclosure = min_oxide_enclosure
+        elif min_oxide_enclosure is not None:
+            raise ValueError("min_oxide_enclosure provided with no oxide given")
 
         self._pin_attribute(widthspace_args)
         super().__init__(**widthspace_args)
@@ -1070,6 +1093,7 @@ class MOSFETGate(_WidthSpacePrimitive):
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
         contact=None, min_contactgate_space=None,
+        min_gateoxide_enclosure=None,
     ):
         if not isinstance(active, WaferWire):
             raise TypeError("active has to be of type 'WaferWire'")
@@ -1083,8 +1107,20 @@ class MOSFETGate(_WidthSpacePrimitive):
         if oxide is not None:
             if not isinstance(oxide, Insulator):
                 raise TypeError("oxide has to be 'None' or of type 'Insulator'")
+            if not hasattr(active, "oxide") or (oxide not in active.oxide):
+                raise ValueError(
+                    f"oxide '{oxide.name}' is not valid for active '{active.name}'"
+                )
             self.oxide = oxide
             prims += (oxide,)
+            if min_gateoxide_enclosure is not None:
+                if not isinstance(min_gateoxide_enclosure, prp.Enclosure):
+                    raise TypeError(
+                        "min_gateoxide_enclosure has to be None or of type 'Enclosure'"
+                    )
+                self.min_gateoxide_enclosure = min_gateoxide_enclosure
+        elif min_gateoxide_enclosure is not None:
+            raise TypeError("min_gateoxide_enclosure provided without an oxide")
 
         if name is None:
             name = "gate({})".format(",".join(prim.name for prim in prims))

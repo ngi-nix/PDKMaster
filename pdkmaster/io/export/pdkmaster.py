@@ -133,6 +133,11 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
                 f"{_str_enclosure(prim.min_substrate_enclosure)},\n"
             )
         s += f"allow_well_crossing={prim.allow_well_crossing},\n"
+        if hasattr(prim, "oxide"):
+            s += (
+                f"oxide={_str_primtuple(prim.oxide)},\n"
+                f"min_oxide_enclosure={_str_enclosures(prim.min_oxide_enclosure)},\n"
+            )
         s += self._params_widthspace(prim)
         return s
 
@@ -167,6 +172,11 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s = f"active={_str_prim(prim.active)}, poly={_str_prim(prim.poly)},\n"
         if hasattr(prim, "oxide"):
             s += f"oxide={_str_prim(prim.oxide)},\n"
+        if hasattr(prim, "min_gateoxide_enclosure"):
+            s += (
+                "min_gateoxide_enclosure="
+                f"{_str_enclosure(prim.min_gateoxide_enclosure)},\n"
+            )
         if hasattr(prim, "min_l"):
             s += f"min_l={prim.min_l},\n"
         if hasattr(prim, "min_w"):
