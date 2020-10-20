@@ -13,8 +13,14 @@ def i2f_recursive(values):
     else:
         return i2f(values)
 
-def v2t(value):
-    return tuple(value) if is_iterable(value) else (value,)
+def v2t(value, *, n=None):
+    if is_iterable(value) and (not isinstance(value, str)):
+        v = tuple(value)
+        if n is not None:
+            assert n == len(v)
+        return v
+    else:
+        return (value,) if n is None else tuple(value for _ in range(n))
 
 def is_iterable(it):
     try:
