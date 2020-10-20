@@ -1010,6 +1010,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         w = mos_params["w"]
         impl_enc = mos_params["activeimplant_enclosure"]
         gate_encs = mos_params["gateimplant_enclosures"]
+        sdw = mos_params["sd_width"]
 
         gate_left = centerx - 0.5*l
         gate_right = centerx + 0.5*l
@@ -1019,7 +1020,6 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         layout = Layout()
 
         active = prim.gate.active
-        sdw = prim.computed.min_sd_width
         active_left = gate_left - sdw
         active_bottom = gate_bottom
         active_right = gate_right + sdw
