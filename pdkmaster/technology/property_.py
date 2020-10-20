@@ -125,6 +125,12 @@ class Enclosure:
             raise TypeError("spec has to be a float or a pair of floats")
         self.spec = spec
 
+    def min(self):
+        return self.spec if isinstance(self.spec, float) else min(self.spec)
+
+    def max(self):
+        return self.spec if isinstance(self.spec, float) else max(self.spec)
+
     def _get_specs(self, other):
         try:
             other = Enclosure(other)
