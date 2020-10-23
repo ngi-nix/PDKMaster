@@ -435,15 +435,14 @@ class _LibraryGenerator:
 
         depth = 0
         for i in range(max(bottom_idx - 1, 0), top_idx+1):
+            routedir = rg.bottom_direction
             if i < bottom_idx:
                 s_usage = "CRL.RoutingLayerGauge.PinOnly"
             else:
                 s_usage = "CRL.RoutingLayerGauge.Default"
-
-            routedir = rg.bottom_direction
-            # Take opposite direction for offset of layer number
-            if ((i - bottom_idx) % 2) == 1:
-                routedir = otherdir(routedir)
+                # Take opposite direction for offset of layer number
+                if ((i - bottom_idx) % 2) == 1:
+                    routedir = otherdir(routedir)
 
             metal = self.metals[i]
             s += f"metal = tech.getLayer('{metal.name}')\n"
@@ -549,7 +548,7 @@ class _LibraryGenerator:
                 cfg.etesian.spaceMargin = 0.05
                 cfg.etesian.uniformDensity = False
                 cfg.etesian.routingDriven = False
-                cfg.etesian.feedNames = 'tie_x0'
+                cfg.etesian.feedNames = 'tie_x0,fill_x0'
                 cfg.etesian.cell.zero = 'zero_x0'
                 cfg.etesian.cell.one = 'one_x0'
                 cfg.etesian.bloat = 'disabled'
@@ -765,7 +764,7 @@ class _TechnologyGenerator:
 
     def _s_head(self):
         return dedent(f"""
-            import CRL, Hurricane, Viewer
+            import CRL, Hurricane, Viewer, Cfg
             from Hurricane import (
                 Technology, DataBase, DbU, Library,
                 Layer, BasicLayer, ViaLayer,
@@ -775,7 +774,7 @@ class _TechnologyGenerator:
             from common.colors import toRGB
             from common.patterns import toHexa
             from helpers import u
-            from helpers.overlay import Configuration, UpdateSession
+            from helpers.overlay import CfgCache, UpdateSession
             from helpers.analogtechno import Length, Area, Unit, Asymmetric, loadAnalogTechno
 
             __all__ = ["analogTechnologyTable", "setup"]
@@ -805,6 +804,8 @@ class _TechnologyGenerator:
 
                 DbU.setPrecision(2)
                 DbU.setPhysicalsPerGrid({self.tech.grid}, DbU.UnitPowerMicro)
+                with CfgCache(priority=Cfg.Parameter.Priority.ConfigurationFile) as cfg:
+                    cfg.gdsDriver.metricDbu = {1e-6*self.tech.grid}
                 DbU.setGridsPerLambda({round(lambda_/self.tech.grid)})
                 DbU.setSymbolicSnapGridStep(DbU.fromGrid(1.0))
                 DbU.setPolygonStep(DbU.fromGrid(1.0))
