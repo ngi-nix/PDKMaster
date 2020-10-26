@@ -382,7 +382,6 @@ class _LibraryGenerator:
             from helpers import u, l
             from helpers.technology import setEnclosures
             from helpers.overlay import CfgCache, UpdateSession
-            from helpers.analogtechno import Length, Area, Unit, Asymmetric, loadAnalogTechno
 
             __all__ = ["setup"]
         """[1:])
@@ -770,7 +769,7 @@ class _TechnologyGenerator:
             from common.patterns import toHexa
             from helpers import u
             from helpers.technology import createBL
-            from helpers.overlay import CfgCache, UpdateSession
+            from helpers.overlay import CfgCache
             from helpers.analogtechno import Length, Area, Unit, Asymmetric, loadAnalogTechno
 
             __all__ = ["analogTechnologyTable", "setup"]
