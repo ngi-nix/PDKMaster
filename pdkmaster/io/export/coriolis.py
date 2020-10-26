@@ -389,8 +389,14 @@ class _LibraryGenerator:
     def _s_setup(self, lib):
         return dedent(f"""
             def setup():
-                _load()
+                lib = _load()
                 _routing()
+                try:
+                    from {lib.name}_fix import fix
+                except:
+                    pass
+                else:
+                    fix(lib)
         """[1:])
 
     def _s_routing(self, lib):
@@ -781,6 +787,12 @@ class _TechnologyGenerator:
                 _setup_techno()
                 _setup_display()
                 loadAnalogTechno(analogTechnologyTable, __file__)
+                try:
+                    from techno_fix import fix
+                except:
+                    pass
+                else:
+                    fix()
         """[1:])
 
     def _s_technology(self):
