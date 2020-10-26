@@ -11,12 +11,24 @@ from ...design import layout as lay, library as lbr
 
 __all__ = ["CoriolisGenerator"]
 
-def _str_create_basic(name, mat):
-        return (
-            f"# {name}\n"
-            f"l = BasicLayer.create(tech, '{name}',"
-            f" BasicLayer.Material(BasicLayer.Material.{mat}))\n"
-        )
+def _str_create_basic(name, mat, *,
+    minsize=None, minspace=None, gds_layer=None, gds_datatype=None
+):
+    s = "createBL(\n"
+    s += f"    tech, '{name}', BasicLayer.Material.{mat},\n"
+    s_args = []
+    if minsize is not None:
+        s_args.append(f"size={minsize}")
+    if minspace is not None:
+        s_args.append(f"spacing={minspace}")
+    if gds_layer is not None:
+        s_args.append(f"gds2Layer={gds_layer}")
+    if gds_datatype is not None:
+        s_args.append(f"gds2DataType={gds_datatype}")
+    if s_args:
+        s += "    " + ", ".join(s_args) + ",\n"
+    s += ")\n"
+    return s
 
 def _str_create_via(via):
     assert isinstance(via, prm.Via)
@@ -38,21 +50,12 @@ def _str_create_via(via):
         filter(lambda p: isinstance(p, prm.MetalWire), via.top),
     ))
 
-def _str_mindim(minsize, minspace):
-    return (
-        f"l.setMinimalSize(u({minsize}))\n"
-        f"l.setMinimalSpacing(u({minspace}))\n"
-    )
-
-def _str_gds_layer(prim):
+def _args_gds_layer(prim):
     if hasattr(prim, "mask") and hasattr(prim.mask, "gds_layer"):
-        mask = prim.mask
-        s = f"l.setGds2Layer({mask.gds_layer[0]})\n"
-        if mask.gds_layer[1] != 0:
-            s += f"l.setGds2Datatype({mask.gds_layer[1]})\n"
-        return s
+        gds_layer = prim.mask.gds_layer
+        return {"gds_layer": gds_layer[0], "gds_datatype": gds_layer[1]}
     else:
-        return ""
+        return {}
 
 class _LayerGenerator(dsp.PrimitiveDispatcher):
     def __init__(self, tech: tch.Technology):
@@ -71,37 +74,33 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         )
 
     def Marker(self, prim):
-        return _str_create_basic(prim.name, "other") + _str_gds_layer(prim)
+        return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
 
     def ExtraProcess(self, prim):
-        return _str_create_basic(prim.name, "other") + _str_gds_layer(prim)
+        return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
 
     def Implant(self, prim):
-        return (
-            _str_create_basic(prim.name, prim.type_+"Implant")
-            + _str_mindim(prim.min_width, prim.min_space)
-            + _str_gds_layer(prim)
+        return _str_create_basic(
+            prim.name, prim.type_+"Implant",
+            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
         )
 
     def Well(self, prim):
-        return (
-            _str_create_basic(prim.name, prim.type_+"Well")
-            + _str_mindim(prim.min_width, prim.min_space)
-            + _str_gds_layer(prim)
+        return _str_create_basic(
+            prim.name, prim.type_+"Well",
+            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
         )
 
     def WaferWire(self, prim):
-        return (
-            _str_create_basic(prim.name, "active")
-            + _str_mindim(prim.min_width, prim.min_space)
-            + _str_gds_layer(prim)
+        return _str_create_basic(
+            prim.name, "active",
+            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
         )
 
     def GateWire(self, prim):
-        return (
-            _str_create_basic(prim.name, "poly")
-            + _str_mindim(prim.min_width, prim.min_space)
-            + _str_gds_layer(prim)
+        return _str_create_basic(
+            prim.name, "poly",
+            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
         )
 
     def MetalWire(self, prim, blockage=False):
@@ -112,10 +111,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
                 f"tech.getLayer('{prim.name}').setBlockageLayer(l)\n"
             )
         else:
-            return (
-                _str_create_basic(prim.name, "metal")
-                + _str_mindim(prim.min_width, prim.min_space)
-                + _str_gds_layer(prim)
+            return _str_create_basic(
+                prim.name, "metal",
+                minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
             )
 
     def Resistor(self, prim):
@@ -132,23 +130,21 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         if via_layer:
             return _str_create_via(prim)
         else:
-            return (
-                _str_create_basic(prim.name, "cut")
-                + _str_mindim(prim.width, prim.min_space)
-                + _str_gds_layer(prim)
+            return _str_create_basic(
+                prim.name, "cut",
+                minsize=prim.width, minspace=prim.min_space, **_args_gds_layer(prim),
             )
 
     def Auxiliary(self, prim):
         return indent(
-            _str_create_basic(prim.name, "other") + _str_gds_layer(prim),
+            _str_create_basic(prim.name, "other", **_args_gds_layer(prim)),
             prefix="# ",
         )
 
     def PadOpening(self, prim):
-        return (
-            _str_create_basic(prim.name, "cut")
-            + _str_mindim(prim.min_width, prim.min_space)
-            + _str_gds_layer(prim)
+        return _str_create_basic(
+            prim.name, "cut",
+            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
         )
 
     def MOSFETGate(self, prim):
@@ -384,6 +380,7 @@ class _LibraryGenerator:
             from common.colors import toRGB
             from common.patterns import toHexa
             from helpers import u, l
+            from helpers.technology import setEnclosures
             from helpers.overlay import CfgCache, UpdateSession
             from helpers.analogtechno import Length, Area, Unit, Asymmetric, loadAnalogTechno
 
@@ -487,8 +484,7 @@ class _LibraryGenerator:
                     venc = enc.min()
                 s += dedent(f"""
                     via = tech.getLayer('{via_name}')
-                    via.setEnclosure(metal, u({henc}), Layer.EnclosureH)
-                    via.setEnclosure(metal, u({venc}), Layer.EnclosureV)
+                    setEnclosures(via, metal, (u({henc}), u({venc})))
                 """[1:])
                 vwidth = via.width
 
@@ -507,8 +503,7 @@ class _LibraryGenerator:
                     venc = enc.min()
                 s += dedent(f"""
                     via = tech.getLayer('{via_name}')
-                    via.setEnclosure(metal, u({henc}), Layer.EnclosureH)
-                    via.setEnclosure(metal, u({venc}), Layer.EnclosureV)
+                    setEnclosures(via, metal, (u({henc}), u({venc})))
                 """[1:])
                 vwidth = via.width
 
@@ -774,6 +769,7 @@ class _TechnologyGenerator:
             from common.colors import toRGB
             from common.patterns import toHexa
             from helpers import u
+            from helpers.technology import createBL
             from helpers.overlay import CfgCache, UpdateSession
             from helpers.analogtechno import Length, Area, Unit, Asymmetric, loadAnalogTechno
 
