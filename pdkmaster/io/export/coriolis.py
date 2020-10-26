@@ -984,7 +984,10 @@ class _TechnologyGenerator:
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('urgo.8'), border=1)\n"
             )
-        for prim in self.tech.primitives.tt_iter_type(prm.Implant):
+        for prim in filter(
+            lambda p: isinstance(p, prm.Implant) and not isinstance(p, prm.Well),
+            self.tech.primitives,
+        ):
             rgb = "LawnGreen" if prim.type_ == "n" else "Yellow"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
