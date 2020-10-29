@@ -24,14 +24,14 @@ class _DualEdgeProperty(prp.Property):
         )), "Internal error"
 
         if commutative:
-            name = "{}({},{})".format(name, edge1.name, edge2.name)
+            full_name = "{}({},{})".format(name, edge1.name, edge2.name)
         else:
-            name = "{}.{}({})".format(edge1.name, name, edge2.name)
-        super().__init__(name)
+            full_name = "{}.{}({})".format(edge1.name, name, edge2.name)
+        super().__init__(full_name)
 
         self.edge1 = edge1
         self.edge2 = edge2
-        self.property = name
+        self.prop_name = name
 
 class _Edge(abc.ABC):
     @abc.abstractmethod
@@ -100,5 +100,6 @@ class Intersect(_Edge):
             raise TypeError("edges has to be of type 'Mask' or 'Edge' or an iterable of those")
         if not any(isinstance(edge, _Edge) for edge in edges):
             raise ValueError("at least one element of edges has to be of type 'Edge'")
+        self.edges = edges
 
         super().__init__("intersect({})".format(",".join(str(edge) for edge in edges)))

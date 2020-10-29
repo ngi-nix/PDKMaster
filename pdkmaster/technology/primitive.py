@@ -646,28 +646,32 @@ class WaferWire(_WidthSpacePrimitive):
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
-        for impl in self.implant:
+        for i, impl in enumerate(self.implant):
             if self.allow_in_substrate and (impl.type_ == tech.substrate_type):
                 self._rules += (msk.Connect(msk.Intersect((self.mask, impl.mask)), tech.substrate),)
             if impl not in self.implant_abut:
                 self._rules += (edg.MaskEdge(impl.mask).interact_with(self.mask).length == 0,)
+            enc = self.min_implant_enclosure[i]
+            self._rules += (self.mask.enclosed_by(impl.mask) >= enc,)
         for implduo in combinations((impl.mask for impl in self.implant_abut), 2):
             self._rules += (msk.Intersect(implduo).area == 0,)
         # TODO: allow_contactless_implant
         for impl, w in product(self.implant, self.well):
             if impl.type_ == w.type_:
                 self._rules += (msk.Connect(w.mask, msk.Intersect((self.mask, impl.mask))),)
-        for i in range(len(self.well)):
-            w = self.well[i]
+        for i, w in enumerate(self.well):
             enc = self.min_well_enclosure[i]
             self._rules += (self.mask.enclosed_by(w.mask) >= enc,)
         if hasattr(self, "min_substrate_enclosure"):
             self._rules += (
-                self.mask.enclosed_by(tech.substrate) >= self.min_substrate_enclosure.spec,
+                self.mask.enclosed_by(tech.substrate) >= self.min_substrate_enclosure,
             )
         if not self.allow_well_crossing:
             mask_edge = edg.MaskEdge(self.mask)
-            self._rules += tuple(mask_edge.interact_with(w.mask).length == 0 for w in self.well)
+            self._rules += tuple(
+                mask_edge.interact_with(edg.MaskEdge(w.mask)).length == 0
+                for w in self.well
+            )
 
 class GateWire(_WidthSpacePrimitive):
     def __init__(self, name, **widthspace_args):
@@ -1234,7 +1238,8 @@ class MOSFETGate(_WidthSpacePrimitive):
             self._rules += (msk.Spacing(mask, self.contact.mask) >= self.min_contactgate_space,)
             mask_used = True
         if mask_used:
-            self._rules += (mask,)
+            # This rule has to be put before the other rules that use the alias
+            self._rules = (mask,) + self._rules
 
 class MOSFET(_Primitive):
     class _ComputedProps:
