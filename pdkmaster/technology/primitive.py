@@ -619,6 +619,11 @@ class WaferWire(_WidthSpacePrimitive):
                 ),
             )
 
+    @property
+    def sd_mask(self):
+        "The area of the WaferWire not part of a gate"
+        return self._sd_mask
+
     def cast_params(self, params):
         params = super().cast_params(params)
 
@@ -646,19 +651,38 @@ class WaferWire(_WidthSpacePrimitive):
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
+        # Derive source drain regions
+        gate_poly_masks = set(
+            gate.poly.mask for gate in tech.primitives.tt_iter_type(MOSFETGate)
+        )
+        if gate_poly_masks:
+            gate_polys_mask = (
+                _util.nth(gate_poly_masks, 0) if len(gate_poly_masks) == 1
+                else msk.Join(gate_poly_masks)
+            )
+            sd_mask = self.mask.remove(gate_polys_mask).alias(f"sd:{self.name}")
+            self._rules += (sd_mask,)
+        else:
+            sd_mask = self.mask
+        self._sd_mask = sd_mask
+
         for i, impl in enumerate(self.implant):
+            sd_mask_impl = msk.Intersect((sd_mask, impl.mask)).alias(
+                f"{sd_mask.name}:{impl.name}",
+            )
+            self._rules += (sd_mask_impl, msk.Connect(sd_mask, sd_mask_impl))
             if self.allow_in_substrate and (impl.type_ == tech.substrate_type):
-                self._rules += (msk.Connect(msk.Intersect((self.mask, impl.mask)), tech.substrate),)
+                self._rules += (msk.Connect(sd_mask_impl, tech.substrate),)
             if impl not in self.implant_abut:
                 self._rules += (edg.MaskEdge(impl.mask).interact_with(self.mask).length == 0,)
             enc = self.min_implant_enclosure[i]
             self._rules += (self.mask.enclosed_by(impl.mask) >= enc,)
+            for w in self.well:
+                if impl.type_ == w.type_:
+                    self._rules += (msk.Connect(sd_mask_impl, w.mask),)
         for implduo in combinations((impl.mask for impl in self.implant_abut), 2):
             self._rules += (msk.Intersect(implduo).area == 0,)
         # TODO: allow_contactless_implant
-        for impl, w in product(self.implant, self.well):
-            if impl.type_ == w.type_:
-                self._rules += (msk.Connect(w.mask, msk.Intersect((self.mask, impl.mask))),)
         for i, w in enumerate(self.well):
             enc = self.min_well_enclosure[i]
             self._rules += (self.mask.enclosed_by(w.mask) >= enc,)
@@ -967,7 +991,11 @@ class Via(_MaskPrimitive):
             self.mask.width == self.width,
             self.mask.space >= self.min_space,
         )
-        self._rules += (msk.Connect((b.mask for b in self.bottom), self.mask),)
+        bottom_masks = (
+            b.sd_mask if isinstance(b, WaferWire) else b.mask
+            for b in self.bottom
+        )
+        self._rules += (msk.Connect(bottom_masks, self.mask),)
         for i in range(len(self.bottom)):
             bot_mask = self.bottom[i].mask
             enc = self.min_bottom_enclosure[i]
