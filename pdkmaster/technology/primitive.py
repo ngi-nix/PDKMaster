@@ -1460,44 +1460,59 @@ class MOSFET(_Primitive):
         if spc is not None:
             self.params += _Param(self, "contactgate_space", default=spc)
 
+    @property
+    def gate_mask(self):
+        return self._gate_mask
+
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
         markers = (self.well.mask if hasattr(self, "well") else tech.substrate,)
         if hasattr(self, "implant"):
             markers += tuple(impl.mask for impl in self.implant)
-        markedgate_mask = msk.Intersect((self.gate.mask, *markers)).alias(f"gate:mosfet:{self.name}")
-        markedgate_edge = edg.MaskEdge(markedgate_mask)
+        derivedgate_mask = msk.Intersect((self.gate.mask, *markers)).alias(
+            f"gate:mosfet:{self.name}",
+        )
+        self._gate_mask = derivedgate_mask
+        derivedgate_edge = edg.MaskEdge(derivedgate_mask)
         poly_mask = self.gate.poly.mask
         poly_edge = edg.MaskEdge(poly_mask)
-        channel_edge = edg.Intersect((markedgate_edge, poly_edge))
+        channel_edge = edg.Intersect((derivedgate_edge, poly_edge))
         active_mask = self.gate.active.mask
         active_edge = edg.MaskEdge(active_mask)
-        fieldgate_edge = edg.Intersect((markedgate_edge, active_edge))
+        fieldgate_edge = edg.Intersect((derivedgate_edge, active_edge))
 
-        self._rules += (markedgate_mask,)
+        self._rules += (derivedgate_mask,)
         if hasattr(self, "min_l"):
-            self._rules += (edg.Intersect((markedgate_edge, active_edge)).length >= self.min_l,)
+            self._rules += (
+                edg.Intersect((derivedgate_edge, active_edge)).length >= self.min_l,
+            )
         if hasattr(self, "min_w"):
-            self._rules += (edg.Intersect((markedgate_edge, poly_edge)).length >= self.min_w,)
+            self._rules += (
+                edg.Intersect((derivedgate_edge, poly_edge)).length >= self.min_w,
+            )
         if hasattr(self, "min_sd_width"):
-            self._rules += (active_mask.extend_over(markedgate_mask) >= self.min_sd_width,)
+            self._rules += (
+                active_mask.extend_over(derivedgate_mask) >= self.min_sd_width,
+            )
         if hasattr(self, "min_polyactive_extension"):
-            self._rules += (poly_mask.extend_over(markedgate_mask) >= self.min_polyactive_extension,)
+            self._rules += (
+                poly_mask.extend_over(derivedgate_mask) >= self.min_polyactive_extension,
+            )
         for i in range(len(self.implant)):
             impl_mask = self.implant[i].mask
             enc = self.min_gateimplant_enclosure[i]
             if isinstance(enc.spec, float):
-                self._rules += (markedgate_mask.enclosed_by(impl_mask) >= enc,)
+                self._rules += (derivedgate_mask.enclosed_by(impl_mask) >= enc,)
             else:
                 self._rules += (
                     channel_edge.enclosed_by(impl_mask) >= enc.spec[0],
                     fieldgate_edge.enclosed_by(impl_mask) >= enc.spec[1],
                 )
         if hasattr(self, "min_gate_space"):
-            self._rules += (markedgate_mask.space >= self.min_gate_space,)
+            self._rules += (derivedgate_mask.space >= self.min_gate_space,)
         if hasattr(self, "min_contactgate_space"):
-            self.rules += (msk.Spacing(markedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
+            self.rules += (msk.Spacing(derivedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
 
     @property
     def designmasks(self):
