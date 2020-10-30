@@ -1223,10 +1223,8 @@ class MOSFETGate(_WidthSpacePrimitive):
         active_mask = self.active.mask
         poly_mask = self.poly.mask
 
-        if hasattr(self, "oxide"):
-            mask = self.mask
-        else:
-            # Override mask
+        # Update mask if it has no oxide
+        if not hasattr(self, "oxide"):
             oxide_masks = tuple(
                 gate.oxide.mask for gate in filter(
                     lambda prim: (
@@ -1237,16 +1235,15 @@ class MOSFETGate(_WidthSpacePrimitive):
                     ), tech.primitives,
                 )
             )
-            if len(oxide_masks) == 0:
-                mask = self.mask
-            else:
+            if oxide_masks:
                 if len(oxide_masks) == 1:
                     oxides_mask = oxide_masks[0]
                 else:
                     oxides_mask = msk.Join(oxide_masks)
-                mask = msk.Intersect(
+                self.mask.mask = msk.Intersect(
                     (active_mask, poly_mask, wfr.wafer.remove(oxides_mask)),
-                ).alias(self.mask.name)
+                )
+        mask = self.mask
 
         mask_used = False
         if hasattr(self, "min_l"):
