@@ -251,9 +251,19 @@ class Technology(abc.ABC):
         # grid
         rules += wfr.wafer.grid == self.grid
 
+        # Generate the rule but don't add them yet.
         for prim in prims:
             prim._generate_rules(self)
-            rules += prim.rules
+
+        # First add substrate alias if needed. This will only be clear
+        # after the rules have been generated.
+        if isinstance(self._substrate, msk._MaskAlias):
+            self._rules += self._substrate
+        self._rules += msk.Connect(self._substrate, wfr.wafer)
+
+        # Now we can add the rules
+        for prim in prims:
+            self._rules += prim.rules
 
         rules.tt_freeze()
 
@@ -270,7 +280,7 @@ class Technology(abc.ABC):
             else:
                 self._substrate = wfr.wafer.remove(
                     well_masks[0] if len(well_masks) == 1 else msk.Join(well_masks),
-                )
+                ).alias(f"substrate:{self.name}")
         return self._substrate
 
     @property
