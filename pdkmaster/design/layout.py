@@ -141,6 +141,10 @@ class MaskPolygon:
         self.name = mask.name
         self.mask = mask
 
+        if isinstance(polygon, Rect):
+            polygon = _rect(
+                polygon.left, polygon.bottom, polygon.right, polygon.top
+            )
         if not isinstance(polygon, self._geometry_types):
             raise TypeError(
                 f"polygon has to be of type {self._geometry_types_str}"
