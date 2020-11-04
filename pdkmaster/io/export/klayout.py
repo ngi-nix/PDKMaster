@@ -377,13 +377,18 @@ class Generator:
             for dm in dms
         )
 
+        s += "\n# Derived layers\n"
+        aliases = tuple(self.tech.rules.tt_iter_type(msk._MaskAlias))
+        s += "".join(_str_rule(alias) for alias in aliases)
+
         s += "\n# Connectivity\n"
         conns = tuple(self.tech.rules.tt_iter_type(msk.Connect))
         s += "".join(_str_rule(conn) for conn in conns)
 
         s += "\n# DRC rules\n" + "".join(
             _str_rule(rule) for rule in filter(
-                lambda rule: rule not in dms + gridrules + conns, self.tech.rules
+                lambda rule: rule not in dms + gridrules + conns + aliases,
+                self.tech.rules
             )
         )
 
