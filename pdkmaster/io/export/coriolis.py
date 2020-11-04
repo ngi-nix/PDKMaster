@@ -91,6 +91,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
         )
 
+    def Insulator(self, prim):
+        return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
+
     def WaferWire(self, prim):
         return _str_create_basic(
             prim.name, "active",
@@ -399,6 +402,8 @@ class _LibraryGenerator:
                     pass
                 else:
                     fix(lib)
+
+                return lib
         """[1:])
 
     def _s_routing(self, lib):
@@ -858,6 +863,11 @@ class _TechnologyGenerator:
             written_prims.add(gatewire)
             s_prims += add_pin(gatewire)
 
+        for insulator in self.tech.primitives.tt_iter_type(prm.Insulator):
+            assert insulator not in written_prims
+            s_prims += gen(insulator)
+            written_prims.add(insulator)
+
         for via in self.tech.primitives.tt_iter_type((prm.Via, prm.PadOpening)):
             assert via not in written_prims
             bottoms = via.bottom if isinstance(via, prm.Via) else (via.bottom,)
@@ -982,7 +992,8 @@ class _TechnologyGenerator:
             rgb = "Tan" if prim.type_ == "n" else "LightYellow"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
-                f", color=toRGB('{rgb}'), pattern=toHexa('urgo.8'), border=1)\n"
+                f", color=toRGB('{rgb}'), pattern=toHexa('urgo.8'), border=1"
+                ", threshold=0.2)\n"
             )
         for prim in filter(
             lambda p: isinstance(p, prm.Implant) and not isinstance(p, prm.Well),
@@ -991,32 +1002,37 @@ class _TechnologyGenerator:
             rgb = "LawnGreen" if prim.type_ == "n" else "Yellow"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
-                f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1)\n"
+                f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1"
+                ", threshold=0.2)\n"
             )
         for prim in self.tech.primitives.tt_iter_type(prm.WaferWire):
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
-                ", color=toRGB('White'), pattern=toHexa('antihash0.8'), border=1)\n"
+                ", color=toRGB('White'), pattern=toHexa('antihash0.8'), border=1"
+                ", threshold=0.2)\n"
             )
             if hasattr(prim, "pin"):
                 for pin in prim.pin:
                     s += (
                         "    style.addDrawingStyle(group='Active Layers'"
                         f", name='{pin.name}', color=toRGB('White')"
-                        ", pattern=toHexa('antihash0.8'), border=2)\n"
+                        ", pattern=toHexa('antihash0.8'), border=2"
+                        ", threshold=0.2)\n"
                     )
         for i, prim in enumerate(self.tech.primitives.tt_iter_type(prm.GateWire)):
             rgb = "Red" if i == 0 else "Orange"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
-                f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1)\n"
+                f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1"
+                ", threshold=0.2)\n"
             )
             if hasattr(prim, "pin"):
                 for pin in prim.pin:
                     s += (
                         "    style.addDrawingStyle(group='Active Layers'"
                         f", name='{pin.name}', color=toRGB('{rgb}')"
-                        ", pattern=toHexa('antihash0.8'), border=2)\n"
+                        ", pattern=toHexa('antihash0.8'), border=2"
+                        ", threshold=0.2)\n"
                     )
 
         s += "\n    # Routing Layers.\n"
@@ -1025,14 +1041,15 @@ class _TechnologyGenerator:
             hexa = "slash.8" if i == 0 else "poids4.8"
             s += (
                 f"    style.addDrawingStyle(group='Routing Layers', name='{prim.name}'"
-                f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}'), border=1)\n"
+                f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}'), border=1"
+                ", threshold=0.2)\n"
             )
             if hasattr(prim, "pin"):
                 for pin in prim.pin:
                     s += (
                         f"    style.addDrawingStyle(group='Routing Layers'"
                         f", name='{pin.name}', color=toRGB('{rgb}'), pattern=toHexa('{hexa}')"
-                        ", border=2)\n"
+                        ", border=2, threshold=0.2)\n"
                     )
 
         s += "\n    # Cuts (VIA holes).\n"
@@ -1042,7 +1059,7 @@ class _TechnologyGenerator:
             rgb = clrs[i%len(clrs)] if i > 0 else "0,150,150"
             s += (
                 f"    style.addDrawingStyle(group='Cuts (VIA holes', name='{prim.name}'"
-                f", color=toRGB('{rgb}'))\n"
+                f", color=toRGB('{rgb}'), threshold=0.2)\n"
             )
 
         s += "\n    # Blockages.\n"
@@ -1052,7 +1069,7 @@ class _TechnologyGenerator:
             s += (
                 f"    style.addDrawingStyle(group='Blockages', name='{prim.name}.blockage'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}')"
-                ", border=4)\n"
+                ", border=4, threshold=0.2)\n"
             )
 
         s += indent(dedent("""
