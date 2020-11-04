@@ -1087,6 +1087,15 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 ),
             )
 
+        if hasattr(prim.gate, "oxide"):
+            # TODO: Check is there is an enclosure rule from oxide around active
+            # and apply the if so.
+            enc = getattr(prim.gate, "min_gateoxide_enclosure", prp.Enclosure(0))
+            layout += NetlessSubLayout(MaskPolygon(
+                prim.gate.oxide.mask,
+                _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
+            ))
+
         polygons = MaskPolygons()
         for i, impl in enumerate(prim.implant):
             enc = gate_encs[i]
