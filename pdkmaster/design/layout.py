@@ -1360,9 +1360,9 @@ class LayoutFactory:
                 width = via_right - via_left
                 columns = int((width - via.width)/(via.width + via.min_space)) + 1
                 if columns < 1:
-                    raise ValueError("Not enough widht for fitting one column")
+                    raise ValueError("Not enough width for fitting one column")
                 spec_out.update({
-                    "x": (via_left + via_right)/2.0,
+                    "x": self.tech.on_grid((via_left + via_right)/2.0),
                     "columns": columns,
                 })
             elif (via_left is not None) or (via_right is not None):
@@ -1374,7 +1374,7 @@ class LayoutFactory:
                 if rows < 1:
                     raise ValueError("Not enough height for fitting one row")
                 spec_out.update({
-                    "y": (via_bottom + via_top)/2.0,
+                    "y": self.tech.on_grid((via_bottom + via_top)/2.0),
                     "rows": rows,
                 })
             elif (via_bottom is not None) or (via_top is not None):
