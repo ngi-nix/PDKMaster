@@ -843,6 +843,36 @@ class _Layout:
 
         return self
 
+    def add_primitive(self, *, prim, x, y, **prim_params):
+        if not isinstance(prim, prm._Primitive):
+            raise TypeError("prim has to be a '_Primitive'")
+        if not (prim in self.fab.tech.primitives):
+            raise ValueError(
+                f"prim '{prim.name}' is not a primitive of technology"
+                f" '{self.fab.tech.name}'"
+            )
+
+        primlayout = self.fab.new_primitivelayout(
+            prim, center=sh_geo.Point(x, y), **prim_params,
+        )
+        self += primlayout
+        return primlayout
+
+    def add_wire(self, *, net, wire, x, y, **wire_params):
+        if not isinstance(net, net_.Net):
+            raise TypeError("net has to be of type 'Net'")
+        if not (
+            hasattr(wire, "ports")
+            and (len(wire.ports) == 1)
+            and (wire.ports[0].name == "conn")
+        ):
+            raise TypeError(
+                f"Wire '{wire.name}' does not have exactly one port named 'conn'"
+            )
+        return self.add_primitive(
+            portnets={"conn": net}, prim=wire, x=x, y=y, **wire_params,
+        )
+
     def move(self, dx, dy):
         for mp in self.sublayouts:
             mp.move(dx, dy)
@@ -1212,8 +1242,8 @@ class _CircuitLayouter:
         return self.circuit.layoutfab.tech
 
     def place(self, inst, *, x, y):
-        if not isinstance(inst, ckt._Instance):
-            raise TypeError("inst has to be of type '_Instance'")
+        if not isinstance(inst, ckt._PrimitiveInstance):
+            raise TypeError("inst has to be of type '_PrimitiveInstance'")
         if inst not in self.circuit.instances:
             raise ValueError(
                 f"inst '{inst.name}' is not part of circuit '{self.circuit.name}'"
@@ -1223,8 +1253,8 @@ class _CircuitLayouter:
         if not all((isinstance(x, float), isinstance(y, float))):
             raise TypeError("x and y have to be floats")
 
-        instlayout = self.fab.new_primitivelayout(
-            inst.prim, center=sh_geo.Point(x, y), **inst.params,
+        instlayout = self.layout.add_primitive(
+            prim=inst.prim, x=x, y=y, **inst.params,
         )
         for sublayout in instlayout.sublayouts:
             if isinstance(sublayout, NetSubLayout):
@@ -1259,21 +1289,13 @@ class _CircuitLayouter:
         return instlayout
 
     def add_wire(self, *, net, well_net=None, wire, x, y, **wire_params):
-        if not isinstance(net, net_.Net):
-            raise TypeError("net has to be of type 'Net'")
         if net not in self.circuit.nets:
             raise ValueError(
                 f"net '{net.name}' is not a net from circuit '{self.circuit.name}'"
             )
-        if not (
-            hasattr(wire, "ports")
-            and (len(wire.ports) == 1)
-            and (wire.ports[0].name == "conn")
-        ):
-            raise TypeError("A wire has to have one port named 'conn'")
 
-        wirelayout = self.fab.new_primitivelayout(
-            wire, center=sh_geo.Point(x, y), **wire_params,
+        wirelayout = self.layout.add_wire(
+            net=net, wire=wire, x=x, y=y, **wire_params,
         )
         for sublayout in wirelayout.sublayouts:
             if isinstance(sublayout, NetSubLayout):
@@ -1289,7 +1311,7 @@ class _CircuitLayouter:
             elif not isinstance(sublayout, NetlessSubLayout):
                 raise AssertionError("Internal error")
 
-        self.layout += wirelayout.sublayouts
+        self.layout += wirelayout
 
         return wirelayout
 
