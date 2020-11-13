@@ -767,13 +767,15 @@ class Layout:
     def __iadd__(self, other):
         if self.sublayouts._frozen:
             raise ValueError("Can't add sublayouts to a frozen 'Layout' object")
-        if not isinstance(other, (_SubLayout, SubLayouts)):
+        if not isinstance(other, (_Layout, _SubLayout, SubLayouts)):
             raise TypeError(
-                "Can only add '_SubLayout' or 'SubLayouts' object to a "
-                "'Layout' object"
+                "Can only add 'Layout', '_SubLayout' or 'SubLayouts' object to"
+                " a 'Layout' object"
             )
 
-        self.sublayouts += other
+        self.sublayouts += (
+            other.sublayouts if isinstance(other, _Layout) else other
+        )
 
         return self
 
