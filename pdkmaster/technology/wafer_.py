@@ -1,3 +1,4 @@
+from .. import _util
 from . import net as net_, mask as msk
 
 __all__ = ["wafer", "SubstrateNet"]
@@ -21,8 +22,21 @@ class _Wafer(msk._Mask):
 
 wafer = _Wafer()
 
+def outside(masks, *, alias=None):
+    masks = _util.v2t(masks)
+    if len(masks) == 1:
+        mask = wafer.remove(masks[0])
+    else:
+        mask = wafer.remove(msk.Join(set(masks)))
+    if alias is None:
+        return mask
+    else:
+        return mask.alias(alias)
+
+
 class SubstrateNet(net_.Net):
     def __init__(self, name):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
         super().__init__(name)
+

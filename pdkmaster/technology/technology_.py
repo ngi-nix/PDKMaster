@@ -281,9 +281,7 @@ class Technology(abc.ABC):
             if not well_masks:
                 self._substrate = wfr.wafer
             else:
-                self._substrate = wfr.wafer.remove(
-                    well_masks[0] if len(well_masks) == 1 else msk.Join(well_masks),
-                ).alias(f"substrate:{self.name}")
+                self._substrate = wfr.outside(well_masks, alias=f"substrate:{self.name}")
         return self._substrate
 
     @property
