@@ -726,6 +726,16 @@ class MultiNetSubLayout(_SubLayout):
         else:
             return False
 
+    def move(self, dx, dy):
+        self.x += dx
+        self.y += dy
+
+    def moved(self, dx, dy):
+        return _InstanceSubLayout(
+            self.inst, x=(self.x + dx), y=(self.y + dy),
+            layoutname=(self.layoutname if hasattr(self, "layoutname") else None),
+        )
+
 class SubLayouts(_util.TypedTuple):
     tt_element_type = _SubLayout
     tt_index_attribute = None
