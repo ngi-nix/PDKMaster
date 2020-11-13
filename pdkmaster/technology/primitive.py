@@ -1016,10 +1016,12 @@ class PadOpening(_Conductor):
             yield mask
         yield self.bottom.mask
 
+# TODO: Allow to specify sheet resistance and not a model
 class Resistor(_WidthSpacePrimitive):
     def __init__(self, name=None, *,
-        wire, indicator, min_enclosure,
-        **widthspace_args,
+        wire, contact=None, min_contact_space=None, indicator, min_indicator_extension,
+        implant=None, min_implant_enclosure=None,
+        model=None, model_params=None, **widthspace_args,
     ):
         if not isinstance(wire, (WaferWire, GateWire, MetalWire)):
             raise TypeError(
@@ -1027,8 +1029,7 @@ class Resistor(_WidthSpacePrimitive):
             )
         self.wire = wire
 
-        if not _util.is_iterable(indicator):
-            indicator = (indicator,)
+        indicator = _util.v2t(indicator)
         if not all(isinstance(prim, (Marker, ExtraProcess)) for prim in indicator):
             raise TypeError(
                 "indicator has to be of type 'Marker' or 'ExtraProcess' "
@@ -1039,7 +1040,9 @@ class Resistor(_WidthSpacePrimitive):
         if "mask" in widthspace_args:
             raise TypeError("Resistor got an unexpected keyword argument 'mask'")
         else:
-            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in (wire, *indicator))
+            widthspace_args["mask"] = msk.Intersect(
+                prim.mask for prim in (wire, *indicator)
+            )
 
         if "grid" in widthspace_args:
             raise TypeError("Resistor got an unexpected keyword argument 'grid'")
@@ -1060,17 +1063,80 @@ class Resistor(_WidthSpacePrimitive):
             widthspace_args["name"] = name
         super().__init__(**widthspace_args)
 
-        min_enclosure = _util.v2t(min_enclosure)
-        if not all(isinstance(enc, prp.Enclosure) for enc in min_enclosure):
+        self.ports += (_PrimitiveNet(self, name) for name in ("port1", "port2"))
+
+        min_indicator_extension = _util.v2t(_util.i2f_recursive(min_indicator_extension))
+        if not all(isinstance(enc, float) for enc in min_indicator_extension):
             raise TypeError(
-                "min_enclosure has to be of type 'Enclosure' or an "
-                "iterable of type 'Enclosure'"
+                "min_indicator_extension has to be a float or an iterable of floats"
             )
-        if len(min_enclosure) == 1:
-            min_enclosure = len(indicator)*min_enclosure
-        if len(min_enclosure) != len(indicator):
-            raise ValueError("mismatch in number of indicator and min_enclosure")
-        self.min_enclosure = min_enclosure
+        if len(min_indicator_extension) == 1:
+            min_indicator_extension = len(indicator)*min_indicator_extension
+        if len(min_indicator_extension) != len(indicator):
+            raise ValueError("mismatch in number of indicator and min_indicator_extension")
+        self.min_indicator_extension = min_indicator_extension
+
+        if implant is not None:
+            if not isinstance(implant, Implant) and not isinstance(implant, Well):
+                raise TypeError(
+                    "implant has to be 'None' or of type 'Implant'"
+                )
+            if isinstance(wire, WaferWire):
+                if not implant in wire.implant:
+                    raise ValueError(
+                        f"implant '{implant.name}' is not valid for waferwire '{wire.name}'"
+                    )
+            self.implant = implant
+            if min_implant_enclosure is not None:
+                if not isinstance(min_implant_enclosure, prp.Enclosure):
+                    raise TypeError(
+                        "min_implant_enclosure has to be 'None' or of type 'Enclosure'"
+                    )
+                self.min_implant_enclosure = min_implant_enclosure
+            elif not isinstance(wire, WaferWire):
+                raise TypeError(
+                    "min_implant_enclosure may not be 'None' for wire type other than"
+                    " 'WaferWire'"
+                )
+        elif min_implant_enclosure is not None:
+            raise TypeError(
+                "min_implant_enclosure has to be 'None' if no implant is given"
+            )
+
+        if contact is not None:
+            if not isinstance(contact, Via):
+                raise TypeError("contact has to be 'None' or of type 'Via'")
+            if wire not in (contact.bottom + contact.top):
+                raise ValueError(
+                    f"wire {wire.name} does not connect to via {contact.name}"
+                )
+            min_contact_space = _util.i2f(min_contact_space)
+            if not isinstance(min_contact_space, float):
+                raise TypeError(
+                    "min_contact_space has to be a float"
+                )
+            self.contact = contact
+            self.min_contact_space = min_contact_space
+        elif min_contact_space is not None:
+            raise TypeError(
+                "min_contact_space has to be 'None' if no contact layer is given"
+            )
+
+        if model is not None:
+            if not isinstance(model, str):
+                raise TypeError("model has to be 'None' or a string")
+            self.model = model
+            if not isinstance(model_params, dict):
+                raise TypeError(
+                    "model_params has to be a dict with keys ('width', 'height')"
+                )
+            if not (set(model_params.keys()) == {"width", "height"}):
+                raise ValueError(
+                    "model_params has to be a dict with keys ('width', 'height')"
+                )
+            self.model_params = model_params
+        elif model_params is not None:
+            raise TypeError("model_params provided without a model")
 
     def _generate_rules(self, tech):
         # Do not generate the default width/space rules.
@@ -1083,6 +1149,10 @@ class Resistor(_WidthSpacePrimitive):
         if hasattr(self, "min_area"):
             if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
                 self._rules += (self.mask.area >= self.min_area,)
+        for i, ind in enumerate(self.indicator):
+            ext = self.min_indicator_extension[i]
+            mask = self.wire.mask.remove(ind.mask)
+            self._rules += (mask.width >= ext,)
 
 class MOSFETGate(_WidthSpacePrimitive):
     class _ComputedProps:

@@ -1238,8 +1238,94 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         return layout
 
     def Resistor(self, prim, **resistor_params):
+        try:
+            portnets = resistor_params["portnets"]
+        except KeyError:
+            port1 = prim.ports.port1
+            port2 = prim.ports.port2
+        else:
+            if set(portnets.keys()) != {"port1", "port2"}:
+                raise ValueError(
+                    f"Resistor '{prim.name}' needs two port nets ('port1', 'port2')"
+                )
+            port1 = portnets["port1"]
+            port2 = portnets["port2"]
         if not hasattr(prim, "contact"):
             raise NotImplementedError("Resistor layout without contact layer")
+
+        res_width = resistor_params["width"]
+        res_height = resistor_params["height"]
+
+        wire = prim.wire
+
+        cont = prim.contact
+        cont_space = prim.min_contact_space
+        try:
+            wire_idx = cont.bottom.index(wire)
+        except ValueError:
+            try:
+                wire_idx = cont.top.index(wire)
+            except ValueError:
+                raise AssertionError("Internal error")
+            else:
+                cont_enc = cont.min_top_enclosure[wire_idx]
+                cont_args = {"top": wire, "x": 0.0, "top_width": res_width}
+        else:
+            cont_enc = cont.min_bottom_enclosure[wire_idx]
+            cont_args = {"bottom": wire, "x": 0.0, "bottom_width": res_width}
+        cont_y1 = -0.5*res_height - cont_space - 0.5*cont.width
+        cont_y2 = -cont_y1
+
+        wire_ext = cont_space + cont.width + cont_enc.min()
+
+        layout = self.fab.new_layout()
+
+        # Draw indicator layers
+        for idx, ind in enumerate(prim.indicator):
+            ext = prim.min_indicator_extension[idx]
+            layout += self(ind, width=(res_width + 2*ext), height=res_height)
+
+        # Draw wire layer
+        layout += MultiNetSubLayout(SubLayouts((
+            NetSubLayout(port1, MaskPolygon(
+                wire.mask, Rect(
+                    -0.5*res_width, -0.5*res_height - wire_ext,
+                    0.5*res_width, -0.5*res_height,
+                ),
+            )),
+            NetlessSubLayout(MaskPolygon(
+                wire.mask, Rect(
+                    -0.5*res_width, -0.5*res_height,
+                    0.5*res_width, 0.5*res_height,
+                ),
+            )),
+            NetSubLayout(port2, MaskPolygon(
+                wire.mask, Rect(
+                    -0.5*res_width, 0.5*res_height,
+                    0.5*res_width, 0.5*res_height + wire_ext,
+                ),
+            )),
+        )))
+
+        # Draw contacts
+        layout.add_wire(net=port1, wire=cont, y=cont_y1, **cont_args)
+        layout.add_wire(net=port2, wire=cont, y=cont_y2, **cont_args)
+
+        if hasattr(prim, "implant"):
+            impl = prim.implant
+            try:
+                enc = prim.min_implant_enclosure.max()
+            except AttributeError:
+                assert isinstance(wire, prm.WaferWire), "Internal error"
+                idx = wire.implant(impl)
+                enc = wire.min_implant_enclosure[idx].max()
+            impl_width = res_width + 2*enc
+            impl_height = res_height + 2*wire_ext + 2*enc
+            layout.add_primitive(
+                prim=impl, x=0.0, y=0.0, width=impl_width, height=impl_height,
+            )
+
+        return layout
 
     def MOSFET(self, prim, **mos_params):
         l = mos_params["l"]

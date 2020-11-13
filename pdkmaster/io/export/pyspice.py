@@ -32,29 +32,43 @@ class _SubCircuit(SubCircuit):
             netlookup.update(lookup)
 
         for inst in circuit.instances:
-            if (isinstance(inst, ckt._PrimitiveInstance)
-                and isinstance(inst.prim, prm.MOSFET)
-            ):
-                sgdb = tuple()
-                for portname in (
-                    "sourcedrain1", "gate", "sourcedrain2", "bulk",
-                ):
-                    port = inst.ports[portname]
-                    try:
-                        net = netlookup[port]
-                    except KeyError:
-                        raise ValueError(
-                            f"Port {port.full_name} not on any net in circuit "
-                            f"{circuit.name}"
+            if isinstance(inst, ckt._PrimitiveInstance):
+                if isinstance(inst.prim, prm.MOSFET):
+                    sgdb = tuple()
+                    for portname in (
+                        "sourcedrain1", "gate", "sourcedrain2", "bulk",
+                    ):
+                        port = inst.ports[portname]
+                        try:
+                            net = netlookup[port]
+                        except KeyError:
+                            raise ValueError(
+                                f"Port {port.full_name} not on any net in circuit "
+                                f"{circuit.name}"
+                            )
+                        else:
+                            sgdb += (net.name,)
+                    # TODO: support more instance parameters
+                    self.M(inst.name, *sgdb,
+                        model=inst.prim.model,
+                        l=u_µm(inst.params["l"]), w=u_µm(inst.params["w"]),
+                    )
+                elif isinstance(inst.prim, prm.Resistor):
+                    if hasattr(inst.prim, "model"):
+                        params = getattr(inst.prim, "model_params", {})
+                        model_args = {
+                            params["width"]: u_µm(inst.params["width"]),
+                            params["height"]: u_µm(inst.params["height"]),
+                        }
+                        self.X(
+                            inst.name, inst.prim.model,
+                            netlookup[inst.ports.port1].name, netlookup[inst.ports.port2].name,
+                            **model_args,
                         )
                     else:
-                        sgdb += (net.name,)
-                # TODO: support more instance parameters
-                self.M(inst.name, *sgdb,
-                    model=inst.prim.model,
-                    l=u_µm(inst.params["l"]), w=u_µm(inst.params["w"]),
-                )
-
+                        raise NotImplementedError(
+                            "Resistor circuit generation without a model"
+                        )
 
 class _Circuit(Circuit):
     def __init__(self, fab, corner, top, title, gnd):

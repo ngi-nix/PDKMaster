@@ -143,7 +143,22 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
 
     def _params_Resistor(self, prim):
         s = f"wire={_str_prim(prim.wire)}, indicator={_str_primtuple(prim.indicator)},\n"
-        s += f"min_enclosure={_str_enclosures(prim.min_enclosure)},\n"
+        s += f"min_indicator_extension={prim.min_indicator_extension},\n"
+        if hasattr(prim, "contact"):
+            assert hasattr(prim, "min_contact_space")
+            s += (
+                f"contact={_str_prim(prim.contact)},"
+                f" min_contact_space={prim.min_contact_space},\n"
+            )
+        if hasattr(prim, "implant"):
+            s += f"implant={_str_prim(prim.implant)}"
+            if hasattr(prim, "min_implant_enclosure"):
+                s += f", min_implant_enclosure={_str_enclosure(prim.min_implant_enclosure)},\n"
+            else:
+                s += ",\n"
+        if hasattr(prim, "model"):
+            s += f"model='{prim.model}', model_params={prim.model_params},\n"
+
         s += self._params_widthspace(prim)
         return s
     

@@ -257,7 +257,7 @@ class _FreePDK45(tch.Technology):
             *(
                 prm.Resistor(name,
                     wire=wire, indicator=prims.sblock,
-                    min_enclosure=prp.Enclosure(0.045), # Own rule
+                    min_indicator_extension=0.045, # Own rule
                 )
                 for name, wire in (
                     ("active_res", prims.active),

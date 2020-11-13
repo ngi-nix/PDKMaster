@@ -229,7 +229,6 @@ class Technology(abc.ABC):
         add_prims(prims.tt_iter_type(prm.TopMetalWire))
 
         # process resistors
-        # TODO: proper connection check Resistor
         resistors = set(prims.tt_iter_type(prm.Resistor))
         for resistor in resistors:
             markers.update(resistor.indicator)

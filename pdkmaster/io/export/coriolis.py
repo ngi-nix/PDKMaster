@@ -280,6 +280,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
                 f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
             )
+        s = indent(s, prefix="# ")
         return s
 
     def MOSFETGate(self, prim):
