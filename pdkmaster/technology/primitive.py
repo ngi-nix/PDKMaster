@@ -1121,11 +1121,11 @@ class MOSFETGate(_WidthSpacePrimitive):
     def computed(self):
         return MOSFETGate._ComputedProps(self)
 
-    def __init__(self, name=None, *, active, poly, oxide=None,
+    def __init__(self, name=None, *, active, poly, oxide=None, inside=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
         contact=None, min_contactgate_space=None,
-        min_gateoxide_enclosure=None,
+        min_gateoxide_enclosure=None, min_gateinside_enclosure=None,
     ):
         if not isinstance(active, WaferWire):
             raise TypeError("active has to be of type 'WaferWire'")
@@ -1153,6 +1153,28 @@ class MOSFETGate(_WidthSpacePrimitive):
                 self.min_gateoxide_enclosure = min_gateoxide_enclosure
         elif min_gateoxide_enclosure is not None:
             raise TypeError("min_gateoxide_enclosure provided without an oxide")
+
+        if inside is not None:
+            inside = _util.v2t(inside)
+            if not all(isinstance(l, Marker) for l in inside):
+                raise TypeError(
+                    "inside has to be 'None', of type 'Marker' or "
+                    "an iterable of type 'Marker'"
+                )
+            self.inside = inside
+            prims += inside
+            if min_gateinside_enclosure is not None:
+                min_gateinside_enclosure = _util.v2t(min_gateinside_enclosure)
+                if len(min_gateinside_enclosure) == 1:
+                    min_gateinside_enclosure *= len(inside)
+                if not all(isinstance(enc, prp.Enclosure) for enc in min_gateinside_enclosure):
+                    raise TypeError(
+                        "min_gateinside_enclosure has to be None of type 'Enclosure' "
+                        "or an iterable of type 'Enclosure'"
+                    )
+                self.min_gateinside_enclosure = min_gateinside_enclosure
+        elif min_gateinside_enclosure is not None:
+            raise TypeError("min_gateinside_enclosure provided without inside provided")
 
         if name is None:
             name = "gate({})".format(",".join(prim.name for prim in prims))
@@ -1224,8 +1246,9 @@ class MOSFETGate(_WidthSpacePrimitive):
         poly_mask = self.poly.mask
 
         # Update mask if it has no oxide
+        extra_masks = tuple()
         if not hasattr(self, "oxide"):
-            oxide_masks = tuple(
+            extra_masks += tuple(
                 gate.oxide.mask for gate in filter(
                     lambda prim: (
                         isinstance(prim, MOSFETGate)
@@ -1235,14 +1258,29 @@ class MOSFETGate(_WidthSpacePrimitive):
                     ), tech.primitives,
                 )
             )
-            if oxide_masks:
-                if len(oxide_masks) == 1:
-                    oxides_mask = oxide_masks[0]
+        if not hasattr(self, "inside"):
+            def get_key(gate):
+                if hasattr(gate, "oxide"):
+                    return frozenset((gate.active, gate.poly, gate.oxide))
                 else:
-                    oxides_mask = msk.Join(oxide_masks)
-                self.mask.mask = msk.Intersect(
-                    (active_mask, poly_mask, wfr.wafer.remove(oxides_mask)),
-                )
+                    return frozenset((gate.active, gate.poly))
+
+            for gate in filter(
+                lambda prim: (
+                    isinstance(prim, MOSFETGate)
+                    and (get_key(prim) == get_key(self))
+                    and hasattr(prim, "inside")
+                ), tech.primitives,
+            ):
+                extra_masks += tuple(inside.mask for inside in gate.inside)
+        if extra_masks:
+            # Keep the alias but change the mask of the alias
+            masks = (active_mask, poly_mask)
+            if hasattr(self, "oxide"):
+                masks += (self.oxide.mask,)
+            if hasattr(self, "inside"):
+                masks += tuple(inside.mask for inside in self.inside)
+            self.mask.mask = msk.Intersect((*masks, wfr.outside(extra_masks)))
         mask = self.mask
 
         mask_used = False

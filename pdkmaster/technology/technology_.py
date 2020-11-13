@@ -206,11 +206,14 @@ class Technology(abc.ABC):
             implants.update(mosfet.implant)
             if hasattr(mosfet, "well"):
                 implants.add(mosfet.well)
+            if hasattr(mosfet.gate, "inside"):
+                markers.update(mosfet.gate.inside)
 
         add_prims((
             *sorted(implants, key=get_name),
             *sorted(actives, key=get_name), *sorted(polys, key=get_name),
-            *sorted(gates, key=get_name), *sorted(mosfets, key=get_name),
+            *sorted(markers, key=get_name), *sorted(gates, key=get_name),
+            *sorted(mosfets, key=get_name),
         ))
         implants = set()
         markers = set()

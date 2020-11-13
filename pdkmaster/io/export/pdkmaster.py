@@ -177,6 +177,13 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
                 "min_gateoxide_enclosure="
                 f"{_str_enclosure(prim.min_gateoxide_enclosure)},\n"
             )
+        if hasattr(prim, "inside"):
+            s += f"inside={_str_primtuple(prim.inside)},\n"
+        if hasattr(prim, "min_gateinside_enclosure"):
+            s += (
+                "min_gateinside_enclosure="
+                f"{_str_enclosures(prim.min_gateinside_enclosure)},\n"
+            )
         if hasattr(prim, "min_l"):
             s += f"min_l={prim.min_l},\n"
         if hasattr(prim, "min_w"):
