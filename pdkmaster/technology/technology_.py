@@ -95,6 +95,9 @@ class Technology(abc.ABC):
 
         self.computed = self._ComputedSpecs(self)
 
+    def on_grid(self, dim):
+        return round(dim/self.grid)*self.grid
+
     @abc.abstractmethod
     def _init(self):
         raise RuntimeError("abstract base method _init() has to be implemnted in subclass")
