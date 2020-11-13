@@ -81,9 +81,29 @@ class _Primitive(abc.ABC):
                 v = params.pop(param.name, default)
             casted[param.name] = param.cast(v)
 
+        if len(self.ports) > 0:
+            try:
+                portnets = params.pop("portnets")
+            except KeyError:
+                # Specifying nets is optional
+                pass
+            else:
+                # If nets are specified all nets need to be specified
+                portnames = set(p.name for p in self.ports)
+                portnetnames = set(portnets.keys())
+                if (
+                    (portnames != portnetnames)
+                    or (len(self.ports) != len(portnets)) # Detect removal of doubles in set
+                ):
+                    raise ValueError(
+                        f"Nets for ports {portnetnames} specified but prim '{self.name}'"
+                        " has ports {portnames}"
+                    )
+                casted["portnets"] = portnets
+
         if len(params) > 0:
             raise TypeError(
-                f"primitive '{self.name}' got unexpected parameters "
+                f"primitive '{self.name}' got unexpected parameter(s) "
                 f"{tuple(params.keys())}"
             )
 
@@ -234,8 +254,6 @@ class _MaskPrimitive(_Primitive):
             raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
                 self.__class__.__name__
             ))
-        if isinstance(mask, msk.DesignMask):
-            self.ports += _PrimitiveNet(self, "conn")
         self.mask = mask
 
         if grid is not None:
@@ -451,6 +469,8 @@ class Well(Implant):
         implant_args["name"] = name
         super().__init__(**implant_args)
 
+        self.ports += _PrimitiveNet(self, "conn")
+
         if min_space_samenet is not None:
             min_space_samenet = _util.i2f(min_space_samenet)
             if not isinstance(min_space_samenet, float):
@@ -475,7 +495,14 @@ class Insulator(_WidthSpacePrimitive):
         self._designmask_from_name(widthspace_args, fill_space=fill_space)
         super().__init__(**widthspace_args)
 
-class WaferWire(_WidthSpacePrimitive):
+class _Conductor(_WidthSpacePrimitive):
+    @abc.abstractmethod
+    def __init__(self, **widthspace_args):
+        super().__init__(**widthspace_args)
+
+        self.ports += _PrimitiveNet(self, "conn")
+
+class WaferWire(_Conductor):
     # The wire made from wafer material and normally isolated by LOCOS for old technlogies
     # and STI for other ones.
     def __init__(self, name, *,
@@ -625,6 +652,7 @@ class WaferWire(_WidthSpacePrimitive):
         return self._sd_mask
 
     def cast_params(self, params):
+        well_net = params.pop("well_net", None)
         params = super().cast_params(params)
 
         def _check_param(name):
@@ -644,7 +672,19 @@ class WaferWire(_WidthSpacePrimitive):
                 idx = self.well.index(well)
                 params["well_enclosure"] = self.min_well_enclosure[idx]
         elif (len(self.well) == 1) and (not self.allow_in_substrate):
-            params["well"] = self.well[0]
+            params["well"] = well = self.well[0]
+        else:
+            well = None
+        if well is not None:
+            if well_net is None:
+                raise TypeError(
+                    f"No well net specified for primitive '{self.name}' in a well"
+                )
+            params["well_net"] = well_net
+        elif well_net is not None:
+            raise TypeError(
+                f"Well net specified for primitive '{self.name}' not in a well"
+            )
 
         return params
 
@@ -697,7 +737,7 @@ class WaferWire(_WidthSpacePrimitive):
                 for w in self.well
             )
 
-class GateWire(_WidthSpacePrimitive):
+class GateWire(_Conductor):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="same_net")
@@ -705,7 +745,7 @@ class GateWire(_WidthSpacePrimitive):
         super().__init__(**widthspace_args)
         self._pin_params()
 
-class MetalWire(_WidthSpacePrimitive):
+class MetalWire(_Conductor):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="same_net")
@@ -793,6 +833,8 @@ class Via(_MaskPrimitive):
         primitive_args["name"] = name
         self._designmask_from_name(primitive_args, fill_space="no")
         super().__init__(**primitive_args)
+
+        self.ports += _PrimitiveNet(self, "conn")
 
         bottom = _util.v2t(bottom)
         min_bottom_enclosure = _util.v2t(min_bottom_enclosure)
@@ -882,6 +924,7 @@ class Via(_MaskPrimitive):
             self.params += _PrimitiveParam(self, "top", choices=top)
 
     def cast_params(self, params):
+        well_net = params.pop("well_net", None)
         params = super().cast_params(params)
 
         def _check_param(name):
@@ -940,6 +983,7 @@ class Via(_MaskPrimitive):
                     params["bottom_well_enclosure"] = (
                         bottom.min_well_enclosure[idx]
                     )
+                params["well_net"] = well_net
             elif not bottom.allow_in_substrate:
                 raise ValueError(
                     f"bottom wire '{bottom.name}' needs a well"
@@ -1014,7 +1058,7 @@ class Via(_MaskPrimitive):
             for mask in conn.designmasks:
                 yield mask
 
-class PadOpening(_WidthSpacePrimitive):
+class PadOpening(_Conductor):
     def __init__(self, name, *, bottom, min_bottom_enclosure, **widthspace_args):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="no")

@@ -915,15 +915,41 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         bottom = centery - 0.5*height
         top = bottom + height
 
+        return self.fab.new_layout(
+            NetlessSubLayout(MaskPolygon(
+                    prim.mask, _rect(left, bottom, right, top),
+            )),
+        )
+
+    def Well(self, prim, *, center, **well_params):
+        return self._Conductor(prim, center=center, **well_params)
+
+    def _Conductor(self, prim, *, center, **conductor_params):
+        assert (
+            (len(prim.ports) == 1) and (prim.ports[0].name == "conn")
+        ), "Internal error"
+
+        centerx, centery = tuple(center.coords)[0]
+
+        width = widthspace_params["width"]
+        height = widthspace_params["height"]
+
+        left = centerx - 0.5*width
+        right = left + width
+        bottom = centery - 0.5*height
+        top = bottom + height
+
+        portnets = conductor_params["portnets"]
+        net = portnets["conn"]
+
         layout = self.fab.new_layout(
             NetSubLayout(
-                prim.ports[0], MaskPolygon(
+                net, MaskPolygon(
                     prim.mask, _rect(left, bottom, right, top),
                 ),
             ),
         )
-
-        pin = widthspace_params.get("pin", None)
+        pin = conductor_params.get("pin", None)
         if pin is not None:
             layout += NetSubLayout(
                 prim.ports[0], MaskPolygon(
@@ -941,7 +967,6 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         well = waferwire_params.pop("well", None)
         well_enclosure = waferwire_params.pop("well_enclosure", None)
 
-
         centerx, centery = tuple(center.coords)[0]
 
         width = waferwire_params["width"]
@@ -952,19 +977,21 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         bottom = centery - 0.5*height
         top = bottom + height
 
-        layout = self._WidthSpacePrimitive(prim, center=center, **waferwire_params)
+        layout = self._Conductor(prim, center=center, **waferwire_params)
 
         layout += NetlessSubLayout(MaskPolygon(
                 implant.mask,
                 _rect(left, bottom, right, top, enclosure=implant_enclosure),
         ))
         if well is not None:
-            net = (
-                prim.ports[0] if (implant.type_ == well.type_)
-                else prm._PrimitiveNet(prim, "well")
-            )
+            try:
+                well_net = waferwire_params["well_net"]
+            except KeyError:
+                raise TypeError(
+                    f"No well_net given for WaferWire '{prim.name}' in well '{well.name}'"
+                )
             layout += NetSubLayout(
-                net, MaskPolygon(
+                well_net, MaskPolygon(
                     well.mask,
                     _rect(left, bottom, right, top, enclosure=well_enclosure),
                 ),
@@ -975,6 +1002,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
     def Via(self, prim, *, center, **via_params):
         if not isinstance(center, sh_geo.Point):
             raise TypeError("center has to be of type Point from shapely")
+        try:
+            portnets = via_params["portnets"]
+        except KeyError:
+            raise TypeError(f"No portnets specified for Via '{prim.name}'")
+        if set(portnets.keys()) != {"conn"}:
+            raise ValueError(f"Via '{prim.name}' needs one net for the 'conn' port")
+        net = portnets["conn"]
 
         centerx, centery = tuple(center.coords)[0]
 
@@ -1055,10 +1089,9 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         via_bottom = centery - 0.5*via_height
         via_left = centerx - 0.5*via_width
 
-        assert len(prim.ports) == 1, "Internal error"
         layout = self.fab.new_layout(
             NetSubLayout(
-                prim.ports[0], MaskPolygons((
+                net, MaskPolygons((
                     MaskPolygon(
                         bottom.mask,
                         _rect(bottom_left, bottom_bottom, bottom_right, bottom_top),
@@ -1096,14 +1129,26 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             pass
         else:
             if well is not None:
+                well_net = via_params.get("well_net", None)
                 enc = via_params["bottom_well_enclosure"]
                 assert enc is not None, "Internal error"
-                net = (
-                    prim.ports[0] if (impl.type_ == well.type_)
-                    else prm._PrimitiveNet(prim, "well")
-                )
+                if impl.type_ == well.type_:
+                    if well_net is not None:
+                        if well_net != net:
+                            raise ValueError(
+                                f"Net '{well_net}' for well '{well.name}' of WaferWire"
+                                f" {bottom.name} is different from net '{net.name}''\n"
+                                f"\tbut implant '{impl.name}' is same type as the well"
+                            )
+                    else:
+                        well_net = net
+                elif well_net is None:
+                    raise TypeError(
+                        f"No well_net specified for WaferWire '{bottom.name}' in"
+                        f" well '{well.name}'"
+                    )
                 layout += NetSubLayout(
-                    net, MaskPolygon(
+                    well_net, MaskPolygon(
                         well.mask, _rect(
                             bottom_left, bottom_bottom, bottom_right, bottom_top,
                             enclosure=enc,
@@ -1125,6 +1170,8 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         gate_encs = mos_params["gateimplant_enclosures"]
         sdw = mos_params["sd_width"]
 
+        portnets = mos_params["portnets"]
+
         gate_left = centerx - 0.5*l
         gate_right = centerx + 0.5*l
         gate_top = centery + 0.5*w
@@ -1139,7 +1186,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         active_top = gate_top
         layout += MultiNetSubLayout((
             NetSubLayout(
-                prim.ports.sourcedrain1,
+                portnets["sourcedrain1"],
                 MaskPolygon(
                     active.mask,
                     _rect(active_left, active_bottom, gate_left, active_top),
@@ -1152,7 +1199,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 ),
             ),
             NetSubLayout(
-                prim.ports.sourcedrain2,
+                portnets["sourcedrain2"],
                 MaskPolygon(
                     active.mask,
                     _rect(gate_right, active_bottom, active_right, active_top),
@@ -1175,7 +1222,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         poly_right = gate_right
         poly_top = gate_top + ext
         layout += NetSubLayout(
-            prim.ports.gate,
+            portnets["gate"],
             MaskPolygon(
                 poly.mask,
                 _rect(poly_left, poly_bottom, poly_right, poly_top),
@@ -1185,7 +1232,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         if hasattr(prim, "well"):
             enc = active.min_well_enclosure[active.well.index(prim.well)]
             layout += NetSubLayout(
-                prim.ports.bulk,
+                portnets["bulk"],
                 MaskPolygon(
                     prim.well.mask,
                     _rect(active_left, active_bottom, active_right, active_top, enclosure=enc)
@@ -1255,40 +1302,22 @@ class _CircuitLayouter:
         if not all((isinstance(x, float), isinstance(y, float))):
             raise TypeError("x and y have to be floats")
 
-        instlayout = self.layout.add_primitive(
-            prim=inst.prim, x=x, y=y, **inst.params,
-        )
-        for sublayout in instlayout.sublayouts:
-            if isinstance(sublayout, NetSubLayout):
-                sublayout.net = ckt._InstanceNet(inst, sublayout.net)
-            elif isinstance(sublayout, MultiNetSubLayout):
-                for sublayout2 in sublayout.sublayouts:
-                    if isinstance(sublayout2, NetSubLayout):
-                        sublayout2.net = ckt._InstanceNet(inst, sublayout2.net)
-
         def _portnets():
             for net in self.circuit.nets:
                 for port in net.childports:
-                    yield (port, net)
+                    if (inst == port.inst):
+                        yield (port.name, net)
         portnets = dict(_portnets())
-
-        def connect_ports(sublayouts):
-            for sublayout in sublayouts:
-                if isinstance(sublayout, NetSubLayout):
-                    try:
-                        net = portnets[sublayout.net]
-                    except KeyError:
-                        net = ckt._InstanceNet(inst, sublayout.net)
-                    sublayout.net = net
-                elif isinstance(sublayout, MultiNetSubLayout):
-                    connect_ports(sublayout.sublayouts)
-                elif not isinstance(sublayout, NetlessSubLayout):
-                    raise AssertionError("Internal error")
-
-        connect_ports(instlayout.sublayouts)
-        self.layout += instlayout.sublayouts
-
-        return instlayout
+        portnames = set(inst.ports.tt_keys())
+        portnetnames = set(portnets.keys())
+        if not (portnames == portnetnames):
+            raise ValueError(
+                f"Unconnected port(s) {portnames - portnetnames}"
+                " for inst '{inst.name}' of primitive '{inst.prim.name}'"
+            )
+        return self.layout.add_primitive(
+            prim=inst.prim, x=x, y=y, portnets=portnets, **inst.params,
+        )
 
     def add_wire(self, *, net, well_net=None, wire, x, y, **wire_params):
         if net not in self.circuit.nets:

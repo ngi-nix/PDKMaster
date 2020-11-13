@@ -41,14 +41,17 @@ class PrimitiveDispatcher:
     def Insulator(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
 
-    def WaferWire(self, prim, *args, **kwargs):
+    def _Conductor(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
+
+    def WaferWire(self, prim, *args, **kwargs):
+        return self._Conductor(prim, *args, **kwargs)
 
     def GateWire(self, prim, *args, **kwargs):
-        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+        return self._Conductor(prim, *args, **kwargs)
 
     def MetalWire(self, prim, *args, **kwargs):
-        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+        return self._Conductor(prim, *args, **kwargs)
 
     def TopMetalWire(self, prim, *args, **kwargs):
         return self.MetalWire(prim, *args, **kwargs)
@@ -60,7 +63,7 @@ class PrimitiveDispatcher:
         return self._MaskPrimitive(prim, *args, **kwargs)
 
     def PadOpening(self, prim, *args, **kwargs):
-        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+        return self._Conductor(prim, *args, **kwargs)
 
     def Spacing(self, prim, *args, **kwargs):
         return self._Primitive(prim, *args, **kwargs)
