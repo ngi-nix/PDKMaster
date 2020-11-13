@@ -3,14 +3,14 @@ from itertools import product
 from collections import namedtuple
 from matplotlib import pyplot as plt
 import descartes
-from shapely import geometry as sh_geo, ops as sh_ops
+from shapely import geometry as sh_geo, ops as sh_ops, affinity as sh_aff
 
 from .. import _util
 from ..technology import (
     property_ as prp, net as net_, mask as msk, primitive as prm,
     technology_ as tch, dispatcher as dsp
 )
-from . import circuit as ckt
+from . import circuit as ckt, library as lbry
 
 __all__ = [
     "Rect", "MaskPolygon", "MaskPolygons",
@@ -726,6 +726,44 @@ class MultiNetSubLayout(_SubLayout):
         else:
             return False
 
+class _InstanceSubLayout(_SubLayout):
+    # TODO: Support cell rotation
+    def __init__(self, inst, *, x, y, layoutname=None):
+        assert (
+            isinstance(inst, ckt._CellInstance)
+            and isinstance (x, float) and isinstance(y, float)
+            and ((layoutname is None) or isinstance(layoutname, str))
+        ), "Internal error"
+        self.inst = inst
+        self.x = x
+        self.y = y
+        cell = inst.cell
+
+        if layoutname is None:
+            if not hasattr(cell, "layout"):
+                raise ValueError(
+                    f"Cell '{cell.name}' has no default layout and no layoutname"
+                    " was specified"
+                )
+            self.layout = cell.layout
+        else:
+            if layoutname not in cell.layouts.tt_keys():
+                raise ValueError(
+                    f"Cell '{cell.name}' has no layout named '{layoutname}'"
+                )
+            self.layoutname = layoutname
+            self.layout = cell.layouts[layoutname]
+
+    @property
+    def polygons(self):
+        return self.layout.polygons
+
+    def overlaps_with(self, other):
+        return any(polygon.overlaps_with(other) for polygon in self.polygons)
+
+    def dup(self):
+        return self
+
     def move(self, dx, dy):
         self.x += dx
         self.y += dy
@@ -806,6 +844,14 @@ class _Layout:
     @property
     def polygons(self):
         for sublayout in self.sublayouts:
+            for polygon in sublayout.polygons:
+                yield polygon
+
+    @property
+    def top_polygons(self):
+        for sublayout in self.sublayouts.tt_iter_type((
+            NetlessSubLayout, NetSubLayout, MultiNetSubLayout,
+        )):
             for polygon in sublayout.polygons:
                 yield polygon
 
@@ -894,6 +940,20 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
     def tech(self):
         return self.fab.tech
 
+    @staticmethod
+    def _get_rect(center, args):
+        if not isinstance(center, sh_geo.Point):
+            raise TypeError("center has to be of type Point from shapely")
+
+        centerx, centery = tuple(center.coords)[0]
+
+        width = args["width"]
+        height = args["height"]
+
+        left = centerx - 0.5*width
+        bottom = centery - 0.5*height
+        return Rect(left, bottom, left + width, bottom + height)
+
     # Dispatcher implementation
     def _Primitive(self, prim, **params):
         raise NotImplementedError(
@@ -902,23 +962,15 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         )
 
     def _WidthSpacePrimitive(self, prim, *, center, **widthspace_params):
-        if not isinstance(center, sh_geo.Point):
-            raise TypeError("center has to be of type Point from shapely")
-
-        centerx, centery = tuple(center.coords)[0]
-
-        width = widthspace_params["width"]
-        height = widthspace_params["height"]
-
-        left = centerx - 0.5*width
-        right = left + width
-        bottom = centery - 0.5*height
-        top = bottom + height
+        if len(prim.ports) != 0:
+            raise NotImplementedError(
+                f"Don't know how to generate minimal layout for primitive '{prim.name}'\n"
+                f"of type '{prim.__class__.__name__}'"
+            )
+        r = self._get_rect(center, widthspace_params)
 
         return self.fab.new_layout(
-            NetlessSubLayout(MaskPolygon(
-                    prim.mask, _rect(left, bottom, right, top),
-            )),
+            NetlessSubLayout(MaskPolygon(prim.mask, r)),
         )
 
     def Well(self, prim, *, center, **well_params):
@@ -928,34 +980,17 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         assert (
             (len(prim.ports) == 1) and (prim.ports[0].name == "conn")
         ), "Internal error"
-
-        centerx, centery = tuple(center.coords)[0]
-
-        width = widthspace_params["width"]
-        height = widthspace_params["height"]
-
-        left = centerx - 0.5*width
-        right = left + width
-        bottom = centery - 0.5*height
-        top = bottom + height
+        r = self._get_rect(center, conductor_params)
 
         portnets = conductor_params["portnets"]
         net = portnets["conn"]
 
         layout = self.fab.new_layout(
-            NetSubLayout(
-                net, MaskPolygon(
-                    prim.mask, _rect(left, bottom, right, top),
-                ),
-            ),
+            NetSubLayout(net, MaskPolygon(prim.mask, r)),
         )
         pin = conductor_params.get("pin", None)
         if pin is not None:
-            layout += NetSubLayout(
-                prim.ports[0], MaskPolygon(
-                    pin.mask, _rect(left, bottom, right, top),
-                ),
-            )
+            layout += NetSubLayout(net, MaskPolygon(pin.mask, r))
 
         return layout
 
@@ -1290,61 +1325,109 @@ class _CircuitLayouter:
     def tech(self):
         return self.circuit.layoutfab.tech
 
-    def place(self, inst, *, x, y):
-        if not isinstance(inst, ckt._PrimitiveInstance):
-            raise TypeError("inst has to be of type '_PrimitiveInstance'")
-        if inst not in self.circuit.instances:
-            raise ValueError(
-                f"inst '{inst.name}' is not part of circuit '{self.circuit.name}'"
-            )
-        x = _util.i2f(x)
-        y = _util.i2f(y)
-        if not all((isinstance(x, float), isinstance(y, float))):
-            raise TypeError("x and y have to be floats")
+    def inst_layout(self, inst, *, layoutname=None):
+        if not isinstance(inst, ckt._Instance):
+            raise TypeError("inst has to be of type '_Instance'")
 
-        def _portnets():
-            for net in self.circuit.nets:
-                for port in net.childports:
-                    if (inst == port.inst):
-                        yield (port.name, net)
-        portnets = dict(_portnets())
-        portnames = set(inst.ports.tt_keys())
-        portnetnames = set(portnets.keys())
-        if not (portnames == portnetnames):
-            raise ValueError(
-                f"Unconnected port(s) {portnames - portnetnames}"
-                " for inst '{inst.name}' of primitive '{inst.prim.name}'"
+        if isinstance(inst, ckt._PrimitiveInstance):
+            def _portnets():
+                for net in self.circuit.nets:
+                    for port in net.childports:
+                        if (inst == port.inst):
+                            yield (port.name, net)
+            portnets = dict(_portnets())
+            portnames = set(inst.ports.tt_keys())
+            portnetnames = set(portnets.keys())
+            if not (portnames == portnetnames):
+                raise ValueError(
+                    f"Unconnected port(s) {portnames - portnetnames}"
+                    " for inst '{inst.name}' of primitive '{inst.prim.name}'"
+                )
+            return self.fab.new_primitivelayout(
+                prim=inst.prim, center=sh_geo.Point(0.0, 0.0), portnets=portnets,
+                **inst.params,
             )
-        return self.layout.add_primitive(
-            prim=inst.prim, x=x, y=y, portnets=portnets, **inst.params,
-        )
+        elif isinstance(inst, ckt._CellInstance):
+            # TODO: propoer checking of nets for instance
+            if (
+                (layoutname is None)
+                and hasattr(inst, "circuitname")
+                and (inst.circtuitname in inst.cell.layouts.tt_keys())
+            ):
+                layoutname = inst.circuitname
+            return _Layout(
+                self.fab,
+                SubLayouts(_InstanceSubLayout(inst, x=0.0, y=0.0, layoutname=layoutname)),
+                boundary=inst.layout.boundary
+            )
+        else:
+            raise AssertionError("Internal error")
 
-    def add_wire(self, *, net, well_net=None, wire, x, y, **wire_params):
+    def place(self, object_, *, x, y, layoutname=None):
+        if not isinstance(object_, (ckt._Instance, _Layout)):
+            raise TypeError("inst has to be of type '_Instance' or '_Layout'")
+
+        if isinstance(object_, ckt._Instance):
+            inst = object_
+            if inst not in self.circuit.instances:
+                raise ValueError(
+                    f"inst '{inst.name}' is not part of circuit '{self.circuit.name}'"
+                )
+            x = _util.i2f(x)
+            y = _util.i2f(y)
+            if not all((isinstance(x, float), isinstance(y, float))):
+                raise TypeError("x and y have to be floats")
+
+            if isinstance(inst, ckt._PrimitiveInstance):
+                def _portnets():
+                    for net in self.circuit.nets:
+                        for port in net.childports:
+                            if (inst == port.inst):
+                                yield (port.name, net)
+                portnets = dict(_portnets())
+                portnames = set(inst.ports.tt_keys())
+                portnetnames = set(portnets.keys())
+                if not (portnames == portnetnames):
+                    raise ValueError(
+                        f"Unconnected port(s) {portnames - portnetnames}"
+                        " for inst '{inst.name}' of primitive '{inst.prim.name}'"
+                    )
+                return self.layout.add_primitive(
+                    prim=inst.prim, x=x, y=y, portnets=portnets, **inst.params,
+                )
+            elif isinstance(inst, ckt._CellInstance):
+                # TODO: propoer checking of nets for instance
+                # TODO: support circuit rotation
+                if (
+                    (layoutname is None)
+                    and hasattr(inst, "circuitname")
+                    and (inst.circtuitname in inst.cell.layout.tt_keys())
+                ):
+                    layoutname = inst.circuitname
+                sl = _InstanceSubLayout(inst, x=x, y=y, layoutname=layoutname)
+                self.layout += sl
+
+                return None
+        elif isinstance(object_, _Layout):
+            if layoutname is not None:
+                raise TypeError(
+                    f"{self.__class__.__name__}.place() got unexpected keyword argument"
+                    " 'layoutname'"
+                )
+            layout = object_.moved(x, y)
+            self.layout += layout
+            return layout
+        else:
+            raise AssertionError("Internal error")
+
+    def add_wire(self, *, net, wire, x, y, **wire_params):
         if net not in self.circuit.nets:
             raise ValueError(
-                f"net '{net.name}' is not a net from circuit '{self.circuit.name}'"
+                f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
             )
-
-        wirelayout = self.layout.add_wire(
+        return self.layout.add_wire(
             net=net, wire=wire, x=x, y=y, **wire_params,
         )
-        for sublayout in wirelayout.sublayouts:
-            if isinstance(sublayout, NetSubLayout):
-                if sublayout.net.name == "well":
-                    if well_net is None:
-                        raise TypeError(
-                            "No well_net provided for WaferWire with a well"
-                        )
-                    sublayout.net = well_net
-                else:
-                    assert sublayout.net.name == "conn", "Internal error"
-                    sublayout.net = net
-            elif not isinstance(sublayout, NetlessSubLayout):
-                raise AssertionError("Internal error")
-
-        self.layout += wirelayout
-
-        return wirelayout
 
     def connect(self, *, masks=None):
         for polygon in self.layout.polygons:

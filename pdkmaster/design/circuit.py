@@ -5,6 +5,7 @@ from .. import _util
 from ..technology import (
     property_ as prp, net as net_, mask as msk, primitive as prm, technology_ as tch,
 )
+from . import library as lbry
 
 __all__ = ["CircuitFactory"]
 
@@ -57,6 +58,27 @@ class _PrimitiveInstance(_Instance):
         self.prim = prim
         self.params = params
 
+class _CellInstance(_Instance):
+    def __init__(self, name, cell, *, circuitname=None):
+        assert all((
+            isinstance(name, str),
+            isinstance(cell, lbry._Cell),
+        )), "Internal error"
+        self.name = name
+        self.cell = cell
+
+        if circuitname is None:
+            circuit = cell.circuit
+        else:
+            if not isinstance(circuitname, str):
+                raise TypeError("circuitname has to be 'None' or a string")
+            self.circtuitname = circuitname
+            circuit = cell.circuits[circuitname]
+
+        super().__init__(
+            name, net_.Nets(_InstanceNet(self, port) for port in circuit.ports),
+        )
+
 class _Circuit:
     def __init__(self, name, fab):
         assert all((
@@ -76,10 +98,15 @@ class _Circuit:
 
         if isinstance(object_, prm._Primitive):
             params = object_.cast_params(params)
+            inst = _PrimitiveInstance(name, object_, **params)
+        elif isinstance(object_, lbry._Cell):
+            circuitname = params.pop("circuitname", None)
+            if params:
+                raise NotImplementedError("Parametric Circuit instance")
+            inst = _CellInstance(name, object_, circuitname=circuitname)
         else:
-            raise TypeError("object_ has to be of type '_Primitive'")
+            raise TypeError("object_ has to be of type '_Primitive' or '_Cell'")
 
-        inst = _PrimitiveInstance(name, object_, **params)
         self.instances += inst
         return inst
 
@@ -96,6 +123,18 @@ class _Circuit:
         if childports:
             net.childports += childports
         return net
+
+    @property
+    def subcells_sorted(self):
+        cells = set()
+        for inst in self.instances.tt_iter_type(_CellInstance):
+            if inst.cell not in cells:
+                for subcell in inst.cell.subcells_sorted:
+                    if subcell not in cells:
+                        yield subcell
+                        cells.add(subcell)
+                yield inst.cell
+                cells.add(inst.cell)
 
 class _Circuits(_util.TypedTuple):
     tt_element_type = _Circuit

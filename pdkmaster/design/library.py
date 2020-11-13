@@ -64,6 +64,16 @@ class _Cell:
         self.layouts += _CellLayout(name, layouter.layout)
         return layouter
 
+    @property
+    def subcells_sorted(self):
+        cells = set()
+        for circuit in self.circuits:
+            for cell in circuit.subcells_sorted:
+                if cell not in cells:
+                    yield cell
+                    cells.add(cell)
+
+
 class _Cells(_util.TypedTuple):
     tt_element_type = _Cell
 
@@ -186,6 +196,18 @@ class Library:
         cell = _Cell(self, name)
         self.cells += cell
         return cell
+
+    @property
+    def sorted_cells(self):
+        cells = set()
+        for cell in self.cells:
+            if cell not in cells:
+                for subcell in cell.subcells_sorted:
+                    if subcell not in cells:
+                        yield subcell
+                        cells.add(subcell)
+                yield cell
+                cells.add(cell)
 
 
 class StdCellLibrary(Library):

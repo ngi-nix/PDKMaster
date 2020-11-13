@@ -380,6 +380,7 @@ class _LibraryGenerator:
                 Technology, DataBase, DbU, Library,
                 Layer, BasicLayer, ViaLayer,
                 Cell, Net, Vertical, Rectilinear, Box, Point,
+                Instance, Transformation,
                 NetExternalComponents,
             )
             from common.colors import toRGB
@@ -662,17 +663,20 @@ class _LibraryGenerator:
                 bnd = layout.boundary
                 assert bnd is not None, f"Cell boundary needed for {cell.name}"
 
+                pls = tuple(layout.sublayouts.tt_iter_type(
+                    (lay.NetSubLayout, lay.MultiNetSubLayout, lay.NetlessSubLayout),
+                ))
                 def get_netname(sl):
                     if isinstance(sl, lay.NetSubLayout):
                         return sl.net.name
-                    elif isinstance(
-                        sl, (lay.MultiNetSubLayout, lay.NetlessSubLayout),
-                    ):
+                    elif isinstance(sl, (
+                        lay.MultiNetSubLayout, lay.NetlessSubLayout,
+                    )):
                         return "*"
                     else:
                         raise AssertionError("Internal error: unhandled sublayout type")
 
-                netnames = set(get_netname(sl) for sl in layout.sublayouts)
+                netnames = set(get_netname(sl) for sl in pls)
 
                 s += (
                     "    cell.setAbutmentBox(Box(\n"
@@ -691,7 +695,7 @@ class _LibraryGenerator:
                         if net in lib.global_nets:
                             s += f"    nets['{net}'].setGlobal(True)\n"
 
-                for sl in layout.sublayouts:
+                for sl in pls:
                     s += indent(
                         f"net = nets['{get_netname(sl)}']\n" +
                         "".join(
@@ -701,6 +705,21 @@ class _LibraryGenerator:
                         prefix="    ",
                     )
 
+                for sl in layout.sublayouts.tt_iter_type(lay._InstanceSubLayout):
+                    s += indent(
+                        dedent(f"""
+                            subcell = lib.getCell('{sl.inst.cell.name}')
+                            trans = Transformation(
+                                u({sl.x}), u({sl.y}), Transformation.Orientation.ID,
+                            )
+                            print(trans)
+                            Instance.create(
+                                cell, '{sl.inst.name}', subcell, trans,
+                                Instance.PlacementStatus.PLACED,
+                            )
+                        """[1:]),
+                        prefix = "    "
+                    )
             return s
         except NotImplementedError:
             return f"# Export failed for cell '{cell.name}'"

@@ -341,15 +341,30 @@ class PDKMasterGenerator:
         s += "\n"
 
         for inst in circuit.instances:
-            assert (
-                isinstance(inst, ckt._PrimitiveInstance),
-                "Unsupported instance class",
-            )
-            primname = inst.prim.name
-            s += f"ckt.new_instance('{inst.name}', tech.primitives['{primname}'],\n"
-            for param in inst.prim.params:
-                s += f"    {param.name}={inst.params[param.name]!r},\n"
-            s += ")\n"
+            if isinstance(inst, ckt._PrimitiveInstance):
+                primname = inst.prim.name
+                s += f"ckt.new_instance('{inst.name}', tech.primitives['{primname}'],\n"
+                for param in inst.prim.params:
+                    s += f"    {param.name}={inst.params[param.name]!r},\n"
+                s += ")\n"
+            elif isinstance(inst, ckt._CellInstance):
+                if lib is None:
+                    raise ValueError(
+                        "Can't export single Circuit with Cell instances outside library export"
+                    )
+                elif inst.cell not in lib.cells:
+                    raise ValueError(
+                        "Can't export Circuit with inter-library cell instance(s)"
+                    )
+
+                cellname = inst.cell.name
+                s += f"ckt.new_instance('{inst.name}', self.cells['{cellname}'].circuit"
+                if hasattr(inst, "circuitname"):
+                    s += f", circuitname={inst.circuitname}"
+                s += ")\n"
+            else:
+                raise AssertionError("Internal error: unsupported instance class")
+
         s += "\n"
 
         for net in circuit.nets:
@@ -382,7 +397,7 @@ class PDKMasterGenerator:
                 library = lib = Library(tech, cktfab, layoutfab)
             """)
 
-        for cell in library.cells:
+        for cell in library.sorted_cells:
             s += dedent(f"""
 
                 # cell: {cell.name}
@@ -390,7 +405,7 @@ class PDKMasterGenerator:
             """)
             for circuit in cell.circuits:
                 s += f"ckt = cell.new_circuit('{circuit.name}')\n"
-                s += self._gen_ckt(circuit, header=False)
+                s += self._gen_ckt(circuit, lib=library, header=False)
 
         # if cell.layouts:
         #     raise NotImplementedError("Library cells export with layout")
