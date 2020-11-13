@@ -158,6 +158,17 @@ class MaskPolygon:
     def bounds(self):
         return Rect(*self.polygon.bounds)
 
+    @property
+    def polygons(self):
+        # Split up MultiPolygon in indivual Polygon
+        if isinstance(self.polygon, sh_geo.Polygon):
+            yield self
+        elif isinstance(self.polygon, sh_geo.MultiPolygon):
+            for polygon in self.polygon:
+                yield MaskPolygon(self.mask, polygon)
+        else:
+            raise AssertionError("Internal error")
+
     def __iadd__(self, polygon):
         if isinstance(polygon, MaskPolygon):
             if self.mask == polygon.mask:
