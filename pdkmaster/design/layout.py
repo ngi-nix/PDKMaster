@@ -302,6 +302,13 @@ class MaskPolygon:
             and self.polygon.intersects(other.polygon)
         )
 
+    def move(self, dx, dy):
+        self.polygon = sh_aff.translate(self.polygon, dx, dy)
+        assert isinstance(self.polygon, MaskPolygon._geometry_types)
+
+    def moved(self, dx, dy):
+        return MaskPolygon(self.mask, sh_aff.translate(self.polygon, dx, dy))
+
     def grow(self, size):
         self.polygon = _manhattan_polygon(
             self.polygon.buffer(size, resolution=0), outer=True,
@@ -431,6 +438,15 @@ class _SubLayout(abc.ABC):
     def dup(self):
         raise AssertionError("Internal error")
 
+    @abc.abstractmethod
+    def move(self, dx, dy):
+        for pg in self.polygons:
+            pg.move(dx, dy)
+
+    @abc.abstractmethod
+    def moved(self):
+        raise AssertionError("Internal error")
+
 class NetSubLayout(_SubLayout):
     def __init__(self, net, polygons):
         if not isinstance(net, net_.Net):
@@ -445,6 +461,14 @@ class NetSubLayout(_SubLayout):
 
     def dup(self):
         return NetSubLayout(self.net, self.polygons.dup())
+
+    def move(self, dx, dy):
+        super().move(dx, dy)
+
+    def moved(self, dx, dy):
+        return NetSubLayout(self.net, MaskPolygons(
+            mp.moved(dx, dy) for mp in self.polygons
+        ))
 
     def __iadd__(self, other):
         assert (
@@ -499,6 +523,14 @@ class NetlessSubLayout(_SubLayout):
     def dup(self):
         return NetlessSubLayout(self.polygons.dup())
 
+    def move(self, dx, dy):
+        super().move(dx, dy)
+
+    def moved(self, dx, dy):
+        return NetlessSubLayout(MaskPolygons(
+            mp.moved(dx, dy) for mp in self.polygons
+        ))
+
     def __iadd__(self, other):
         assert isinstance(other, NetlessSubLayout), "Internal error"
         self.polygons += other.polygons
@@ -547,6 +579,16 @@ class MultiNetSubLayout(_SubLayout):
 
     def dup(self):
         return MultiNetSubLayout(sl.dup() for sl in self.sublayouts)
+
+    def move(self, dx, dy):
+        super().move(dx, dy)
+        for sl in self.sublayouts:
+            sl.move(dx, dy)
+
+    def moved(self, dx, dy):
+        return MultiNetSubLayout((
+            sl.moved(dx, dy) for sl in self.sublayouts
+        ))
 
     @property
     def _netmasks(self):
@@ -789,6 +831,15 @@ class Layout:
         )
 
         return self
+
+    def move(self, dx, dy):
+        for mp in self.sublayouts:
+            mp.move(dx, dy)
+
+    def moved(self, dx, dy):
+        return Layout(
+            SubLayouts(mp.moved(dx, dy) for mp in self.sublayouts), self.boundary,
+        )
 
     def freeze(self):
         self.sublayouts.tt_freeze()
