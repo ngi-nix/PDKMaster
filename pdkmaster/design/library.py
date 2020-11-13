@@ -45,7 +45,7 @@ class _Cell:
     def add_layout(self, name, layout):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
-        if not isinstance(layout, lay.Layout):
+        if not isinstance(layout, lay._Layout):
             raise TypeError("layout has to be of type 'Layout'")
 
         self.layouts += _CellLayout(name, layout)
@@ -72,7 +72,7 @@ class _CellLayout:
     def __init__(self, name, layout):
         assert (
             isinstance(name, str)
-            and isinstance(layout, lay.Layout)
+            and isinstance(layout, lay._Layout)
         ), "Internal error"
         self.name = name
         self.layout = layout

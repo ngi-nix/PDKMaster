@@ -323,7 +323,7 @@ class PDKMasterGenerator:
 
         return s
 
-    def _gen_ckt(self, circuit, header=True):
+    def _gen_ckt(self, circuit, *, lib=None, header=True):
         s = ""
         if header:
             s += self._gen_header(circuit.fab.tech, circuit.fab, None)

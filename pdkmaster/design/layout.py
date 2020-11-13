@@ -15,7 +15,7 @@ from . import circuit as ckt
 __all__ = [
     "Rect", "MaskPolygon", "MaskPolygons",
     "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
-    "Layout", "LayoutFactory", "Plotter",
+    "LayoutFactory", "Plotter",
 ]
 
 class NetOverlapError(Exception):
@@ -790,20 +790,17 @@ class SubLayouts(_util.TypedTuple):
         else:
             return self
 
-class Layout:
-    def __init__(self, sublayouts=None, *, boundary=None):
-        if sublayouts is None:
-            sublayouts = SubLayouts()
-        if isinstance(sublayouts, _SubLayout):
-            sublayouts = SubLayouts(sublayouts)
-        if not isinstance(sublayouts, SubLayouts):
-            raise TypeError(
-                "sublayouts has to be of type '_SubLayout' or 'SubLayouts'"
-            )
+class _Layout:
+    def __init__(self, fab, sublayouts, boundary):
+        assert (
+            isinstance(fab, LayoutFactory)
+            and isinstance(sublayouts, SubLayouts)
+            and ((boundary is None) or isinstance(boundary, Rect))
+        ), "Internal error"
+        self.fab = fab
         self.sublayouts = sublayouts
-
-        if not ((boundary is None) or isinstance(boundary, Rect)):
-            raise TypeError("boundary has to be 'None' or of type 'Rect'")
+        # We also create boundary attribute here if it is None so users can
+        # update the boundary by doing 'layout.boundary = Rect(...)'
         self.boundary = boundary
 
     @property
@@ -813,7 +810,11 @@ class Layout:
                 yield polygon
 
     def dup(self):
-        return Layout(SubLayouts(sl.dup() for sl in self.sublayouts))
+        return _Layout(
+            self.fab,
+            SubLayouts(sl.dup() for sl in self.sublayouts),
+            self.boundary,
+        )
 
     def bounds(self, *, mask=None):
         mps = self.polygons if mask is None else filter(
@@ -884,7 +885,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         bottom = centery - 0.5*height
         top = bottom + height
 
-        layout = Layout(
+        layout = self.fab.new_layout(
             NetSubLayout(
                 prim.ports[0], MaskPolygon(
                     prim.mask, _rect(left, bottom, right, top),
@@ -1025,7 +1026,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         via_left = centerx - 0.5*via_width
 
         assert len(prim.ports) == 1, "Internal error"
-        layout = Layout(
+        layout = self.fab.new_layout(
             NetSubLayout(
                 prim.ports[0], MaskPolygons((
                     MaskPolygon(
@@ -1099,7 +1100,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         gate_top = centery + 0.5*w
         gate_bottom = centery - 0.5*w
 
-        layout = Layout()
+        layout = self.fab.new_layout()
 
         active = prim.gate.active
         active_left = gate_left - sdw
@@ -1204,7 +1205,7 @@ class _CircuitLayouter:
             raise TypeError("circuit has to be of type '_Circuit'")
         self.circuit = circuit
 
-        self.layout = Layout(boundary=boundary)
+        self.layout = fab.new_layout(boundary=boundary)
 
     @property
     def tech(self):
@@ -1305,6 +1306,20 @@ class LayoutFactory:
             raise TypeError("tech has to be of type Technology")
         self.tech = tech
         self.gen_primlayout = _PrimitiveLayouter(self)
+
+    def new_layout(self, sublayouts=None, *, boundary=None):
+        if sublayouts is None:
+            sublayouts = SubLayouts()
+        if isinstance(sublayouts, _SubLayout):
+            sublayouts = SubLayouts(sublayouts)
+        if not isinstance(sublayouts, SubLayouts):
+            raise TypeError(
+                "sublayouts has to be of type '_SubLayout' or 'SubLayouts'"
+            )
+        if not ((boundary is None) or isinstance(boundary, Rect)):
+            raise TypeError("boundary has to be 'None' or of type 'Rect'")
+
+        return _Layout(self, sublayouts, boundary)
 
     def new_primitivelayout(self, prim, *,
         center=sh_geo.Point(0.0, 0.0), **prim_params
@@ -1481,7 +1496,7 @@ class Plotter:
         if _util.is_iterable(obj):
             for item in obj:
                 self.plot(item)
-        elif isinstance(obj, (Layout, _SubLayout)):
+        elif isinstance(obj, (_Layout, _SubLayout)):
             for item in obj.polygons:
                 self.plot(item)
         elif isinstance(obj, MaskPolygon):
