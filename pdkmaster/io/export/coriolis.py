@@ -18,9 +18,9 @@ def _str_create_basic(name, mat, *,
     s += f"    tech, '{name}', BasicLayer.Material.{mat},\n"
     s_args = []
     if minsize is not None:
-        s_args.append(f"size={minsize}")
+        s_args.append(f"size=u({minsize})")
     if minspace is not None:
-        s_args.append(f"spacing={minspace}")
+        s_args.append(f"spacing=u({minspace})")
     if gds_layer is not None:
         s_args.append(f"gds2Layer={gds_layer}")
     if gds_datatype is not None:
@@ -42,7 +42,7 @@ def _str_create_via(via):
                 tech.getLayer('{via.name}'),
                 tech.getLayer('{top.name}'),
             )
-            l.setMinimalSize({via.width})
+            l.setMinimalSize(u({via.width}))
         """[1:])
 
     return "".join(_str_bottomtop(bottom, top) for bottom, top in product(
@@ -438,7 +438,10 @@ class _LibraryGenerator:
 
         assert len(lib.routinggauge) == 1
         rg = lib.routinggauge[0]
-        s = f"rg = CRL.RoutingGauge.create('{lib.name}')\n"
+        s = dedent(f"""
+            rg = CRL.RoutingGauge.create('{lib.name}')
+            rg.setSymbolic(False)
+        """[1:])
         bottom_idx = self.metals.index(rg.bottom)
         top_idx = self.metals.index(rg.top)
 
@@ -709,42 +712,83 @@ class _LibraryGenerator:
                 for poly2 in polygon
             )
         elif isinstance(polygon, sh_geo.Polygon):
-            if tuple(polygon.interiors):
-                raise NotImplementedError("shapely polygon with interiors")
-            coords = polygon.exterior.coords
-            if mask in self.pinmasks:
-                metalmask = self.pinmasks[mask]
-                if len(coords) != 5:
-                    raise NotImplementedError("Non-rectangular pin")
-                xs = tuple(coord[0] for coord in coords)
-                ys = tuple(coord[1] for coord in coords)
-                left = min(xs)
-                right = max(xs)
-                bottom = round(min(ys), 6)
-                top = round(max(ys), 6)
-                x = round(0.5*(left + right), 6)
-                width = round(right - left, 6)
-                s = dedent(f"""
-                    Vertical.create(
-                        net, tech.getLayer('{mask.name}'),
-                        u({x}), u({width}), u({bottom}), u({top}),
+            p = polygon.simplify(0.000001)
+            coords = tuple(p.exterior.coords)
+            ints = tuple(p.interiors)
+            if not ints:
+                if mask in self.pinmasks:
+                    metalmask = self.pinmasks[mask]
+                    if len(coords) == 6:
+                        c0 = coords[0]
+                        c1 = coords[1]
+                        c4 = coords[-2]
+                        c5 = coords[-1]
+                        if (
+                            (c0[0] == c1[0] == c4[0] == c5[0])
+                            or (c0[0] == c1[0] == c4[0] == c5[0])
+                        ):
+                            coords = coords[1:-1] + coords[1:2]
+                    if len(coords) != 5:
+                        raise NotImplementedError("Non-rectangular pin")
+                    xs = tuple(coord[0] for coord in coords)
+                    ys = tuple(coord[1] for coord in coords)
+                    left = min(xs)
+                    right = max(xs)
+                    bottom = round(min(ys), 6)
+                    top = round(max(ys), 6)
+                    x = round(0.5*(left + right), 6)
+                    width = round(right - left, 6)
+                    s = dedent(f"""
+                        Vertical.create(
+                            net, tech.getLayer('{mask.name}'),
+                            u({x}), u({width}), u({bottom}), u({top}),
+                        )
+                        pin = Vertical.create(
+                            net, tech.getLayer('{metalmask.name}'),
+                            u({x}), u({width}), u({bottom}), u({top}),
+                        )
+                        net.setExternal(True)
+                        NetExternalComponents.setExternal(pin)
+                    """[1:])
+                else:
+                    s = (
+                        f"Rectilinear.create(net, "
+                        f"tech.getLayer('{mask.name}'), [\n"
                     )
-                    pin = Vertical.create(
-                        net, tech.getLayer('{metalmask.name}'),
-                        u({x}), u({width}), u({bottom}), u({top}),
+                    s += "".join(
+                        f"    {self._s_point(point)},\n" for point in coords
                     )
-                    net.setExternal(True)
-                    NetExternalComponents.setExternal(pin)
-                """[1:])
+                    s += "])\n"
+            elif len(ints) == 1:
+                incoords = tuple(ints[0].coords)
+                if (len(coords) == 5) and (len(incoords) == 5):
+                    # Assume outer and inner are boxes
+                    out_left, out_bottom, out_right, out_top = p.exterior.bounds
+                    in_left, in_bottom, in_right, in_top = ints[0].bounds
+                    coords2 = (
+                        (out_left, out_bottom), (out_right, out_bottom),
+                        (out_right, out_top), (out_left, out_top),
+                        (out_left, in_bottom), (in_left, in_bottom),
+                        (in_left, in_top), (in_right, in_top),
+                        (in_right, in_top), (in_right, in_bottom),
+                        (out_left, in_bottom), (out_left, out_bottom),
+                    )
+                    s = (
+                        f"Rectilinear.create(net, "
+                        f"tech.getLayer('{mask.name}'), [\n"
+                    )
+                    s += "".join(
+                        f"    {self._s_point(point)},\n" for point in coords2
+                    )
+                    s += "])\n"
+                else:
+                    raise NotImplementedError(
+                        "unsupported shapely polygon with an interior"
+                    )
             else:
-                s = (
-                    f"Rectilinear.create(net, "
-                    f"tech.getLayer('{mask.name}'), [\n"
+                raise NotImplementedError(
+                    "shapely polygon with multiple interiors"
                 )
-                s += "".join(
-                    f"    {self._s_point(point)},\n" for point in coords
-                )
-                s += "])\n"
 
         return s
 
@@ -822,6 +866,7 @@ class _TechnologyGenerator:
                 DbU.setPhysicalsPerGrid({self.tech.grid}, DbU.UnitPowerMicro)
                 with CfgCache(priority=Cfg.Parameter.Priority.ConfigurationFile) as cfg:
                     cfg.gdsDriver.metricDbu = {1e-6*self.tech.grid}
+                    cfg.gdsDriver.dbuPerUu = {self.tech.grid}
                 DbU.setGridsPerLambda({round(lambda_/self.tech.grid)})
                 DbU.setSymbolicSnapGridStep(DbU.fromGrid(1.0))
                 DbU.setPolygonStep(DbU.fromGrid(1.0))
@@ -850,6 +895,11 @@ class _TechnologyGenerator:
             if implant not in written_prims:
                 s_prims += gen(implant)
                 written_prims.add(implant)
+
+        for marker in self.tech.primitives.tt_iter_type(prm.Marker):
+            assert marker not in written_prims
+            s_prims += gen(marker)
+            written_prims.add(marker)
 
         for waferwire in self.tech.primitives.tt_iter_type(prm.WaferWire):
             assert waferwire not in written_prims
@@ -962,6 +1012,8 @@ class _TechnologyGenerator:
                 # ----------------------------------------------------------------------
                 # Style: Alliance.Classic [black]
 
+                threshold = 0.2 if Viewer.Graphics.isHighDpi() else 0.1
+
                 style = Viewer.DisplayStyle( 'Alliance.Classic [black]' )
                 style.setDescription( 'Alliance Classic Look - black background' )
                 style.setDarkening  ( Viewer.DisplayStyle.HSVr(1.0, 3.0, 2.5) )
@@ -993,7 +1045,7 @@ class _TechnologyGenerator:
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('urgo.8'), border=1"
-                ", threshold=0.2)\n"
+                ", threshold=threshold)\n"
             )
         for prim in filter(
             lambda p: isinstance(p, prm.Implant) and not isinstance(p, prm.Well),
@@ -1003,13 +1055,13 @@ class _TechnologyGenerator:
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1"
-                ", threshold=0.2)\n"
+                ", threshold=threshold)\n"
             )
         for prim in self.tech.primitives.tt_iter_type(prm.WaferWire):
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
                 ", color=toRGB('White'), pattern=toHexa('antihash0.8'), border=1"
-                ", threshold=0.2)\n"
+                ", threshold=threshold)\n"
             )
             if hasattr(prim, "pin"):
                 for pin in prim.pin:
@@ -1017,14 +1069,14 @@ class _TechnologyGenerator:
                         "    style.addDrawingStyle(group='Active Layers'"
                         f", name='{pin.name}', color=toRGB('White')"
                         ", pattern=toHexa('antihash0.8'), border=2"
-                        ", threshold=0.2)\n"
+                        ", threshold=threshold)\n"
                     )
         for i, prim in enumerate(self.tech.primitives.tt_iter_type(prm.GateWire)):
             rgb = "Red" if i == 0 else "Orange"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1"
-                ", threshold=0.2)\n"
+                ", threshold=threshold)\n"
             )
             if hasattr(prim, "pin"):
                 for pin in prim.pin:
@@ -1032,7 +1084,7 @@ class _TechnologyGenerator:
                         "    style.addDrawingStyle(group='Active Layers'"
                         f", name='{pin.name}', color=toRGB('{rgb}')"
                         ", pattern=toHexa('antihash0.8'), border=2"
-                        ", threshold=0.2)\n"
+                        ", threshold=threshold)\n"
                     )
 
         s += "\n    # Routing Layers.\n"
@@ -1042,14 +1094,14 @@ class _TechnologyGenerator:
             s += (
                 f"    style.addDrawingStyle(group='Routing Layers', name='{prim.name}'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}'), border=1"
-                ", threshold=0.2)\n"
+                ", threshold=threshold)\n"
             )
             if hasattr(prim, "pin"):
                 for pin in prim.pin:
                     s += (
                         f"    style.addDrawingStyle(group='Routing Layers'"
                         f", name='{pin.name}', color=toRGB('{rgb}'), pattern=toHexa('{hexa}')"
-                        ", border=2, threshold=0.2)\n"
+                        ", border=2, threshold=threshold)\n"
                     )
 
         s += "\n    # Cuts (VIA holes).\n"
@@ -1059,7 +1111,7 @@ class _TechnologyGenerator:
             rgb = clrs[i%len(clrs)] if i > 0 else "0,150,150"
             s += (
                 f"    style.addDrawingStyle(group='Cuts (VIA holes', name='{prim.name}'"
-                f", color=toRGB('{rgb}'), threshold=0.2)\n"
+                f", color=toRGB('{rgb}'), threshold=threshold)\n"
             )
 
         s += "\n    # Blockages.\n"
@@ -1069,7 +1121,7 @@ class _TechnologyGenerator:
             s += (
                 f"    style.addDrawingStyle(group='Blockages', name='{prim.name}.blockage'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}')"
-                ", border=4, threshold=0.2)\n"
+                ", border=4, threshold=threshold)\n"
             )
 
         s += indent(dedent("""
@@ -1081,7 +1133,7 @@ class _TechnologyGenerator:
             style.addDrawingStyle( group='Knik & Kite', name='gmetalv'        , color=toRGB('200,200,255'), pattern=toHexa('light_antihash1.8'), border=1 )
             style.addDrawingStyle( group='Knik & Kite', name='gcontact'       , color=toRGB('255,255,190'),                                      border=1 )
             style.addDrawingStyle( group='Knik & Kite', name='Anabatic::Edge' , color=toRGB('255,255,190'), pattern='0000000000000000'         , border=4, threshold=0.02 )
-            style.addDrawingStyle( group='Knik & Kite', name='Anabatic::GCell', color=toRGB('255,255,190'), pattern='0000000000000000'         , border=2, threshold=0.10 )
+            style.addDrawingStyle( group='Knik & Kite', name='Anabatic::GCell', color=toRGB('255,255,190'), pattern='0000000000000000'         , border=2, threshold=threshold )
 
             Viewer.Graphics.addStyle( style )
             Viewer.Graphics.setStyle( 'Alliance.Classic [black]' )
