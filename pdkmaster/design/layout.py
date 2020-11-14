@@ -898,9 +898,8 @@ class _Layout:
                 f" '{self.fab.tech.name}'"
             )
 
-        primlayout = self.fab.new_primitivelayout(
-            prim, center=sh_geo.Point(x, y), **prim_params,
-        )
+        primlayout = self.fab.new_primitivelayout(prim, **prim_params)
+        primlayout.move(dx=x, dy=y)
         self += primlayout
         return primlayout
 
@@ -948,20 +947,6 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
     def tech(self):
         return self.fab.tech
 
-    @staticmethod
-    def _get_rect(center, args):
-        if not isinstance(center, sh_geo.Point):
-            raise TypeError("center has to be of type Point from shapely")
-
-        centerx, centery = tuple(center.coords)[0]
-
-        width = args["width"]
-        height = args["height"]
-
-        left = centerx - 0.5*width
-        bottom = centery - 0.5*height
-        return Rect(left, bottom, left + width, bottom + height)
-
     # Dispatcher implementation
     def _Primitive(self, prim, **params):
         raise NotImplementedError(
@@ -969,26 +954,30 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             f"of type '{prim.__class__.__name__}'"
         )
 
-    def _WidthSpacePrimitive(self, prim, *, center, **widthspace_params):
+    def _WidthSpacePrimitive(self, prim, **widthspace_params):
         if len(prim.ports) != 0:
             raise NotImplementedError(
                 f"Don't know how to generate minimal layout for primitive '{prim.name}'\n"
                 f"of type '{prim.__class__.__name__}'"
             )
-        r = self._get_rect(center, widthspace_params)
+        width = widthspace_params["width"]
+        height = widthspace_params["height"]
+        r = Rect(-0.5*width, -0.5*height, 0.5*width, 0.5*height)
 
         return self.fab.new_layout(
             NetlessSubLayout(MaskPolygon(prim.mask, r)),
         )
 
-    def Well(self, prim, *, center, **well_params):
-        return self._Conductor(prim, center=center, **well_params)
+    def Well(self, prim, **well_params):
+        return self._Conductor(prim, **well_params)
 
-    def _Conductor(self, prim, *, center, **conductor_params):
+    def _Conductor(self, prim, **conductor_params):
         assert (
             (len(prim.ports) == 1) and (prim.ports[0].name == "conn")
         ), "Internal error"
-        r = self._get_rect(center, conductor_params)
+        width = conductor_params["width"]
+        height = conductor_params["height"]
+        r = Rect(-0.5*width, -0.5*height, 0.5*width, 0.5*height)
 
         portnets = conductor_params["portnets"]
         net = portnets["conn"]
@@ -1002,7 +991,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def WaferWire(self, prim, *, center, **waferwire_params):
+    def WaferWire(self, prim, **waferwire_params):
         implant = waferwire_params.pop("implant")
         implant_enclosure = waferwire_params.pop("implant_enclosure")
         assert implant_enclosure is not None
@@ -1010,21 +999,15 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         well = waferwire_params.pop("well", None)
         well_enclosure = waferwire_params.pop("well_enclosure", None)
 
-        centerx, centery = tuple(center.coords)[0]
-
         width = waferwire_params["width"]
         height = waferwire_params["height"]
 
-        left = centerx - 0.5*width
-        right = left + width
-        bottom = centery - 0.5*height
-        top = bottom + height
-
-        layout = self._Conductor(prim, center=center, **waferwire_params)
-
+        layout = self._Conductor(prim, **waferwire_params)
         layout += NetlessSubLayout(MaskPolygon(
-                implant.mask,
-                _rect(left, bottom, right, top, enclosure=implant_enclosure),
+                implant.mask, _rect(
+                    -0.5*width, -0.5*height, 0.5*width, 0.5*height,
+                    enclosure=implant_enclosure,
+                ),
         ))
         if well is not None:
             try:
@@ -1035,16 +1018,20 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 )
             layout += NetSubLayout(
                 well_net, MaskPolygon(
-                    well.mask,
-                    _rect(left, bottom, right, top, enclosure=well_enclosure),
+                    well.mask, _rect(
+                        -0.5*width, -0.5*height, 0.5*width, 0.5*height,
+                        enclosure=well_enclosure,
+                    ),
                 ),
             )
 
         return layout
 
-    def Via(self, prim, *, center, **via_params):
-        if not isinstance(center, sh_geo.Point):
-            raise TypeError("center has to be of type Point from shapely")
+    def Resistor(self, prim, **resistor_params):
+        if not hasattr(prim, "contact"):
+            raise NotImplementedError("Resistor layout without contact layer")
+
+    def Via(self, prim, **via_params):
         try:
             portnets = via_params["portnets"]
         except KeyError:
@@ -1052,8 +1039,6 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         if set(portnets.keys()) != {"conn"}:
             raise ValueError(f"Via '{prim.name}' needs one net for the 'conn' port")
         net = portnets["conn"]
-
-        centerx, centery = tuple(center.coords)[0]
 
         bottom = via_params["bottom"]
         bottom_enc = via_params["bottom_enclosure"]
@@ -1119,18 +1104,18 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             bottom_width = via_width + 2*bottom_enc_x
             top_width = via_width + 2*top_enc_x
 
-        bottom_left = centerx - 0.5*bottom_width
-        bottom_bottom = centery - 0.5*bottom_height
-        bottom_right = bottom_left + bottom_width
-        bottom_top = bottom_bottom + bottom_height
+        bottom_left = -0.5*bottom_width
+        bottom_bottom = -0.5*bottom_height
+        bottom_right = 0.5*bottom_width
+        bottom_top = 0.5*bottom_height
 
-        top_left = centerx - 0.5*top_width
-        top_bottom = centery - 0.5*top_height
-        top_right = top_left + top_width
-        top_top = top_bottom + top_height
+        top_left = -0.5*top_width
+        top_bottom = -0.5*top_height
+        top_right = 0.5*top_width
+        top_top = 0.5*top_height
 
-        via_bottom = centery - 0.5*via_height
-        via_left = centerx - 0.5*via_width
+        via_bottom = -0.5*via_height
+        via_left = -0.5*via_width
 
         layout = self.fab.new_layout(
             NetSubLayout(
@@ -1201,12 +1186,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def MOSFET(self, prim, *, center, **mos_params):
-        if not isinstance(center, sh_geo.Point):
-            raise TypeError("center has to be of type Point from shapely")
-
-        centerx, centery = tuple(center.coords)[0]
-
+    def MOSFET(self, prim, **mos_params):
         l = mos_params["l"]
         w = mos_params["w"]
         impl_enc = mos_params["activeimplant_enclosure"]
@@ -1215,10 +1195,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         portnets = mos_params["portnets"]
 
-        gate_left = centerx - 0.5*l
-        gate_right = centerx + 0.5*l
-        gate_top = centery + 0.5*w
-        gate_bottom = centery - 0.5*w
+        gate_left = -0.5*l
+        gate_right = 0.5*l
+        gate_top = 0.5*w
+        gate_bottom = -0.5*w
 
         layout = self.fab.new_layout()
 
@@ -1352,7 +1332,7 @@ class _CircuitLayouter:
                     " for inst '{inst.name}' of primitive '{inst.prim.name}'"
                 )
             return self.fab.new_primitivelayout(
-                prim=inst.prim, center=sh_geo.Point(0.0, 0.0), portnets=portnets,
+                prim=inst.prim, portnets=portnets,
                 **inst.params,
             )
         elif isinstance(inst, ckt._CellInstance):
@@ -1465,11 +1445,9 @@ class LayoutFactory:
 
         return _Layout(self, sublayouts, boundary)
 
-    def new_primitivelayout(self, prim, *,
-        center=sh_geo.Point(0.0, 0.0), **prim_params
-    ):
+    def new_primitivelayout(self, prim, **prim_params):
         prim_params = prim.cast_params(prim_params)
-        return self.gen_primlayout(prim, center=center, **prim_params)
+        return self.gen_primlayout(prim, **prim_params)
 
     def new_circuitlayouter(self, circuit, *, boundary=None):
         return _CircuitLayouter(self, circuit, boundary=boundary)
