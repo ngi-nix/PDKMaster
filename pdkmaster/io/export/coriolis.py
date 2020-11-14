@@ -508,7 +508,7 @@ class _LibraryGenerator:
             if i < (len(self.vias) - 1):
                 via = self.vias[i + 1]
                 metal_idx = via.bottom.index(metal)
-                enc = via.min_top_enclosure[metal_idx]
+                enc = via.min_bottom_enclosure[metal_idx]
                 metal2 = self.metals[i+1]
                 via_name = f"{metal.name}_{via.name}_{metal2.name}"
                 if routedir == "horizontal":
@@ -744,7 +744,7 @@ class _LibraryGenerator:
                         c5 = coords[-1]
                         if (
                             (c0[0] == c1[0] == c4[0] == c5[0])
-                            or (c0[0] == c1[0] == c4[0] == c5[0])
+                            or (c0[1] == c1[1] == c4[1] == c5[1])
                         ):
                             coords = coords[1:-1] + coords[1:2]
                     if len(coords) != 5:

@@ -53,7 +53,7 @@ class Technology(abc.ABC):
                     enc = prp.Enclosure(0.0)
                     w = 0.0
 
-                enc = enc.min if min_enclosure else enc.max()
+                enc = enc.min() if min_enclosure else enc.max()
                 return w + 2*enc
 
             return max((

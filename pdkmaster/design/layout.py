@@ -924,8 +924,16 @@ class _Layout:
             mp.move(dx, dy)
 
     def moved(self, dx, dy):
-        return Layout(
-            SubLayouts(mp.moved(dx, dy) for mp in self.sublayouts), self.boundary,
+        if self.boundary is None:
+            bound = None
+        else:
+            bound = Rect(
+                self.boundary.left + dx, self.boundary.bottom + dy,
+                self.boundary.right + dx, self.boundary.top + dy,
+            )
+        return _Layout(
+            self.fab, SubLayouts(mp.moved(dx, dy) for mp in self.sublayouts),
+            bound,
         )
 
     def freeze(self):
@@ -1502,12 +1510,12 @@ class LayoutFactory:
             else:
                 if not isinstance(bound_spec, Rect):
                     bound_spec = Rect(*bound_spec)
-                spec_out = {
+                spec_out.update({
                     "x": (bound_spec.left + bound_spec.right)/2.0,
                     "y": (bound_spec.bottom + bound_spec.top)/2.0,
                     "width": bound_spec.right - bound_spec.left,
                     "height": bound_spec.top - bound_spec.bottom,
-                }
+                })
         else:
             if not isinstance(via, prm.Via):
                 raise TypeError("via has to be 'None' or of type 'Via'")
