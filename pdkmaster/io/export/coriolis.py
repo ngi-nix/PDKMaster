@@ -895,58 +895,28 @@ class _TechnologyGenerator:
 
         s_prims = ""
         written_prims = set()
-        
-        def add_pin(wire):
-            s = ""
-            for pin in getattr(wire, "pin", []):
-                if pin not in written_prims:
-                    s += gen(pin)
-                    written_prims.add(pin)
 
-            return s
+        for prim in self.tech.primitives:
+            # Some primitives are handled later or don't need to be handled
+            if isinstance(
+                prim, (prm.Resistor, prm.MOSFETGate, prm.MOSFET, prm.Spacing),
+            ):
+                continue
+            # Do not generate layer for Auxiliary layers to avoid having too many
+            # layer definitions. Still mark the layer as written.
+            if not isinstance(prim, prm.Auxiliary):
+                s_prims += gen(prim)
+            written_prims.add(prim)
 
-        for well in self.tech.primitives.tt_iter_type(prm.Well):
-            if well not in written_prims:
-                s_prims += gen(well)
-                written_prims.add(well)
-
-        for implant in self.tech.primitives.tt_iter_type(prm.Implant):
-            if implant not in written_prims:
-                s_prims += gen(implant)
-                written_prims.add(implant)
-
-        for marker in self.tech.primitives.tt_iter_type(prm.Marker):
-            assert marker not in written_prims
-            s_prims += gen(marker)
-            written_prims.add(marker)
-
-        for waferwire in self.tech.primitives.tt_iter_type(prm.WaferWire):
-            assert waferwire not in written_prims
-            s_prims += gen(waferwire)
-            written_prims.add(waferwire)
-            s_prims += add_pin(waferwire)
-
-        for gatewire in self.tech.primitives.tt_iter_type(prm.GateWire):
-            assert gatewire not in written_prims
-            s_prims += gen(gatewire)
-            written_prims.add(gatewire)
-            s_prims += add_pin(gatewire)
-
-        for insulator in self.tech.primitives.tt_iter_type(prm.Insulator):
-            assert insulator not in written_prims
-            s_prims += gen(insulator)
-            written_prims.add(insulator)
-
-        for via in self.tech.primitives.tt_iter_type((prm.Via, prm.PadOpening)):
-            assert via not in written_prims
-            bottoms = via.bottom if isinstance(via, prm.Via) else (via.bottom,)
-            for bottom in bottoms:
-                if bottom not in written_prims:
-                    s_prims += gen(bottom)
-                    written_prims.add(bottom)
-                    s_prims += add_pin(bottom)
-            s_prims += gen(via)
-            written_prims.add(via)
+        # Check if all basic layers were included
+        unhandled_masks = (
+            set(prim.name for prim in written_prims)
+            - set(mask.name for mask in self.tech.designmasks)
+        )
+        if unhandled_masks:
+            raise NotImplementedError(
+                f"Layer generation for masks {unhandled_masks} not implemented",
+            )
 
         s_prims += "\n# ViaLayers\n"
         for via in self.tech.primitives.tt_iter_type(prm.Via):
@@ -968,27 +938,6 @@ class _TechnologyGenerator:
         ):
             s_prims += _str_create_basic(name, mat)
 
-        extraprocesses = set()
-        for res in self.tech.primitives.tt_iter_type(prm.Resistor):
-            extraprocesses.update(res.indicator)
-        for proc in extraprocesses:
-            s_prims += gen(proc)
-        written_prims.update(extraprocesses)
-
-        # Make string for auxiliary primitives, add it at the end.
-        s_aux = ""
-        for aux in self.tech.primitives.tt_iter_type(prm.Auxiliary):
-            assert aux not in written_prims
-            s_aux += gen(aux)
-            written_prims.add(aux)
-
-        unhandled_masks = (
-            set(prim.name for prim in written_prims)
-            - set(mask.name for mask in self.tech.designmasks)
-        )
-        if unhandled_masks:
-            raise NotImplementedError(f"Layer generation for masks {unhandled_masks} not implemented")
-
         s_prims += "\n# Resistors\n"
         for prim in self.tech.primitives.tt_iter_type(prm.Resistor):
             assert prim not in written_prims
@@ -1000,10 +949,6 @@ class _TechnologyGenerator:
             assert prim not in written_prims
             s_prims += gen(prim)
             written_prims.add(prim)
-
-        # TODO: Export auxiliary
-        # if s_aux:
-        #     s_prims += "\n# Auxiliary\n" + s_aux
 
         return s_head + indent(s_prims, prefix="    ")
 
