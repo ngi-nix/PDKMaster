@@ -1082,10 +1082,6 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def Resistor(self, prim, **resistor_params):
-        if not hasattr(prim, "contact"):
-            raise NotImplementedError("Resistor layout without contact layer")
-
     def Via(self, prim, **via_params):
         try:
             portnets = via_params["portnets"]
@@ -1240,6 +1236,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 )
 
         return layout
+
+    def Resistor(self, prim, **resistor_params):
+        if not hasattr(prim, "contact"):
+            raise NotImplementedError("Resistor layout without contact layer")
 
     def MOSFET(self, prim, **mos_params):
         l = mos_params["l"]

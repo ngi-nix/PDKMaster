@@ -13,8 +13,8 @@ from . import (
 __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Implant", "Well",
            "Insulator", "WaferWire", "GateWire", "MetalWire", "TopMetalWire",
-           "Resistor",
            "Via", "PadOpening",
+           "Resistor",
            "MOSFETGate", "MOSFET",
            "Spacing",
            "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
@@ -756,74 +756,6 @@ class MetalWire(_Conductor):
 class TopMetalWire(MetalWire):
     pass
 
-class Resistor(_WidthSpacePrimitive):
-    def __init__(self, name=None, *,
-        wire, indicator, min_enclosure,
-        **widthspace_args,
-    ):
-        if not isinstance(wire, (WaferWire, GateWire, MetalWire)):
-            raise TypeError(
-                "wire has to be of type '(Wafer|Gate|Metal)Wire'"
-            )
-        self.wire = wire
-
-        if not _util.is_iterable(indicator):
-            indicator = (indicator,)
-        if not all(isinstance(prim, (Marker, ExtraProcess)) for prim in indicator):
-            raise TypeError(
-                "indicator has to be of type 'Marker' or 'ExtraProcess' "
-                "or an iterable of those"
-            )
-        self.indicator = indicator
-
-        if "mask" in widthspace_args:
-            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
-        else:
-            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in (wire, *indicator))
-
-        if "grid" in widthspace_args:
-            raise TypeError("Resistor got an unexpected keyword argument 'grid'")
-
-        if "min_width" in widthspace_args:
-            if widthspace_args["min_width"] < wire.min_width:
-                raise ValueError("min_width may not be smaller than base wire min_width")
-        else:
-            widthspace_args["min_width"] = wire.min_width
-
-        if "min_space" in widthspace_args:
-            if widthspace_args["min_space"] < wire.min_space:
-                raise ValueError("min_space may not be smaller than base wire min_space")
-        else:
-            widthspace_args["min_space"] = wire.min_space
-
-        if name is not None:
-            widthspace_args["name"] = name
-        super().__init__(**widthspace_args)
-
-        min_enclosure = _util.v2t(min_enclosure)
-        if not all(isinstance(enc, prp.Enclosure) for enc in min_enclosure):
-            raise TypeError(
-                "min_enclosure has to be of type 'Enclosure' or an "
-                "iterable of type 'Enclosure'"
-            )
-        if len(min_enclosure) == 1:
-            min_enclosure = len(indicator)*min_enclosure
-        if len(min_enclosure) != len(indicator):
-            raise ValueError("mismatch in number of indicator and min_enclosure")
-        self.min_enclosure = min_enclosure
-
-    def _generate_rules(self, tech):
-        # Do not generate the default width/space rules.
-        _Primitive._generate_rules(self, tech)
-
-        if self.min_width > self.wire.min_width:
-            self._rules += (self.mask.width >= self.min_width,)
-        if self.min_space > self.wire.min_space:
-            self._rules += (self.mask.space >= self.min_space,)
-        if hasattr(self, "min_area"):
-            if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
-                self._rules += (self.mask.area >= self.min_area,)
-
 class Via(_MaskPrimitive):
     def __init__(self, name, *,
         bottom, top,
@@ -1084,43 +1016,73 @@ class PadOpening(_Conductor):
             yield mask
         yield self.bottom.mask
 
-class Spacing(_Primitive):
-    def __init__(self, *, primitives1, primitives2, min_space):
-        primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
-        if not all(isinstance(prim, _MaskPrimitive) for prim in primitives1):
-            raise TypeError("primitives1 has to be of type '_Primitive' or an iterable of type '_Primitive'")
-        primitives2 = tuple(primitives2) if _util.is_iterable(primitives2) else (primitives2,)
-        if not all(isinstance(prim, _MaskPrimitive) for prim in primitives2):
-            raise TypeError("primitives2 has to be of type '_Primitive' or an iterable of type '_Primitive'")
-        min_space = _util.i2f(min_space)
-        if not isinstance(min_space, float):
-            raise TypeError("min_space has to be a float")
+class Resistor(_WidthSpacePrimitive):
+    def __init__(self, name=None, *,
+        wire, indicator, min_enclosure,
+        **widthspace_args,
+    ):
+        if not isinstance(wire, (WaferWire, GateWire, MetalWire)):
+            raise TypeError(
+                "wire has to be of type '(Wafer|Gate|Metal)Wire'"
+            )
+        self.wire = wire
 
-        name = "Spacing({})".format(",".join(
-            (
-                prims[0].name if len(prims) == 1
-                else "({})".format(",".join(prim.name for prim in prims))
-            ) for prims in (primitives1, primitives2)
-        ))
-        super().__init__(name)
-        self.primitives1 = primitives1
-        self.primitives2 = primitives2
-        self.min_space = min_space
+        if not _util.is_iterable(indicator):
+            indicator = (indicator,)
+        if not all(isinstance(prim, (Marker, ExtraProcess)) for prim in indicator):
+            raise TypeError(
+                "indicator has to be of type 'Marker' or 'ExtraProcess' "
+                "or an iterable of those"
+            )
+        self.indicator = indicator
+
+        if "mask" in widthspace_args:
+            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
+        else:
+            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in (wire, *indicator))
+
+        if "grid" in widthspace_args:
+            raise TypeError("Resistor got an unexpected keyword argument 'grid'")
+
+        if "min_width" in widthspace_args:
+            if widthspace_args["min_width"] < wire.min_width:
+                raise ValueError("min_width may not be smaller than base wire min_width")
+        else:
+            widthspace_args["min_width"] = wire.min_width
+
+        if "min_space" in widthspace_args:
+            if widthspace_args["min_space"] < wire.min_space:
+                raise ValueError("min_space may not be smaller than base wire min_space")
+        else:
+            widthspace_args["min_space"] = wire.min_space
+
+        if name is not None:
+            widthspace_args["name"] = name
+        super().__init__(**widthspace_args)
+
+        min_enclosure = _util.v2t(min_enclosure)
+        if not all(isinstance(enc, prp.Enclosure) for enc in min_enclosure):
+            raise TypeError(
+                "min_enclosure has to be of type 'Enclosure' or an "
+                "iterable of type 'Enclosure'"
+            )
+        if len(min_enclosure) == 1:
+            min_enclosure = len(indicator)*min_enclosure
+        if len(min_enclosure) != len(indicator):
+            raise ValueError("mismatch in number of indicator and min_enclosure")
+        self.min_enclosure = min_enclosure
 
     def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+        # Do not generate the default width/space rules.
+        _Primitive._generate_rules(self, tech)
 
-        self._rules += tuple(
-            msk.Spacing(prim1.mask,prim2.mask) >= self.min_space
-            for prim1, prim2 in product(self.primitives1, self.primitives2)
-        )
-
-    @property
-    def designmasks(self):
-        return super().designmasks
-
-    def __repr__(self):
-        return self.name
+        if self.min_width > self.wire.min_width:
+            self._rules += (self.mask.width >= self.min_width,)
+        if self.min_space > self.wire.min_space:
+            self._rules += (self.mask.space >= self.min_space,)
+        if hasattr(self, "min_area"):
+            if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
+                self._rules += (self.mask.area >= self.min_area,)
 
 class MOSFETGate(_WidthSpacePrimitive):
     class _ComputedProps:
@@ -1613,6 +1575,44 @@ class MOSFET(_Primitive):
             if (not hasattr(self.gate, "contact")) or (self.contact != self.gate.contact):
                 for mask in self.contact.designmasks:
                     yield mask
+
+class Spacing(_Primitive):
+    def __init__(self, *, primitives1, primitives2, min_space):
+        primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
+        if not all(isinstance(prim, _MaskPrimitive) for prim in primitives1):
+            raise TypeError("primitives1 has to be of type '_Primitive' or an iterable of type '_Primitive'")
+        primitives2 = tuple(primitives2) if _util.is_iterable(primitives2) else (primitives2,)
+        if not all(isinstance(prim, _MaskPrimitive) for prim in primitives2):
+            raise TypeError("primitives2 has to be of type '_Primitive' or an iterable of type '_Primitive'")
+        min_space = _util.i2f(min_space)
+        if not isinstance(min_space, float):
+            raise TypeError("min_space has to be a float")
+
+        name = "Spacing({})".format(",".join(
+            (
+                prims[0].name if len(prims) == 1
+                else "({})".format(",".join(prim.name for prim in prims))
+            ) for prims in (primitives1, primitives2)
+        ))
+        super().__init__(name)
+        self.primitives1 = primitives1
+        self.primitives2 = primitives2
+        self.min_space = min_space
+
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        self._rules += tuple(
+            msk.Spacing(prim1.mask,prim2.mask) >= self.min_space
+            for prim1, prim2 in product(self.primitives1, self.primitives2)
+        )
+
+    @property
+    def designmasks(self):
+        return super().designmasks
+
+    def __repr__(self):
+        return self.name
 
 class Primitives(_util.TypedTuple):
     tt_element_type = _Primitive

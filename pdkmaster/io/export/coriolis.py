@@ -119,16 +119,6 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
                 minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
             )
 
-    def Resistor(self, prim):
-        if len(prim.indicator) == 1:
-            s_indicator = f"'{prim.indicator[0].name}'"
-        else:
-            s_indicator = str(tuple(ind.name for ind in prim.indicator))
-        return (
-            f"# ResistorLayer.create(tech, '{prim.name}', '{prim.wire.name}', "
-            f"{s_indicator})\n"
-        )
-
     def Via(self, prim, *, via_layer=False):
         if via_layer:
             return _str_create_via(prim)
@@ -148,6 +138,16 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         return _str_create_basic(
             prim.name, "cut",
             minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+        )
+
+    def Resistor(self, prim):
+        if len(prim.indicator) == 1:
+            s_indicator = f"'{prim.indicator[0].name}'"
+        else:
+            s_indicator = str(tuple(ind.name for ind in prim.indicator))
+        return (
+            f"# ResistorLayer.create(tech, '{prim.name}', '{prim.wire.name}', "
+            f"{s_indicator})\n"
         )
 
     def MOSFETGate(self, prim):
@@ -242,17 +242,6 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         # Also handles TopMetalWire
         return self._rows_widthspace(prim)
 
-    def Resistor(self, prim):
-        s = self._rows_widthspace(prim)
-        for i in range(len(prim.indicator)):
-            ind = prim.indicator[i]
-            enc = prim.min_enclosure[i].spec
-            s += (
-                f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc}, "
-                "Length|Asymmetric, ''),\n"
-            )
-        return s
-
     def Via(self, prim):
         s = self._rows_mask(prim)
         s += f"('minWidth', '{prim.name}', {prim.width}, Length, ''),\n"
@@ -282,12 +271,16 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         )
         return s
 
-    def Spacing(self, prim):
-        return "".join(
-            f"('minSpacing', '{prim1.name}', '{prim2.name}', {prim.min_space}, "
-            "Length|Asymmetric, ''),\n"
-            for prim1, prim2 in product(prim.primitives1, prim.primitives2)
-        )
+    def Resistor(self, prim):
+        s = self._rows_widthspace(prim)
+        for i in range(len(prim.indicator)):
+            ind = prim.indicator[i]
+            enc = prim.min_indicator_extension[i]
+            s += (
+                f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc}, "
+                "Length|Asymmetric, ''),\n"
+            )
+        return s
 
     def MOSFETGate(self, prim):
         s = ""
@@ -351,6 +344,13 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
                 f"{prim.min_gate_space}, Length, ''),\n"
             )
         return s
+
+    def Spacing(self, prim):
+        return "".join(
+            f"('minSpacing', '{prim1.name}', '{prim2.name}', {prim.min_space}, "
+            "Length|Asymmetric, ''),\n"
+            for prim1, prim2 in product(prim.primitives1, prim.primitives2)
+        )
 
 
 class _LibraryGenerator:

@@ -55,9 +55,6 @@ class PrimitiveDispatcher:
 
     def TopMetalWire(self, prim, *args, **kwargs):
         return self.MetalWire(prim, *args, **kwargs)
-
-    def Resistor(self, prim, *args, **kwargs):
-        return self._WidthSpacePrimitive(prim, *args, **kwargs)
     
     def Via(self, prim, *args, **kwargs):
         return self._MaskPrimitive(prim, *args, **kwargs)
@@ -65,11 +62,14 @@ class PrimitiveDispatcher:
     def PadOpening(self, prim, *args, **kwargs):
         return self._Conductor(prim, *args, **kwargs)
 
-    def Spacing(self, prim, *args, **kwargs):
-        return self._Primitive(prim, *args, **kwargs)
+    def Resistor(self, prim, *args, **kwargs):
+        return self._WidthSpacePrimitive(prim, *args, **kwargs)
 
     def MOSFETGate(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
 
     def MOSFET(self, prim, *args, **kwargs):
+        return self._Primitive(prim, *args, **kwargs)
+
+    def Spacing(self, prim, *args, **kwargs):
         return self._Primitive(prim, *args, **kwargs)
