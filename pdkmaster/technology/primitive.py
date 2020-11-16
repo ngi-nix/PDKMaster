@@ -14,7 +14,7 @@ __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Implant", "Well",
            "Insulator", "WaferWire", "GateWire", "MetalWire", "TopMetalWire",
            "Via", "PadOpening",
-           "Resistor",
+           "Resistor", "Diode",
            "MOSFETGate", "MOSFET",
            "Spacing",
            "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
@@ -1153,6 +1153,108 @@ class Resistor(_WidthSpacePrimitive):
             ext = self.min_indicator_extension[i]
             mask = self.wire.mask.remove(ind.mask)
             self._rules += (mask.width >= ext,)
+
+class Diode(_WidthSpacePrimitive):
+    def __init__(self, name=None, *,
+        wire, indicator, min_indicator_enclosure=None,
+        implant, min_implant_enclosure=None,
+        well=None, min_well_enclosure=None,
+        model=None, **widthspace_args,
+    ):
+        if not isinstance(wire, WaferWire):
+            raise TypeError(
+                "wire has to be of type 'WaferWire'"
+            )
+        self.wire = wire
+
+        indicator = _util.v2t(indicator)
+        if not all(isinstance(prim, (Marker, ExtraProcess)) for prim in indicator):
+            raise TypeError(
+                "indicator has to be of type 'Marker' or 'ExtraProcess' "
+                "or an iterable of those"
+            )
+        self.indicator = indicator
+
+        if "mask" in widthspace_args:
+            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
+        else:
+            widthspace_args["mask"] = msk.Intersect(
+                prim.mask for prim in (wire, *indicator)
+            )
+
+        if "grid" in widthspace_args:
+            raise TypeError("Resistor got an unexpected keyword argument 'grid'")
+
+        if "min_width" in widthspace_args:
+            if widthspace_args["min_width"] < wire.min_width:
+                raise ValueError("min_width may not be smaller than base wire min_width")
+        else:
+            widthspace_args["min_width"] = wire.min_width
+
+        if "min_space" in widthspace_args:
+            if widthspace_args["min_space"] < wire.min_space:
+                raise ValueError("min_space may not be smaller than base wire min_space")
+        else:
+            widthspace_args["min_space"] = wire.min_space
+
+        if name is not None:
+            widthspace_args["name"] = name
+        super().__init__(**widthspace_args)
+
+        self.ports += (_PrimitiveNet(self, name) for name in ("anode", "cathode"))
+
+        min_indicator_enclosure = _util.v2t(min_indicator_enclosure)
+        if not all(isinstance(enc, prp.Enclosure) for enc in min_indicator_enclosure):
+            raise TypeError(
+                "min_indicator_enclosure has to be of type 'Enclosure'"
+                " or an iterable of those"
+            )
+        if len(min_indicator_enclosure) == 1:
+            min_indicator_enclosure *= len(indicator)
+        if len(min_indicator_enclosure) != len(indicator):
+            raise ValueError(
+                "mismatch in number of indicators and min_indicator_enclosures"
+            )
+        self.min_indicator_enclosure = min_indicator_enclosure
+
+        if not isinstance(implant, Implant) and not isinstance(implant, Well):
+            raise TypeError("implant has to be of type 'Implant'")
+        if not implant in wire.implant:
+            raise ValueError(
+                f"implant '{implant.name}' is not valid for waferwire '{wire.name}'"
+            )
+        self.implant = implant
+        if min_implant_enclosure is not None:
+            if not isinstance(min_implant_enclosure, prp.Enclosure):
+                raise TypeError(
+                    "min_implant_enclosure has to be 'None' or of type 'Enclosure'"
+                )
+            self.min_implant_enclosure = min_implant_enclosure
+
+        if well is None:
+            if not wire.allow_in_substrate:
+                raise TypeError(f"wire '{wire.name}' has to be in a well")
+            # TODO: check types of substrate and implant
+            if min_well_enclosure is not None:
+                raise TypeError("min_well_enclosure given without a well")
+        else:
+            if not isinstance(well, Well):
+                raise TypeError("well has to be of type 'Well'")
+            if well not in wire.well:
+                raise ValueError(
+                    f"well '{well.name}' is not a valid well for wire '{wire.name}'"
+                )
+            if well.type_ == implant.type_:
+                raise ValueError(
+                    f"type of implant '{implant.name}' may not be the same as"
+                    " type of well '{well.name}' for a diode"
+                )
+            self.well = well
+
+        if model is not None:
+            if not isinstance(model, str):
+                raise TypeError("model has to be 'None' or a string")
+            self.model = model
 
 class MOSFETGate(_WidthSpacePrimitive):
     class _ComputedProps:

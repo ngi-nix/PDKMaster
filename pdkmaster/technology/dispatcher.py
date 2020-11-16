@@ -65,6 +65,9 @@ class PrimitiveDispatcher:
     def Resistor(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
 
+    def Diode(self, prim, *args, **kwargs):
+        return self._WidthSpacePrimitive(prim, *args, **kwargs)
+
     def MOSFETGate(self, prim, *args, **kwargs):
         return self._WidthSpacePrimitive(prim, *args, **kwargs)
 

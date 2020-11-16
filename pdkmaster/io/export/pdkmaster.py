@@ -161,6 +161,23 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
 
         s += self._params_widthspace(prim)
         return s
+
+    def _params_Diode(self, prim):
+        s = f"wire={_str_prim(prim.wire)}, indicator={_str_primtuple(prim.indicator)},\n"
+        s += f"min_indicator_enclosure={_str_enclosures(prim.min_indicator_enclosure)},\n"
+        s += f"implant={_str_prim(prim.implant)}"
+        if hasattr(prim, "min_implant_enclosure"):
+            s += f", min_implant_enclosure={_str_enclosure(prim.min_implant_enclosure)}"
+        s += ",\n"
+        if hasattr(prim, "well"):
+            s += f"well={_str_prim(prim.well)}"
+            if hasattr(prim, "min_well_enclosure"):
+                s += f", min_well_enclosure={_str_enclosure(prim.min_well_enclosre)}"
+            s += ",\n"
+        if hasattr(prim, "model"):
+            s += f"model='{prim.model}',\n"
+        s += self._params_widthspace(prim)
+        return s
     
     def _params_Via(self, prim):
         s = f"bottom={_str_primtuple(prim.bottom)},\n"

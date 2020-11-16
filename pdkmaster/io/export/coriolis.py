@@ -150,6 +150,16 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             f"{s_indicator})\n"
         )
 
+    def Diode(self, prim):
+        if len(prim.indicator) == 1:
+            s_indicator = f"'{prim.indicator[0].name}'"
+        else:
+            s_indicator = str(tuple(ind.name for ind in prim.indicator))
+        return (
+            f"# DiodeLayer.create(tech, '{prim.name}', '{prim.wire.name}', "
+            f"{s_indicator})\n"
+        )
+
     def MOSFETGate(self, prim):
         s_oxide = f", '{prim.oxide.name}'" if hasattr(prim, "oxide") else ""
         return (
@@ -278,6 +288,18 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             enc = prim.min_indicator_extension[i]
             s += (
                 f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc}, "
+                "Length|Asymmetric, ''),\n"
+            )
+        s = indent(s, prefix="# ")
+        return s
+
+    def Diode(self, prim):
+        s = self._rows_widthspace(prim)
+        for i in range(len(prim.indicator)):
+            ind = prim.indicator[i]
+            enc = prim.min_indicator_enclosure[i]
+            s += (
+                f"('minEnclosure', '{ind.name}', '{prim.wire.name}', {enc.spec}, "
                 "Length|Asymmetric, ''),\n"
             )
         s = indent(s, prefix="# ")

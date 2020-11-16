@@ -233,10 +233,15 @@ class Technology(abc.ABC):
         for resistor in resistors:
             markers.update(resistor.indicator)
 
+        # process diodes
+        diodes = set(prims.tt_iter_type(prm.Diode))
+        for diode in diodes:
+            markers.update(diode.indicator)
+
         # process spacings
         spacings = set(prims.tt_iter_type(prm.Spacing))
 
-        add_prims((*markers, *resistors, *spacings))
+        add_prims((*markers, *resistors, *diodes, *spacings))
 
         # process auxiliary
         def aux_key(aux):

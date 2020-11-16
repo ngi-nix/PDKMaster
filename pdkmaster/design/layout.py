@@ -1333,6 +1333,42 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
+    def Diode(self, prim, **diode_params):
+        try:
+            portnets = diode_params.pop("portnets")
+        except KeyError:
+            an = prim.ports.anode
+            cath = prim.ports.cathode
+        else:
+            an = portnets["anode"]
+            cath = portnets["cathode"]
+
+        if hasattr(prim, "min_implant_enclosure"):
+            raise NotImplementedError(
+                "Diode layout generation with min_implant_enclosure specified"
+            )
+        wirenet_args = {
+            "implant": prim.implant,
+            "net": an if prim.implant.type_ == "p" else cath,
+        }
+        if hasattr(prim, "well"):
+            wirenet_args.update({
+                "well": prim.well,
+                "well_net": cath if prim.implant.type_ == "p" else an,
+            })
+
+        layout = self.fab.new_layout()
+        layout.add_wire(wire=prim.wire, x=0.0, y=0.0, **wirenet_args, **diode_params)
+        wireact_bounds = layout.bounds(mask=prim.wire.mask)
+        act_width = wireact_bounds.right - wireact_bounds.left
+        act_height = wireact_bounds.top - wireact_bounds.bottom
+
+        for i, ind in enumerate(prim.indicator):
+            enc = prim.min_indicator_enclosure[i].max()
+            layout += self(ind, width=(act_width + 2*enc), height=(act_height + 2*enc))
+
+        return layout
+
     def MOSFET(self, prim, **mos_params):
         l = mos_params["l"]
         w = mos_params["w"]
