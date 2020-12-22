@@ -1644,6 +1644,24 @@ class _CircuitLayouter:
         else:
             raise AssertionError("Internal error")
 
+    def wire_layout(self, *, net, wire, **wire_params):
+        if net not in self.circuit.nets:
+            raise ValueError(
+                f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
+            )
+        if not (
+            hasattr(wire, "ports")
+            and (len(wire.ports) == 1)
+            and (wire.ports[0].name == "conn")
+        ):
+            raise TypeError(
+                f"Wire '{wire.name}' does not have exactly one port named 'conn'"
+            )
+
+        return self.fab.new_primitivelayout(
+            wire, portnets={"conn": net}, **wire_params,
+        )
+
     def place(self, object_, *, x, y, layoutname=None):
         if not isinstance(object_, (ckt._Instance, _Layout)):
             raise TypeError("inst has to be of type '_Instance' or '_Layout'")
