@@ -1,3 +1,4 @@
+from math import floor, ceil
 import abc
 
 from .. import _util
@@ -95,8 +96,29 @@ class Technology(abc.ABC):
 
         self.computed = self._ComputedSpecs(self)
 
-    def on_grid(self, dim):
-        return round(dim/self.grid)*self.grid
+    def on_grid(self, dim, *, mult=1, rounding="nearest"):
+        dim = _util.i2f(dim)
+        if not isinstance(dim, float):
+            raise TypeError(
+                f"dim has to be a float, not of type '{type(dim)}'"
+            )
+        if not isinstance(mult, int):
+            raise TypeError(
+                f"mult has to an int, not of type '{type(mult)}'"
+            )
+        if not isinstance(rounding, str):
+            raise TypeError(
+                f"rounding has to be a string, not of type '{type(rounding)}'"
+            )
+        flookup = {"nearest": round, "floor": floor, "ceiling": ceil}
+        try:
+            f = flookup[rounding]
+        except KeyError:
+            raise ValueError(
+                f"rounding has to be one of {tuple(flookup.keys())}, not '{rounding}'"
+            )
+
+        return f(dim/(mult*self.grid))*mult*self.grid
 
     @abc.abstractmethod
     def _init(self):
