@@ -75,7 +75,8 @@ class _Primitive(abc.ABC):
                         v = None
                     else:
                         raise ValueError(
-                            f"Missing required parameter '{param.name}'"
+                            f"Missing required parameter '{param.name}' for"
+                            f" primitive '{self.name}'"
                         )
             else:
                 v = params.pop(param.name, default)
@@ -97,7 +98,7 @@ class _Primitive(abc.ABC):
                 ):
                     raise ValueError(
                         f"Nets for ports {portnetnames} specified but prim '{self.name}'"
-                        " has ports {portnames}"
+                        f" has ports {portnames}"
                     )
                 casted["portnets"] = portnets
 
@@ -399,7 +400,7 @@ class _WidthSpacePrimitive(_MaskPrimitive):
         if pin is not None:
             pin = _util.v2t(pin)
             if not all(isinstance(p, Marker) for p in pin):
-                raise ValueError(
+                raise TypeError(
                     f"pin argument for {self.__class__.__name__} has to None, "
                     "of type 'Marker' or an iterable of type 'Marker'"
                 )

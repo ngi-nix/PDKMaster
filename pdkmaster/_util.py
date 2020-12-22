@@ -91,7 +91,10 @@ class TypedTuple(abc.ABC):
         if isinstance(key, int):
             return self._t[key]
         elif isinstance(key, self.tt_index_type) and hasattr(self, "_d"):
-            return self.__getattr__(key)
+            try:
+                return self.__getattr__(key)
+            except AttributeError:
+                raise KeyError(f"'{key}'")
         else:
             raise KeyError(f"'{key}'")
 

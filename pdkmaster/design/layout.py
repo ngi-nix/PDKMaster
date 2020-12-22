@@ -296,7 +296,9 @@ class MaskPolygon:
 
     def overlaps_with(self, other):
         if not isinstance(other, MaskPolygon):
-            raise TypeError("other has to be of type 'MaskPolygon'")
+            raise TypeError(
+                f"other has to be of type 'MaskPolygon', not '{type(other)}'"
+            )
         return (
             (self.mask == other.mask)
             and self.polygon.intersects(other.polygon)
@@ -1512,7 +1514,7 @@ class _CircuitLayouter:
             if not (portnames == portnetnames):
                 raise ValueError(
                     f"Unconnected port(s) {portnames - portnetnames}"
-                    " for inst '{inst.name}' of primitive '{inst.prim.name}'"
+                    f" for inst '{inst.name}' of primitive '{inst.prim.name}'"
                 )
             return self.fab.new_primitivelayout(
                 prim=inst.prim, portnets=portnets,
@@ -1561,7 +1563,7 @@ class _CircuitLayouter:
                 if not (portnames == portnetnames):
                     raise ValueError(
                         f"Unconnected port(s) {portnames - portnetnames}"
-                        " for inst '{inst.name}' of primitive '{inst.prim.name}'"
+                        f" for inst '{inst.name}' of primitive '{inst.prim.name}'"
                     )
                 return self.layout.add_primitive(
                     prim=inst.prim, x=x, y=y, portnets=portnets, **inst.params,

@@ -43,8 +43,8 @@ class _SubCircuit(SubCircuit):
                             net = netlookup[port]
                         except KeyError:
                             raise ValueError(
-                                f"Port {port.full_name} not on any net in circuit "
-                                f"{circuit.name}"
+                                f"Port '{port.full_name}' not on any net in circuit "
+                                f"'{name}'"
                             )
                         else:
                             sgdb += (net.name,)

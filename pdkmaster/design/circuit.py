@@ -69,7 +69,12 @@ class _CellInstance(_Instance):
         self.cell = cell
 
         if circuitname is None:
-            circuit = cell.circuit
+            try:
+                circuit = self.cell.circuit
+            except AttributeError:
+                raise TypeError(
+                    "no circuitname provided for cell without default circuit"
+                )
         else:
             if not isinstance(circuitname, str):
                 raise TypeError("circuitname has to be 'None' or a string")
@@ -157,7 +162,9 @@ class _Circuit:
                 raise NotImplementedError("Parametric Circuit instance")
             inst = _CellInstance(name, object_, circuitname=circuitname)
         else:
-            raise TypeError("object_ has to be of type '_Primitive' or '_Cell'")
+            raise TypeError(
+                f"object_ has to be of type '_Primitive' or '_Cell', not {type(object_)}",
+            )
 
         self.instances += inst
         return inst

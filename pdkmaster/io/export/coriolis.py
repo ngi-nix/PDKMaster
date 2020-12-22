@@ -771,7 +771,9 @@ class _LibraryGenerator:
                         ):
                             coords = coords[1:-1] + coords[1:2]
                     if len(coords) != 5:
-                        raise NotImplementedError("Non-rectangular pin")
+                        raise NotImplementedError(
+                            f"Non-rectangular pin with coords '{coords}'"
+                        )
                     xs = tuple(coord[0] for coord in coords)
                     ys = tuple(coord[1] for coord in coords)
                     left = min(xs)
