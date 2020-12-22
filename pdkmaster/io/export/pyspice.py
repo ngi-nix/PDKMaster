@@ -51,14 +51,14 @@ class _SubCircuit(SubCircuit):
                     # TODO: support more instance parameters
                     self.M(inst.name, *sgdb,
                         model=inst.prim.model,
-                        l=u_µm(inst.params["l"]), w=u_µm(inst.params["w"]),
+                        l=u_µm(round(inst.params["l"],6)), w=u_µm(round(inst.params["w"],6)),
                     )
                 elif isinstance(inst.prim, prm.Resistor):
                     if hasattr(inst.prim, "model"):
                         params = getattr(inst.prim, "model_params", {})
                         model_args = {
-                            params["width"]: u_µm(inst.params["width"]),
-                            params["height"]: u_µm(inst.params["height"]),
+                            params["width"]: u_µm(round(inst.params["width"], 6)),
+                            params["height"]: u_µm(round(inst.params["height"], 6)),
                         }
                         self.X(
                             inst.name, inst.prim.model,
