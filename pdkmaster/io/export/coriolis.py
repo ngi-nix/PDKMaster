@@ -12,7 +12,7 @@ from ...design import layout as lay, library as lbr
 __all__ = ["CoriolisGenerator"]
 
 def _str_create_basic(name, mat, *,
-    minsize=None, minspace=None, gds_layer=None, gds_datatype=None
+    minsize=None, minspace=None, minarea=None, gds_layer=None, gds_datatype=None
 ):
     s = "createBL(\n"
     s += f"    tech, '{name}', BasicLayer.Material.{mat},\n"
@@ -21,6 +21,8 @@ def _str_create_basic(name, mat, *,
         s_args.append(f"size=u({minsize})")
     if minspace is not None:
         s_args.append(f"spacing=u({minspace})")
+    if minarea is not None:
+        s_args.append(f"area={minarea}")
     if gds_layer is not None:
         s_args.append(f"gds2Layer={gds_layer}")
     if gds_datatype is not None:
@@ -82,13 +84,17 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
     def Implant(self, prim):
         return _str_create_basic(
             prim.name, prim.type_+"Implant",
-            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+            minsize=prim.min_width, minspace=prim.min_space,
+            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            **_args_gds_layer(prim),
         )
 
     def Well(self, prim):
         return _str_create_basic(
             prim.name, prim.type_+"Well",
-            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+            minsize=prim.min_width, minspace=prim.min_space,
+            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            **_args_gds_layer(prim),
         )
 
     def Insulator(self, prim):
@@ -97,13 +103,17 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
     def WaferWire(self, prim):
         return _str_create_basic(
             prim.name, "active",
-            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+            minsize=prim.min_width, minspace=prim.min_space,
+            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            **_args_gds_layer(prim),
         )
 
     def GateWire(self, prim):
         return _str_create_basic(
             prim.name, "poly",
-            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+            minsize=prim.min_width, minspace=prim.min_space,
+            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            **_args_gds_layer(prim),
         )
 
     def MetalWire(self, prim, blockage=False):
@@ -116,7 +126,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         else:
             return _str_create_basic(
                 prim.name, "metal",
-                minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+                minsize=prim.min_width, minspace=prim.min_space,
+                minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+                **_args_gds_layer(prim),
             )
 
     def Via(self, prim, *, via_layer=False):
@@ -125,7 +137,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         else:
             return _str_create_basic(
                 prim.name, "cut",
-                minsize=prim.width, minspace=prim.min_space, **_args_gds_layer(prim),
+                minsize=prim.width, minspace=prim.min_space,
+                minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+                **_args_gds_layer(prim),
             )
 
     def Auxiliary(self, prim):
@@ -137,7 +151,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
     def PadOpening(self, prim):
         return _str_create_basic(
             prim.name, "cut",
-            minsize=prim.min_width, minspace=prim.min_space, **_args_gds_layer(prim),
+            minsize=prim.min_width, minspace=prim.min_space,
+            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            **_args_gds_layer(prim),
         )
 
     def Resistor(self, prim):
