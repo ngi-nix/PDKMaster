@@ -125,11 +125,41 @@ class Enclosure:
             raise TypeError("spec has to be a float or a pair of floats")
         self.spec = spec
 
+    @property
+    def first(self):
+        return self.spec if isinstance(self.spec, float) else self.spec[0]
+
+    @property
+    def second(self):
+        return self.spec if isinstance(self.spec, float) else self.spec[1]
+
     def min(self):
         return self.spec if isinstance(self.spec, float) else min(self.spec)
 
     def max(self):
         return self.spec if isinstance(self.spec, float) else max(self.spec)
+
+    def wide(self):
+        # Put bigger enclosure value first
+        spec = self.spec
+        if (
+            isinstance(spec, float)
+            or (spec[0] >= spec[1])
+        ):
+            return self
+        else:
+            return Enclosure((spec[1], spec[0]))
+
+    def tall(self):
+        # Put smaller enclosure value first
+        spec = self.spec
+        if (
+            isinstance(spec, float)
+            or (spec[0] <= spec[1])
+        ):
+            return self
+        else:
+            return Enclosure((spec[1], spec[0]))
 
     def _get_specs(self, other):
         try:
