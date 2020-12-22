@@ -1,6 +1,5 @@
 import abc, logging
 from itertools import product
-from collections import namedtuple
 from matplotlib import pyplot as plt
 import descartes
 from shapely import geometry as sh_geo, ops as sh_ops, affinity as sh_aff
@@ -129,7 +128,104 @@ def _manhattan_polygon(polygon, *, outer=True):
             )
         )
 
-Rect = namedtuple("Rect", ("left", "bottom", "right", "top"))
+class Rect:
+    def __init__(
+        self, left=None, bottom=None, right=None, top=None, *,
+        x=None, width=None, y=None, height=None,
+    ):
+        rect_params = _util.i2f_recursive((left, bottom, right, top))
+        xy_params = _util.i2f_recursive((x, width, y, height))
+
+        any_rect = any(p is not None for p in rect_params)
+        all_rect = all(p is not None for p in rect_params)
+        any_xy = any(p is not None for p in xy_params)
+        all_xy = all(p is not None for p in xy_params)
+
+        if not (
+            (all_rect or all_xy)
+            and not (all_rect and any_xy)
+            and not (all_xy and any_rect)
+        ):
+            raise TypeError(
+                "Rect object need either all rectangle parameters"
+                " left, bottom, right, top be specified\n"
+                "or all xy parameters x, width, y, height"
+            )
+        if all_rect:
+            if not all(isinstance(p, float) for p in rect_params):
+                raise TypeError(
+                    "Parameters left, bottom, right and top have to be floats"
+                )
+            self._left = left
+            self._bottom = bottom
+            self._right = right
+            self._top = top
+            self._x = 0.5*(left + right)
+            self._width = right - left
+            self._y = 0.5*(bottom + top)
+            self._height = top - bottom
+        elif all_xy:
+            if not all(isinstance(p, float) for p in xy_params):
+                raise TypeError(
+                    "Parameters x, width, y and top have to be floats"
+                )
+            self._left = left = x - 0.5*width
+            self._right = left + width
+            self._bottom = bottom = y - 0.5*height
+            self._top = bottom + height
+            self._x = x
+            self._width = width
+            self._y = y
+            self._height = height
+        else:
+            raise AssertionError("Internal error")
+
+    @property
+    def left(self): return self._left
+    @property
+    def bottom(self): return self._bottom
+    @property
+    def right(self): return self._right
+    @property
+    def top(self): return self._top
+    @property
+    def x(self): return self._x
+    @property
+    def width(self): return self._width
+    @property
+    def y(self): return self._y
+    @property
+    def height(self): return self._height
+
+    @property
+    def area(self):
+        return self.width*self.height
+
+    def moved(self, *, dx, dy, rotation="no"):
+        try:
+            x, y, width, height = {
+                "no": (self.x, self.y, self.width, self.height),
+                "90": (-self.y, self.x, self.height, self.width),
+                "180": (-self.x, -self.y, self.width, self.height),
+                "270": (self.y, -self.x, self.height, self.width),
+                "mirrorx": (-self.x, self.y, self.width, self.height),
+                "mirrorx&90": (-self.y, -self.x, self.height, self.width),
+                "mirrory": (self.x, -self.y, self.width, self.height),
+                "mirrory&90": (self.y, self.x, self.height, self.width),
+            }[rotation]
+        except KeyError:
+            raise NotImplementedError(f"rotation '{rotation}'")
+
+        return Rect(x=(x + dx), y=(y + dy), width=width, height=height)
+
+    def __hash__(self):
+        return hash((self.left, self.bottom, self.right, self.top))
+
+    def __repr__(self):
+        return (
+            f"Rect(left={self.left}, bottom={self.bottom},"
+            f" right={self.right}, top={self.top})"
+        )
 
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
@@ -352,10 +448,10 @@ class MaskPolygons(_util.TypedTuple):
         )
         boundslist = tuple(mp.bounds for mp in mps)
         return Rect(
-            min(bds[0] for bds in boundslist),
-            min(bds[1] for bds in boundslist),
-            max(bds[2] for bds in boundslist),
-            max(bds[3] for bds in boundslist),
+            min(bds.left for bds in boundslist),
+            min(bds.bottom for bds in boundslist),
+            max(bds.right for bds in boundslist),
+            max(bds.top for bds in boundslist),
         )
 
     def __getattr__(self, name):
@@ -927,10 +1023,10 @@ class _Layout:
         )
         boundslist = tuple(mp.bounds for mp in mps)
         return Rect(
-            min(bds[0] for bds in boundslist),
-            min(bds[1] for bds in boundslist),
-            max(bds[2] for bds in boundslist),
-            max(bds[3] for bds in boundslist),
+            min(bds.left for bds in boundslist),
+            min(bds.bottom for bds in boundslist),
+            max(bds.right for bds in boundslist),
+            max(bds.top for bds in boundslist),
         )
 
     def __iadd__(self, other):
