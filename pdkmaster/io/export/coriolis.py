@@ -745,13 +745,25 @@ class _LibraryGenerator:
                     )
 
                 for sl in layout.sublayouts.tt_iter_type(lay._InstanceSubLayout):
+                    # Currently usage of af.getCell() may not work as intended when
+                    # two libraries have a cell with the same name.
+                    # TODO: support libraries with cells with same name properly
+                    r = {
+                        "no": "ID",
+                        "90": "R1",
+                        "180": "R2",
+                        "270": "R3",
+                        "mirrorx": "MX",
+                        "mirrorx&90": "XR",
+                        "mirrory": "MY",
+                        "mirrory&90": "YR",
+                    }[sl.rotation]
                     s += indent(
                         dedent(f"""
                             subcell = lib.getCell('{sl.inst.cell.name}')
                             trans = Transformation(
-                                u({sl.x}), u({sl.y}), Transformation.Orientation.ID,
+                                u({sl.x}), u({sl.y}), Transformation.Orientation.{r},
                             )
-                            print(trans)
                             Instance.create(
                                 cell, '{sl.inst.name}', subcell, trans,
                                 Instance.PlacementStatus.PLACED,

@@ -17,6 +17,11 @@ __all__ = [
     "LayoutFactory", "Plotter",
 ]
 
+_rotations = (
+    "no", "90", "180", "270", "mirrorx", "mirrorx&90", "mirrory", "mirrory&90",
+)
+
+
 class NetOverlapError(Exception):
     pass
 
@@ -400,12 +405,43 @@ class MaskPolygon:
             and self.polygon.intersects(other.polygon)
         )
 
-    def move(self, dx, dy):
-        self.polygon = sh_aff.translate(self.polygon, dx, dy)
+    def _move_polygon(self, dx, dy, rotation):
+        def mirrorx(x, y):
+            return (-x, y)
+        def mirrory(x, y):
+            return (x, -y)
+
+        try:
+            f_rotate = {
+                "no": lambda p: p,
+                "90": lambda p: sh_aff.rotate(p, 90, origin=(0, 0)),
+                "180": lambda p: sh_aff.rotate(p, 180, origin=(0, 0)),
+                "270": lambda p: sh_aff.rotate(p, 270, origin=(0, 0)),
+                "mirrorx": lambda p: sh_ops.transform(mirrorx, p),
+                "mirrorx&90": lambda p: sh_aff.rotate(
+                    sh_ops.transform(mirrorx, p), 90, origin=(0, 0)
+                ),
+                "mirrory": lambda p: sh_ops.transform(mirrory, p),
+                "mirrory&90": lambda p: sh_aff.rotate(
+                    sh_ops.transform(mirrory, p), 90, origin=(0, 0)
+                ),
+            }[rotation]
+        except KeyError:
+            raise NotImplementedError(
+                f"polygon rotation '{rotation}'"
+            )
+        polygon = f_rotate(self.polygon)
+        if (round(dx, 6) == 0.0) and (round(dy, 6) == 0.0):
+            return polygon
+        else:
+            return sh_aff.translate(polygon, dx, dy)
+
+    def move(self, dx, dy, rotation="no"):
+        self.polygon = self._move_polygon(dx, dy, rotation)
         assert isinstance(self.polygon, MaskPolygon._geometry_types)
 
-    def moved(self, dx, dy):
-        return MaskPolygon(self.mask, sh_aff.translate(self.polygon, dx, dy))
+    def moved(self, dx, dy, rotation="no"):
+        return MaskPolygon(self.mask, self._move_polygon(dx, dy, rotation))
 
     def grow(self, size):
         self.polygon = _manhattan_polygon(
@@ -537,9 +573,9 @@ class _SubLayout(abc.ABC):
         raise AssertionError("Internal error")
 
     @abc.abstractmethod
-    def move(self, dx, dy):
+    def move(self, dx, dy, rotation="no"):
         for pg in self.polygons:
-            pg.move(dx, dy)
+            pg.move(dx, dy, rotation)
 
     @abc.abstractmethod
     def moved(self):
@@ -560,12 +596,12 @@ class NetSubLayout(_SubLayout):
     def dup(self):
         return NetSubLayout(self.net, self.polygons.dup())
 
-    def move(self, dx, dy):
-        super().move(dx, dy)
+    def move(self, dx, dy, rotation="no"):
+        super().move(dx, dy, rotation)
 
-    def moved(self, dx, dy):
+    def moved(self, dx, dy, rotation="no"):
         return NetSubLayout(self.net, MaskPolygons(
-            mp.moved(dx, dy) for mp in self.polygons
+            mp.moved(dx, dy, rotation) for mp in self.polygons
         ))
 
     def __iadd__(self, other):
@@ -621,12 +657,12 @@ class NetlessSubLayout(_SubLayout):
     def dup(self):
         return NetlessSubLayout(self.polygons.dup())
 
-    def move(self, dx, dy):
-        super().move(dx, dy)
+    def move(self, dx, dy, rotation="no"):
+        super().move(dx, dy, rotation)
 
-    def moved(self, dx, dy):
+    def moved(self, dx, dy, rotation="no"):
         return NetlessSubLayout(MaskPolygons(
-            mp.moved(dx, dy) for mp in self.polygons
+            mp.moved(dx, dy, rotation) for mp in self.polygons
         ))
 
     def __iadd__(self, other):
@@ -678,14 +714,14 @@ class MultiNetSubLayout(_SubLayout):
     def dup(self):
         return MultiNetSubLayout(sl.dup() for sl in self.sublayouts)
 
-    def move(self, dx, dy):
-        super().move(dx, dy)
+    def move(self, dx, dy, rotation="no"):
+        super().move(dx, dy, rotation)
         for sl in self.sublayouts:
-            sl.move(dx, dy)
+            sl.move(dx, dy, rotation)
 
-    def moved(self, dx, dy):
+    def moved(self, dx, dy, rotation="no"):
         return MultiNetSubLayout((
-            sl.moved(dx, dy) for sl in self.sublayouts
+            sl.moved(dx, dy, rotation) for sl in self.sublayouts
         ))
 
     @property
@@ -825,16 +861,17 @@ class MultiNetSubLayout(_SubLayout):
             return False
 
 class _InstanceSubLayout(_SubLayout):
-    # TODO: Support cell rotation
-    def __init__(self, inst, *, x, y, layoutname):
+    def __init__(self, inst, *, x, y, layoutname, rotation):
         assert (
             isinstance(inst, ckt._CellInstance)
             and isinstance (x, float) and isinstance(y, float)
             and ((layoutname is None) or isinstance(layoutname, str))
+            and (rotation in _rotations)
         ), "Internal error"
         self.inst = inst
         self.x = x
         self.y = y
+        self.rotation = rotation
         cell = inst.cell
 
         if layoutname is None:
@@ -880,14 +917,117 @@ class _InstanceSubLayout(_SubLayout):
     def dup(self):
         return self
 
-    def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
+    def _rotation(self, rotation):
+        x = self.x
+        y = self.y
+        _xylookup = {
+            "no": (x, y),
+            "90": (-y, x),
+            "180": (-x, -y),
+            "270": (y, -x),
+            "mirrorx": (-x, y),
+            "mirrorx&90": (-y, -x),
+            "mirrory": (x, -y),
+            "mirrory&90": (y, x),
+        }
+        _rotlookup = {
+            "no": {
+                "no": "no",
+                "90": "90",
+                "180": "180",
+                "270": "270",
+                "mirrorx": "mirrorx",
+                "mirrorx&90": "mirrorx&90",
+                "mirrory": "mirrory",
+                "mirrory&90": "mirrory&90",
+            },
+            "90": {
+                "no": "90",
+                "90": "180",
+                "180": "270",
+                "270": "no",
+                "mirrorx": "mirrory&90",
+                "mirrorx&90": "270",
+                "mirrory": "mirrorx&90",
+                "mirrory&90": "mirrorx",
+            },
+            "180": {
+                "no": "180",
+                "90": "270",
+                "180": "no",
+                "270": "90",
+                "mirrorx": "mirrory",
+                "mirrorx&90": "mirrory&90",
+                "mirrory": "mirrorx",
+                "mirrory&90": "mirrorx&90",
+            },
+            "270": {
+                "no": "270",
+                "90": "no",
+                "180": "90",
+                "270": "180",
+                "mirrorx": "mirrory&90",
+                "mirrorx&90": "mirrorx",
+                "mirrory": "mirrorx&90",
+                "mirrory&90": "mirrory",
+            },
+            "mirrorx": {
+                "no": "mirrorx",
+                "90": "mirrorx&90",
+                "180": "mirrory",
+                "270": "mirrory&90",
+                "mirrorx": "no",
+                "mirrorx&90": "90",
+                "mirrory": "180",
+                "mirrory&90": "270",
+            },
+            "mirrorx&90": {
+                "no": "mirrorx&90",
+                "90": "mirrory",
+                "180": "mirrory&90",
+                "270": "mirrorx",
+                "mirrorx": "270",
+                "mirrorx&90": "no",
+                "mirrory": "90",
+                "mirrory&90": "180",
+            },
+            "mirrory": {
+                "no": "mirrory",
+                "90": "mirrory&90",
+                "180": "mirrorx",
+                "270": "mirrorx&90",
+                "mirrorx": "180",
+                "mirrorx&90": "270",
+                "mirrory": "no",
+                "mirrory&90": "90",
+            },
+            "mirrory&90": {
+                "no": "mirrory&90",
+                "90": "mirrorx",
+                "180": "mirrorx&90",
+                "270": "mirrory",
+                "mirrorx": "90",
+                "mirrorx&90": "180",
+                "mirrory": "270",
+                "mirrory&90": "no",
+            },
+        }
 
-    def moved(self, dx, dy):
+        return (*_xylookup[rotation], _rotlookup[self.rotation][rotation])
+
+    def move(self, dx, dy, rotation="no"):
+        x, y, rot2 = self._rotation(rotation)
+        self.x += x + dx
+        self.y += y + dy
+        self.rotation = rot2
+        self._layout = None
+
+    def moved(self, dx, dy, rotation="no"):
+        x, y, rot2 = self._rotation(rotation)
         return _InstanceSubLayout(
-            self.inst, x=(self.x + dx), y=(self.y + dy),
+            self.inst, x=(x + dx), y=(y + dy),
             layoutname=(self.layoutname if hasattr(self, "layoutname") else None),
+            rotation=rot2
         )
 
 class SubLayouts(_util.TypedTuple):
@@ -1062,7 +1202,7 @@ class _Layout:
 
         return self
 
-    def add_primitive(self, *, prim, x, y, **prim_params):
+    def add_primitive(self, *, prim, x, y, rotation="no", **prim_params):
         if not isinstance(prim, prm._Primitive):
             raise TypeError("prim has to be a '_Primitive'")
         if not (prim in self.fab.tech.primitives):
@@ -1070,9 +1210,17 @@ class _Layout:
                 f"prim '{prim.name}' is not a primitive of technology"
                 f" '{self.fab.tech.name}'"
             )
+        if not isinstance(rotation, str):
+            raise TypeError(
+                f"rotation has to be a string, not of type {type(rotation)}",
+            )
+        if rotation not in _rotations:
+            ValueError(
+                f"rotation '{rotation}' is not one of {_rotations}"
+            )
 
         primlayout = self.fab.new_primitivelayout(prim, **prim_params)
-        primlayout.move(dx=x, dy=y)
+        primlayout.move(dx=x, dy=y, rotation=rotation)
         self += primlayout
         return primlayout
 
@@ -1091,20 +1239,17 @@ class _Layout:
             portnets={"conn": net}, prim=wire, x=x, y=y, **wire_params,
         )
 
-    def move(self, dx, dy):
+    def move(self, dx, dy, rotation="no"):
         for mp in self.sublayouts:
-            mp.move(dx, dy)
+            mp.move(dx, dy, rotation)
 
-    def moved(self, dx, dy):
+    def moved(self, dx, dy, rotation="no"):
         if self.boundary is None:
             bound = None
         else:
-            bound = Rect(
-                self.boundary.left + dx, self.boundary.bottom + dy,
-                self.boundary.right + dx, self.boundary.top + dy,
-            )
+            bound = self.boundary.moved(dx=dx, dy=dy, rotation=rotation)
         return _Layout(
-            self.fab, SubLayouts(mp.moved(dx, dy) for mp in self.sublayouts),
+            self.fab, SubLayouts(sl.moved(dx, dy, rotation) for sl in self.sublayouts),
             bound,
         )
 
@@ -1614,9 +1759,17 @@ class _CircuitLayouter:
     def tech(self):
         return self.circuit.layoutfab.tech
 
-    def inst_layout(self, inst, *, layoutname=None):
+    def inst_layout(self, inst, *, layoutname=None, rotation="no"):
         if not isinstance(inst, ckt._Instance):
             raise TypeError("inst has to be of type '_Instance'")
+        if not isinstance(rotation, str):
+            raise TypeError(
+                f"rotation has to be a string, not of type {type(rotation)}",
+            )
+        if rotation not in _rotations:
+            ValueError(
+                f"rotation '{rotation}' is not one of {_rotations}"
+            )
 
         if isinstance(inst, ckt._PrimitiveInstance):
             def _portnets():
@@ -1632,10 +1785,13 @@ class _CircuitLayouter:
                     f"Unconnected port(s) {portnames - portnetnames}"
                     f" for inst '{inst.name}' of primitive '{inst.prim.name}'"
                 )
-            return self.fab.new_primitivelayout(
+            l = self.fab.new_primitivelayout(
                 prim=inst.prim, portnets=portnets,
                 **inst.params,
             )
+            if rotation != "no":
+                l.move(dx=0.0, dy=0.0, rotation=rotation)
+            return l
         elif isinstance(inst, ckt._CellInstance):
             # TODO: propoer checking of nets for instance
             layout = None
@@ -1656,8 +1812,10 @@ class _CircuitLayouter:
 
             return _Layout(
                 self.fab,
-                SubLayouts(_InstanceSubLayout(inst, x=0.0, y=0.0, layoutname=layoutname)),
-                boundary=inst.layout.boundary
+                SubLayouts(_InstanceSubLayout(
+                    inst, x=0.0, y=0.0, layoutname=layoutname, rotation=rotation,
+                )),
+                boundary=layout.boundary
             )
         else:
             raise AssertionError("Internal error")
@@ -1680,9 +1838,17 @@ class _CircuitLayouter:
             wire, portnets={"conn": net}, **wire_params,
         )
 
-    def place(self, object_, *, x, y, layoutname=None):
+    def place(self, object_, *, x, y, layoutname=None, rotation="no"):
         if not isinstance(object_, (ckt._Instance, _Layout)):
             raise TypeError("inst has to be of type '_Instance' or '_Layout'")
+        if not isinstance(rotation, str):
+            raise TypeError(
+                f"rotation has to be a string, not of type {type(rotation)}",
+            )
+        if rotation not in _rotations:
+            ValueError(
+                f"rotation '{rotation}' is not one of {_rotations}"
+            )
 
         if isinstance(object_, ckt._Instance):
             inst = object_
@@ -1710,28 +1876,30 @@ class _CircuitLayouter:
                         f" for inst '{inst.name}' of primitive '{inst.prim.name}'"
                     )
                 return self.layout.add_primitive(
-                    prim=inst.prim, x=x, y=y, portnets=portnets, **inst.params,
+                    prim=inst.prim, x=x, y=y, rotation=rotation, portnets=portnets,
+                    **inst.params,
                 )
             elif isinstance(inst, ckt._CellInstance):
                 # TODO: propoer checking of nets for instance
-                # TODO: support circuit rotation
                 if (
                     (layoutname is None)
                     and hasattr(inst, "circuitname")
                     and (inst.circtuitname in inst.cell.layout.tt_keys())
                 ):
                     layoutname = inst.circuitname
-                sl = _InstanceSubLayout(inst, x=x, y=y, layoutname=layoutname)
+                sl = _InstanceSubLayout(
+                    inst, x=x, y=y, layoutname=layoutname, rotation=rotation,
+                )
                 self.layout += sl
 
-                return None
+                return _Layout(self.fab, SubLayouts(sl), boundary=sl.boundary)
         elif isinstance(object_, _Layout):
             if layoutname is not None:
                 raise TypeError(
                     f"{self.__class__.__name__}.place() got unexpected keyword argument"
                     " 'layoutname'"
                 )
-            layout = object_.moved(x, y)
+            layout = object_.moved(x, y, rotation=rotation)
             self.layout += layout
             return layout
         else:
