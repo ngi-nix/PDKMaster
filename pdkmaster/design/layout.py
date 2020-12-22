@@ -843,14 +843,32 @@ class _InstanceSubLayout(_SubLayout):
                     f"Cell '{cell.name}' has no default layout and no layoutname"
                     " was specified"
                 )
-            self.layout = cell.layout
         else:
             if layoutname not in cell.layouts.tt_keys():
                 raise ValueError(
                     f"Cell '{cell.name}' has no layout named '{layoutname}'"
                 )
             self.layoutname = layoutname
-            self.layout = cell.layouts[layoutname]
+        self._layout = None
+
+    @property
+    def layout(self):
+        if self._layout is None:
+            l = (
+                self.inst.cell.layouts[self.layoutname] if hasattr(self, "layoutname")
+                else self.inst.cell.layout
+            )
+            self._layout = l.moved(dx=self.x, dy=self.y, rotation=self.rotation)
+
+        return self._layout
+
+    @property
+    def boundary(self):
+        l = (
+            self.inst.cell.layouts[self.layoutname] if hasattr(self, "layoutname")
+            else self.inst.cell.layout
+        )
+        return l.boundary.moved(dx=self.x, dy=self.y, rotation=self.rotation)
 
     @property
     def polygons(self):
