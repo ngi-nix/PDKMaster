@@ -29,6 +29,7 @@ class _InstanceNet(net_.Net):
         )), "Internal error"
         super().__init__(net.name)
         self.inst = inst
+        self.net = net
         self.full_name = f"{inst.name}.{net.name}"
 
     def __hash__(self):
@@ -74,6 +75,7 @@ class _CellInstance(_Instance):
                 raise TypeError("circuitname has to be 'None' or a string")
             self.circtuitname = circuitname
             circuit = cell.circuits[circuitname]
+        self.circuit = circuit
 
         super().__init__(
             name, net_.Nets(_InstanceNet(self, port) for port in circuit.ports),
