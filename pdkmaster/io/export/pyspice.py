@@ -69,6 +69,23 @@ class _SubCircuit(SubCircuit):
                         raise NotImplementedError(
                             "Resistor circuit generation without a model"
                         )
+            elif isinstance(inst, ckt._CellInstance):
+                pin_args = tuple()
+                for port in inst.ports:
+                    try:
+                        net = netlookup[port]
+                    except KeyError:
+                        raise ValueError(
+                            f"Port '{port.full_name}' not on any net in circuit "
+                            f"'{name}'"
+                        )
+                    else:
+                        pin_args += (net.name,)
+                pin_args = tuple(netlookup[port].name for port in inst.ports)
+                self.X(inst.name, inst.circuit.name, *pin_args)
+            else:
+                raise AssertionError("Internal error")
+
 
 class _Circuit(Circuit):
     def __init__(self, fab, corner, top, title, gnd):
