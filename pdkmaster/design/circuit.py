@@ -81,6 +81,56 @@ class _CellInstance(_Instance):
             name, net_.Nets(_InstanceNet(self, port) for port in circuit.ports),
         )
 
+    # TODO: temporary implementation in wait of better engineered polygon iteration
+    # implementation in _Layout
+    def net_polygons(self, *, net, layoutname=None):
+        if isinstance(net, str):
+            try:
+                net = self.circuit.nets[net]
+            except KeyError:
+                raise ValueError(
+                    f"net '{net}' does not exist for instance '{self.name}'"
+                    f" of cell '{self.cell.name}'"
+                )
+        if not isinstance(net, net_.Net):
+            raise TypeError(
+                f"net has to be 'None' or of type 'Net', not {type(net)}"
+            )
+        if net not in self.circuit.nets:
+            raise ValueError(
+                f"net '{net.name}' is not a net of instance '{self.name}'"
+                f" of cell '{self.cell.name}'"
+            )
+        layout = None
+        if layoutname is None:
+            if hasattr(self, "circuitname"):
+                try:
+                    layout = self.cell.layouts[self.circtuitname]
+                except KeyError:
+                    pass
+        else:
+            if not isinstance(layoutname, str):
+                raise TypeError(
+                    "layoutname has to be 'None' or a string, not of type"
+                    f" '{type(layoutname)}'"
+                )
+            try:
+                layout = self.cell.layouts[layoutname]
+            except KeyError:
+                raise ValueError(
+                    f"layout '{layoutname}' does not exist of instance '{selfname}'"
+                    f" of cell '{self.cell.name}'"
+                )
+        if layout is None:
+            try:
+                layout = self.cell.layout
+            except AttributeError:
+                raise ValueError(
+                    f"cell '{self.cell.name}' of instance '{self.name}'"
+                    " does not have a default layout"
+                )
+        yield from layout.net_polygons(net=net)
+
 class _Circuit:
     def __init__(self, name, fab):
         assert all((

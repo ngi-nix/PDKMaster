@@ -855,6 +855,61 @@ class _Layout:
             for polygon in sublayout.polygons:
                 yield polygon
 
+    def _net_sublayouts(self, net, *, depth):
+        for sl in self.sublayouts:
+            if isinstance(sl, NetlessSubLayout):
+                pass
+            elif isinstance(sl, NetSubLayout):
+                if sl.net == net:
+                    yield sl
+            elif isinstance(sl, MultiNetSubLayout):
+                yield from filter(
+                    lambda sl2: isinstance(sl2, NetSubLayout) and (sl2.net == net),
+                    sl.sublayouts,
+                )
+            elif isinstance(sl, _InstanceSubLayout):
+                if depth != 0:
+                    for port in net.childports:
+                        if (
+                            isinstance(port, ckt._InstanceNet)
+                            and (port.inst == sl.inst)
+                        ):
+                            yield from sl.layout._net_sublayouts(
+                                port.net,
+                                depth=(None if depth is None else (depth - 1)),
+                            )
+            else:
+                raise AssertionError("Internal error")
+
+    def net_polygons(self, net, *, depth=None):
+        if not isinstance(net, net_.Net):
+            raise TypeError("net has to be of type 'Net'")
+        for sl in self._net_sublayouts(net, depth=depth):
+            yield from sl.polygons
+
+    def filter_polygons(self, *, net=None, mask=None, split=False):
+        if net is None:
+            sls = self.sublayouts
+        else:
+            if not isinstance(net, net_.Net):
+                raise TypeError(
+                    f"net has to be 'None' or of type 'Net', not type '{type(net)}'"
+                )
+            sls = self._net_sublayouts(net, depth=None)
+        if mask is not None:
+            if not isinstance(mask, msk._Mask):
+                raise TypeError(
+                    f"mask has to be 'None' or of type '_Mask', not type '{type(mask)}'"
+                )
+        for sl in sls:
+            for poly in sl.polygons:
+                if (mask is not None) and (poly.mask != mask):
+                    continue
+                if split:
+                    yield from poly.polygons
+                else:
+                    yield poly
+
     def dup(self):
         return _Layout(
             self.fab,
