@@ -563,7 +563,7 @@ class _SubLayout(abc.ABC):
         self.polygons = polygons
 
     @abc.abstractmethod
-    def overlaps_with(self, sublayout):
+    def overlaps_with(self, sublayout, *, hierarchical=True):
         if not isinstance(sublayout, _SubLayout):
             raise TypeError("sublayout has to be of type '_SubLayout'")
         return False
@@ -613,11 +613,11 @@ class NetSubLayout(_SubLayout):
 
         return self
 
-    def overlaps_with(self, other):
-        super().overlaps_with(other)
+    def overlaps_with(self, other, *, hierarchical=True):
+        super().overlaps_with(other, hierarchical=hierarchical)
 
         if isinstance(other, MultiNetSubLayout):
-            return other.overlaps_with(self)
+            return other.overlaps_with(self, hierarchical=hierarchical)
 
         assert isinstance(other, (NetSubLayout, NetlessSubLayout)), "Internal error"
 
@@ -671,11 +671,11 @@ class NetlessSubLayout(_SubLayout):
 
         return self
 
-    def overlaps_with(self, other):
-        super().overlaps_with(other)
+    def overlaps_with(self, other, *, hierarchical=True):
+        super().overlaps_with(other, hierarchical=hierarchical)
 
         if isinstance(other, (NetSubLayout, MultiNetSubLayout)):
-            return other.overlaps_with(self)
+            return other.overlaps_with(self, hierarchical=hierarchical)
 
         assert isinstance(other, NetlessSubLayout), "Internal error"
 
@@ -776,7 +776,7 @@ class MultiNetSubLayout(_SubLayout):
                         f"'MultiNetSubLayout' polygon on mask {self_polygon.mask.name}"
                     )
                 for self_sublayout in self.sublayouts:
-                    if self_sublayout.overlaps_with(other):
+                    if self_sublayout.overlaps_with(other, hierarchical=False):
                         self_sublayout += other
                         self._update_maskpolygon()
                         break
@@ -788,7 +788,7 @@ class MultiNetSubLayout(_SubLayout):
             assert isinstance(other, MultiNetSubLayout), "Internal error"
             for other_sublayout in other.sublayouts:
                 for self_sublayout in self.sublayouts:
-                    if other_sublayout.overlaps_with(self_sublayout):
+                    if other_sublayout.overlaps_with(self_sublayout, hierarchical=False):
                         self_sublayout += other_sublayout
                         break
                 else:
@@ -801,7 +801,7 @@ class MultiNetSubLayout(_SubLayout):
         """Extract overlapping polygon from other and add it to itself
 
         return wether other is now empty"""
-        if not self.overlaps_with(other):
+        if not self.overlaps_with(other, hierarchical=False):
             return False
 
         if isinstance(other, MultiNetSubLayout):
@@ -838,8 +838,8 @@ class MultiNetSubLayout(_SubLayout):
 
             return not other.polygons
 
-    def overlaps_with(self, other):
-        super().overlaps_with(other)
+    def overlaps_with(self, other, *, hierarchical=True):
+        super().overlaps_with(other, hierarchical=hierarchical)
 
         assert len(self.polygons) == 1, "Internal error"
         self_polygon = self.polygons[0]
@@ -851,7 +851,7 @@ class MultiNetSubLayout(_SubLayout):
             if self_polygon.overlaps_with(other_polygon):
                 # Recursively call overlaps_with to check for wrong net overlaps.
                 for sublayout in self.sublayouts:
-                    if other.overlaps_with(sublayout):
+                    if other.overlaps_with(sublayout, hierarchical=hierarchical):
                         return True
                 else:
                     # This should not happen: joined polygon overlaps but none of
@@ -911,8 +911,14 @@ class _InstanceSubLayout(_SubLayout):
     def polygons(self):
         return self.layout.polygons
 
-    def overlaps_with(self, other):
-        return any(polygon.overlaps_with(other) for polygon in self.polygons)
+    def overlaps_with(self, other, *, hierarchical=True):
+        if hierarchical:
+            return any(
+                p1.overlaps_with(p2) for p1, p2 in product(
+                    self.polygons, other.polygons,
+                ))
+        else:
+            return False
 
     def dup(self):
         return self
@@ -1048,8 +1054,10 @@ class SubLayouts(_util.TypedTuple):
         # First try to add the sublayout to the multinet polygons
         multinets = tuple(self.tt_iter_type(MultiNetSubLayout))
         def add2multinet(other_sublayout):
+            if isinstance(other_sublayout, _InstanceSubLayout):
+                return False
             for multinet in multinets:
-                if multinet.overlaps_with(other_sublayout):
+                if multinet.overlaps_with(other_sublayout, hierarchical=False):
                     return multinet.merge_from(other_sublayout)
             else:
                 return False
@@ -1059,11 +1067,14 @@ class SubLayouts(_util.TypedTuple):
         def add2other(other_sublayout):
             if isinstance(other_sublayout, MultiNetSubLayout):
                 for sublayout in self:
-                    if sublayout.overlaps_with(other_sublayout):
+                    if (
+                        (not isinstance(sublayout, _InstanceSubLayout))
+                        and sublayout.overlaps_with(other_sublayout, hierarchical=False)
+                    ):
                         if other_sublayout.merge_from(sublayout):
                             self.tt_remove(sublayout)
                 return False
-            else:
+            elif isinstance(other_sublayout, (NetlessSubLayout, NetSubLayout)):
                 # Can only add to same type
                 for sublayout in self.tt_iter_type(other_sublayout.__class__):
                     if (
