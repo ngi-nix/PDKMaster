@@ -39,6 +39,7 @@ class _InstanceNet(net_.Net):
         return isinstance(other, _InstanceNet) and ((self.full_name) == other.full_name)
 
 class _InstanceNets(net_.Nets):
+    tt_element_type = _InstanceNet
     tt_index_attribute = "full_name"
 
 class _Instances(_util.TypedTuple):
@@ -146,7 +147,7 @@ class _Circuit:
         self.fab = fab
 
         self.instances = _Instances()
-        self.nets = net_.Nets()
+        self.nets = _CircuitNets()
         self.ports = _CircuitNets()
 
     def new_instance(self, name, object_, **params):

@@ -730,7 +730,7 @@ class MultiNetSubLayout(_SubLayout):
 
 class _InstanceSubLayout(_SubLayout):
     # TODO: Support cell rotation
-    def __init__(self, inst, *, x, y, layoutname=None):
+    def __init__(self, inst, *, x, y, layoutname):
         assert (
             isinstance(inst, ckt._CellInstance)
             and isinstance (x, float) and isinstance(y, float)
@@ -822,6 +822,8 @@ class SubLayouts(_util.TypedTuple):
                         return True
                 else:
                     return False
+            elif not isinstance(other_sublayout, _InstanceSubLayout):
+                raise AssertionError("Internal error")
         other = tuple(filter(lambda sl: not add2other(sl), other))
 
         if other:
@@ -1522,12 +1524,22 @@ class _CircuitLayouter:
             )
         elif isinstance(inst, ckt._CellInstance):
             # TODO: propoer checking of nets for instance
-            if (
-                (layoutname is None)
-                and hasattr(inst, "circuitname")
-                and (inst.circtuitname in inst.cell.layouts.tt_keys())
-            ):
-                layoutname = inst.circuitname
+            layout = None
+            if layoutname is None:
+                try:
+                    layout = inst.cell.layouts[inst.circuitname]
+                except:
+                    layout = inst.cell.layout
+                else:
+                    layoutname = inst.circuitname
+            else:
+                if not isinstance(layoutname, str):
+                    raise TypeError(
+                        "layoutname has to be 'None' or a string, not of type"
+                        f" '{type(layoutname)}'"
+                    )
+                layout = inst.cell.layouts[layoutname]
+
             return _Layout(
                 self.fab,
                 SubLayouts(_InstanceSubLayout(inst, x=0.0, y=0.0, layoutname=layoutname)),
