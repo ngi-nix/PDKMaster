@@ -646,6 +646,11 @@ class WaferWire(_Conductor):
                     self, "well_enclosure", default=min_well_enclosure[0],
                 ),
             )
+        if hasattr(self, "oxide"):
+            self.params += (
+                _PrimitiveParam(self, "oxide", choices=self.oxide, allow_none=True),
+                _EnclosureParam(self, "oxide_enclosure", allow_none=True),
+            )
 
     @property
     def sd_mask(self):
@@ -686,6 +691,14 @@ class WaferWire(_Conductor):
             raise TypeError(
                 f"Well net specified for primitive '{self.name}' not in a well"
             )
+
+        if ("oxide" in params):
+            oxide = params["oxide"]
+            if oxide is not None:
+                oxide_enclosure = params["oxide_enclosure"]
+                if oxide_enclosure is None:
+                    idx = self.oxide.index(oxide)
+                    params["oxide_enclosure"] = self.min_oxide_enclosure[idx]
 
         return params
 
