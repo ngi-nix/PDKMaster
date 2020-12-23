@@ -663,10 +663,10 @@ class _LibraryGenerator:
             # Plugins setup
             with CfgCache(priority=Cfg.Parameter.Priority.ConfigurationFile) as cfg:
                 cfg.chip.block.rails.count = 5
-                cfg.chip.block.rails.hWidth = l(12)
-                cfg.chip.block.rails.vWidth = l(12)
-                cfg.chip.block.rails.hSpacing = l(6)
-                cfg.chip.block.rails.vSpacing = l(6)
+                cfg.chip.block.rails.hWidth = u(2.68)
+                cfg.chip.block.rails.vWidth = u(2.68)
+                cfg.chip.block.rails.hSpacing = u(0.7)
+                cfg.chip.block.rails.vSpacing = u(0.7)
                 cfg.clockTree.minimumSide = l(600)
                 cfg.clockTree.buffer = 'buf_x2'
                 cfg.clockTree.placerEngine = 'Etesian'
