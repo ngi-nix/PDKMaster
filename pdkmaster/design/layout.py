@@ -1113,16 +1113,14 @@ class _Layout:
     @property
     def polygons(self):
         for sublayout in self.sublayouts:
-            for polygon in sublayout.polygons:
-                yield polygon
+            yield from sublayout.polygons
 
     @property
     def top_polygons(self):
         for sublayout in self.sublayouts.tt_iter_type((
             NetlessSubLayout, NetSubLayout, MultiNetSubLayout,
         )):
-            for polygon in sublayout.polygons:
-                yield polygon
+            yield from sublayout.polygons
 
     def _net_sublayouts(self, net, *, depth):
         for sl in self.sublayouts:
