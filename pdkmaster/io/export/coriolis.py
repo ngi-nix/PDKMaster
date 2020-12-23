@@ -770,6 +770,8 @@ class _LibraryGenerator:
                     s += indent(
                         dedent(f"""
                             subcell = lib.getCell('{sl.inst.cell.name}')
+                            if subcell is None:
+                                subcell = af.getCell('{sl.inst.cell.name}', 0)
                             trans = Transformation(
                                 u({sl.x}), u({sl.y}), Transformation.Orientation.{r},
                             )
