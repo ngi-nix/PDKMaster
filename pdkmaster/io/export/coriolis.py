@@ -957,18 +957,38 @@ class _TechnologyGenerator:
 
         s_prims = ""
         written_prims = set()
+        vias = tuple(self.tech.primitives.tt_iter_type(prm.Via))
 
         for prim in self.tech.primitives:
             # Some primitives are handled later or don't need to be handled
-            if isinstance(
-                prim, (prm.Resistor, prm.MOSFETGate, prm.MOSFET, prm.Spacing),
-            ):
+            if isinstance(prim, (
+                # Handled by Via
+                prm.WaferWire, prm.GateWire, prm.MetalWire,
+                # Handled later
+                prm.Resistor, prm.Diode, prm.MOSFETGate, prm.MOSFET,
+                # Not exported
+                prm.Spacing,
+            )):
                 continue
+
+            # We have to make sure via layers are defined in between top and bottom
+            # metal layers
+            if isinstance(prim, prm.Via):
+                for prim2 in prim.bottom:
+                    s_prims += gen(prim2)
+                    written_prims.add(prim2)
+
             # Do not generate layer for Auxiliary layers to avoid having too many
             # layer definitions. Still mark the layer as written.
             if not isinstance(prim, prm.Auxiliary):
                 s_prims += gen(prim)
             written_prims.add(prim)
+
+            # For top via also do the top layers
+            if isinstance(prim, prm.Via) and prim == vias[-1]:
+                for prim2 in prim.top:
+                    s_prims += gen(prim2)
+                    written_prims.add(prim2)
 
         # Check if all basic layers were included
         unhandled_masks = (
@@ -981,7 +1001,7 @@ class _TechnologyGenerator:
             )
 
         s_prims += "\n# ViaLayers\n"
-        for via in self.tech.primitives.tt_iter_type(prm.Via):
+        for via in vias:
             s_prims += gen(via, via_layer=True)
 
         s_prims += "\n# Blockages\n"
