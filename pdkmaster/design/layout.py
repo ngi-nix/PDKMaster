@@ -1184,9 +1184,22 @@ class _Layout:
             self.boundary,
         )
 
-    def bounds(self, *, mask=None):
+    def bounds(self, *, mask=None, net=None, depth=None):
+        if mask is not None:
+            if not isinstance(mask, msk._Mask):
+                raise TypeError(
+                    f"mask has to be 'None' or of type '_Mask', not type '{type(mask)}'"
+                )
+        if net is None:
+            if depth is not None:
+                raise TypeError(
+                    f"depth has to 'None' if net is 'None'"
+                )
+            polygons = self.polygons
+        else:
+            polygons = self.net_polygons(net, depth=depth)
         mps = self.polygons if mask is None else filter(
-            lambda mp: mp.mask == mask, self.polygons,
+            lambda mp: mp.mask == mask, polygons,
         )
         boundslist = tuple(mp.bounds for mp in mps)
         return Rect(
