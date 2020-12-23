@@ -1325,6 +1325,9 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         return layout
 
     def WaferWire(self, prim, **waferwire_params):
+        width = waferwire_params["width"]
+        height = waferwire_params["height"]
+
         implant = waferwire_params.pop("implant")
         implant_enclosure = waferwire_params.pop("implant_enclosure")
         assert implant_enclosure is not None
@@ -1332,8 +1335,8 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         well = waferwire_params.pop("well", None)
         well_enclosure = waferwire_params.pop("well_enclosure", None)
 
-        width = waferwire_params["width"]
-        height = waferwire_params["height"]
+        oxide = waferwire_params.pop("oxide", None)
+        oxide_enclosure = waferwire_params.pop("oxide_enclosure", None)
 
         layout = self._Conductor(prim, **waferwire_params)
         layout += NetlessSubLayout(MaskPolygon(
@@ -1357,7 +1360,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                     ),
                 ),
             )
-
+        if oxide is not None:
+            layout += NetlessSubLayout(MaskPolygon(
+                oxide.mask, _rect(
+                    -0.5*width, -0.5*height, 0.5*width, 0.5*height,
+                    enclosure=oxide_enclosure,
+                ),
+            ))
         return layout
 
     def Via(self, prim, **via_params):
