@@ -501,7 +501,14 @@ class _LibraryGenerator:
             metal = self.metals[i]
             s += f"metal = tech.getLayer('{metal.name}')\n"
             mwidth = round(
-                self.tech.computed.min_width(metal, up=True, down=True), 6,
+                self.tech.computed.min_width(
+                    metal, up=True, down=True, min_enclosure=(i < bottom_idx),
+                ), 6,
+            )
+            mpwidth = round(
+                self.tech.computed.min_width(
+                    metal, up=False, down=True, min_enclosure=True
+                ), 6,
             )
             if i >= bottom_idx:
                 mpitch = round(
@@ -567,7 +574,7 @@ class _LibraryGenerator:
             s += dedent(f"""
                 rg.addLayerGauge(CRL.RoutingLayerGauge.create(
                     metal, {s_pindir}, {s_usage}, {depth}, 0.0,
-                    u({offset}), u({mpitch}), u({mwidth}), u({vwidth}), u({dw}),
+                    u({offset}), u({mpitch}), u({mwidth}), u({mpwidth}), u({vwidth}), u({dw}),
                 ))
             """[1:])
 
