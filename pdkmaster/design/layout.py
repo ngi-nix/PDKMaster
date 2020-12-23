@@ -2026,6 +2026,7 @@ class LayoutFactory:
             if not isinstance(via, prm.Via):
                 raise TypeError("via has to be 'None' or of type 'Via'")
             specs = (
+                "space",
                 "bottom_layer", "bottom_enclosure",
                 "top_layer", "top_enclosure",
                 "bottom_left", "bottom_bottom", "bottom_right", "bottom_top",
@@ -2033,6 +2034,13 @@ class LayoutFactory:
             )
             if not all(spec in specs for spec in bound_spec.keys()):
                 raise ValueError(f"Bound specs for a Via are:\n  {specs}")
+
+            try:
+                space = bound_spec["space"]
+            except KeyError:
+                space = via.min_space
+            else:
+                spec_out["space"] = space
 
             try:
                 bottom_layer = bound_spec["bottom_layer"]
@@ -2111,7 +2119,7 @@ class LayoutFactory:
 
             if (via_left is not None) and (via_right is not None):
                 width = via_right - via_left
-                columns = int((width - via.width)/(via.width + via.min_space)) + 1
+                columns = int((width - via.width)/(via.width + space)) + 1
                 if columns < 1:
                     raise ValueError("Not enough width for fitting one column")
                 spec_out.update({
@@ -2123,7 +2131,7 @@ class LayoutFactory:
 
             if (via_bottom is not None) and (via_top is not None):
                 height = via_top - via_bottom
-                rows = int((height - via.width)/(via.width + via.min_space)) + 1
+                rows = int((height - via.width)/(via.width + space)) + 1
                 if rows < 1:
                     raise ValueError("Not enough height for fitting one row")
                 spec_out.update({
