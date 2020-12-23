@@ -2053,6 +2053,8 @@ class LayoutFactory:
                 bottom_enc = bound_spec["bottom_enclosure"]
             except KeyError:
                 bottom_enc = via.min_bottom_enclosure[idx]
+            else:
+                spec_out["bottom_enclosure"] = bottom_enc
             bottom_enc = bottom_enc.spec
             if isinstance(bottom_enc, float):
                 bottom_enc = (bottom_enc, bottom_enc)
@@ -2068,6 +2070,9 @@ class LayoutFactory:
                 top_enc = bound_spec["top_enclosure"]
             except KeyError:
                 top_enc = via.min_top_enclosure[idx]
+            else:
+                spec_out["top_enclosure"] = top_enc
+
             top_enc = top_enc.spec
             if isinstance(top_enc, float):
                 top_enc = (top_enc, top_enc)
