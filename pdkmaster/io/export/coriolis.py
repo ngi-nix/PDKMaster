@@ -36,15 +36,13 @@ def _str_create_via(via):
     assert isinstance(via, prm.Via)
 
     def _str_bottomtop(bottom, top):
+        s_via = f"{bottom.name}_{via.name}_{top.name}"
         return dedent(f"""
             # {bottom.name}<>{via.name}<>{top.name}
-            l = ViaLayer.create(
-                tech, '{bottom.name}_{via.name}_{top.name}',
-                tech.getLayer('{bottom.name}'),
-                tech.getLayer('{via.name}'),
-                tech.getLayer('{top.name}'),
+            createVia(
+                tech, '{s_via}', '{bottom.name}', '{via.name}', '{top.name}',
+                u({via.width}),
             )
-            l.setMinimalSize(u({via.width}))
         """[1:])
 
     return "".join(_str_bottomtop(bottom, top) for bottom, top in product(
@@ -417,7 +415,7 @@ class _LibraryGenerator:
             import CRL, Hurricane, Viewer, Cfg
             from Hurricane import (
                 Technology, DataBase, DbU, Library,
-                Layer, BasicLayer, ViaLayer,
+                Layer, BasicLayer,
                 Cell, Net, Vertical, Rectilinear, Box, Point,
                 Instance, Transformation,
                 NetExternalComponents,
@@ -892,14 +890,14 @@ class _TechnologyGenerator:
             import CRL, Hurricane, Viewer, Cfg
             from Hurricane import (
                 Technology, DataBase, DbU, Library,
-                Layer, BasicLayer, ViaLayer,
+                Layer, BasicLayer,
                 Cell, Net, Vertical, Rectilinear, Box, Point,
                 NetExternalComponents,
             )
             from common.colors import toRGB
             from common.patterns import toHexa
             from helpers import u
-            from helpers.technology import createBL
+            from helpers.technology import createBL, createVia
             from helpers.overlay import CfgCache
             from helpers.analogtechno import Length, Area, Unit, Asymmetric, loadAnalogTechno
 
