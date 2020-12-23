@@ -429,6 +429,10 @@ class _LibraryGenerator:
             from helpers.overlay import CfgCache, UpdateSession
 
             __all__ = ["setup"]
+
+            def createRL(tech, net, layer, coords):
+                coords = [Point(u(x), u(y)) for x,y in coords]
+                Rectilinear.create(net, tech.getLayer(layer), coords)
         """[1:])
 
     def _s_setup(self, lib):
@@ -823,14 +827,12 @@ class _LibraryGenerator:
                         NetExternalComponents.setExternal(pin)
                     """[1:])
                 else:
-                    s = (
-                        f"Rectilinear.create(net, "
-                        f"tech.getLayer('{mask.name}'), [\n"
-                    )
-                    s += "".join(
-                        f"    {self._s_point(point)},\n" for point in coords
-                    )
-                    s += "])\n"
+                    s = dedent(f"""
+                        createRL(
+                            tech, net, '{mask.name}',
+                            ({",".join(self._s_point(point) for point in coords)}),
+                        )
+                    """[1:])
             elif len(ints) == 1:
                 incoords = tuple(ints[0].coords)
                 if (len(coords) == 5) and (len(incoords) == 5):
@@ -845,14 +847,12 @@ class _LibraryGenerator:
                         (in_right, in_top), (in_right, in_bottom),
                         (out_left, in_bottom), (out_left, out_bottom),
                     )
-                    s = (
-                        f"Rectilinear.create(net, "
-                        f"tech.getLayer('{mask.name}'), [\n"
-                    )
-                    s += "".join(
-                        f"    {self._s_point(point)},\n" for point in coords2
-                    )
-                    s += "])\n"
+                    s = dedent(f"""
+                        createRL(
+                            tech, net, '{mask.name}',
+                            ({",".join(self._s_point(point) for point in coords2)}),
+                        )
+                    """[1:])
                 else:
                     raise NotImplementedError(
                         "unsupported shapely polygon with an interior"
@@ -872,7 +872,7 @@ class _LibraryGenerator:
         x = round(point[0], 6)
         y = round(point[1], 6)
 
-        return f"Point(u({x}), u({y}))"
+        return f"({x},{y})"
 
 
 class _TechnologyGenerator:
