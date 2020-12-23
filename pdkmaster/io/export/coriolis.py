@@ -925,6 +925,8 @@ class _TechnologyGenerator:
         lambda_ = min(trans.computed.min_l
             for trans in self.tech.primitives.tt_iter_type(prm.MOSFET))
 
+        assert (self.tech.grid % 1e-6) < 1e-9, "Unsupported grid"
+
         s_head = dedent(f"""
             def _setup_techno():
                 db = DataBase.create()
@@ -935,8 +937,8 @@ class _TechnologyGenerator:
                 DbU.setPrecision(2)
                 DbU.setPhysicalsPerGrid({self.tech.grid}, DbU.UnitPowerMicro)
                 with CfgCache(priority=Cfg.Parameter.Priority.ConfigurationFile) as cfg:
-                    cfg.gdsDriver.metricDbu = {1e-6*self.tech.grid}
-                    cfg.gdsDriver.dbuPerUu = {self.tech.grid}
+                    cfg.gdsDriver.metricDbu = 1e-9
+                    cfg.gdsDriver.dbuPerUu = 0.001
                 DbU.setGridsPerLambda({round(lambda_/self.tech.grid)})
                 DbU.setSymbolicSnapGridStep(DbU.fromGrid(1.0))
                 DbU.setPolygonStep(DbU.fromGrid(1.0))
