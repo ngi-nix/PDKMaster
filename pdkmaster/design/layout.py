@@ -1154,7 +1154,7 @@ class _Layout:
         for sl in self._net_sublayouts(net, depth=depth):
             yield from sl.polygons
 
-    def filter_polygons(self, *, net=None, mask=None, split=False):
+    def filter_polygons(self, *, net=None, mask=None, split=False, depth=None):
         if net is None:
             sls = self.sublayouts
         else:
@@ -1162,7 +1162,7 @@ class _Layout:
                 raise TypeError(
                     f"net has to be 'None' or of type 'Net', not type '{type(net)}'"
                 )
-            sls = self._net_sublayouts(net, depth=None)
+            sls = self._net_sublayouts(net, depth=depth)
         if mask is not None:
             if not isinstance(mask, msk._Mask):
                 raise TypeError(
