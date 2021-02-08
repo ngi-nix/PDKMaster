@@ -292,6 +292,11 @@ class Marker(_MaskPrimitive):
         self._designmask_from_name(mask_args, fill_space="yes")
         super().__init__(**mask_args)
 
+        self.params += (
+            _Param(self, "width", allow_none=True),
+            _Param(self, "height", allow_none=True),
+        )
+
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
