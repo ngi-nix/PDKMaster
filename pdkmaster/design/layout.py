@@ -1009,6 +1009,12 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             f"of type '{prim.__class__.__name__}'"
         )
 
+    def Marker(self, prim, **params):
+        if ("width" in params) and ("height" in params):
+            return self._WidthSpacePrimitive(prim, **params)
+        else:
+            super().Marker(prim, **params)
+
     def _WidthSpacePrimitive(self, prim, **widthspace_params):
         if len(prim.ports) != 0:
             raise NotImplementedError(
