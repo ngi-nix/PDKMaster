@@ -67,6 +67,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         for via in tech.primitives.tt_iter_type(prm.Via):
             via_conns.update(via.bottom)
             via_conns.update(via.top)
+        self.blockages = set(prim.blockage for prim in filter(
+            lambda p: hasattr(p, "blockage"), tech.primitives,
+        ))
 
     def _Primitive(self, prim):
         raise NotImplementedError(
@@ -74,7 +77,8 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         )
 
     def Marker(self, prim):
-        return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
+        type_ = "blockage" if prim in self.blockages else "other"
+        return _str_create_basic(prim.name, type_, **_args_gds_layer(prim))
 
     def ExtraProcess(self, prim):
         return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
@@ -114,20 +118,13 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             **_args_gds_layer(prim),
         )
 
-    def MetalWire(self, prim, blockage=False):
-        if blockage:
-            return (
-                f"l = BasicLayer.create(tech, '{prim.name}.blockage',"
-                f" BasicLayer.Material(BasicLayer.Material.blockage))\n"
-                f"tech.getLayer('{prim.name}').setBlockageLayer(l)\n"
-            )
-        else:
-            return _str_create_basic(
-                prim.name, "metal",
-                minsize=prim.min_width, minspace=prim.min_space,
-                minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
-                **_args_gds_layer(prim),
-            )
+    def MetalWire(self, prim):
+        return _str_create_basic(
+            prim.name, "metal",
+            minsize=prim.min_width, minspace=prim.min_space,
+            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            **_args_gds_layer(prim),
+        )
 
     def Via(self, prim, *, via_layer=False):
         if via_layer:
@@ -1005,8 +1002,12 @@ class _TechnologyGenerator:
             s_prims += gen(via, via_layer=True)
 
         s_prims += "\n# Blockages\n"
-        for metal in self.tech.primitives.tt_iter_type(prm.MetalWire):
-            s_prims += gen(metal, blockage=True)
+        for prim in filter(lambda p: hasattr(p, "blockage"), self.tech.primitives):
+            s_prims += dedent(f"""
+                tech.getLayer('{prim.name}').setBlockageLayer(
+                    tech.getLayer('{prim.blockage.name}')
+                )
+            """[1:])
 
         s_prims += "\n# Coriolis internal layers\n"
         for name, mat in (
@@ -1161,11 +1162,16 @@ class _TechnologyGenerator:
             )
 
         s += "\n    # Blockages.\n"
-        for i, prim in enumerate(self.tech.primitives.tt_iter_type(prm.MetalWire)):
+        blockages = set(prim.blockage for prim in filter(
+            lambda p: hasattr(p, "blockage"), self.tech.primitives,
+        ))
+        for i, prim in enumerate(filter(
+            lambda p: p in blockages, self.tech.primitives.tt_iter_type(prm.Marker)
+        )):
             rgb = clrs[i%len(clrs)]
             hexa = "slash.8" if i == 0 else "poids4.8"
             s += (
-                f"    style.addDrawingStyle(group='Blockages', name='{prim.name}.blockage'"
+                f"    style.addDrawingStyle(group='Blockages', name='{prim.name}'"
                 f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}')"
                 ", border=4, threshold=threshold)\n"
             )

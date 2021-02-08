@@ -182,6 +182,8 @@ class Technology(abc.ABC):
             if hasattr(wire, "pin"):
                 for p in wire.pin:
                     yield p
+            if hasattr(wire, "blockage"):
+                yield wire.blockage
             yield wire
 
         connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))

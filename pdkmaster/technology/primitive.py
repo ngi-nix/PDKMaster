@@ -286,6 +286,17 @@ class _MaskPrimitive(_Primitive):
             fill_space=fill_space,
         )
 
+    def _blockage_attribute(self, args):
+        blockage = args.pop("blockage", None)
+        if blockage is not None:
+            if not isinstance(blockage, Marker):
+                raise TypeError(
+                    f"blockage argument for {self.__class__.__name__} has to None,"
+                    " or of type 'Marker',\n"
+                    f"not of type '{type(blockage)}'"
+                )
+            self.blockage = blockage
+
 class Marker(_MaskPrimitive):
     def __init__(self, name, **mask_args):
         mask_args["name"] = name
@@ -622,6 +633,7 @@ class WaferWire(_Conductor):
             raise ValueError("min_oxide_enclosure provided with no oxide given")
 
         self._pin_attribute(widthspace_args)
+        self._blockage_attribute(widthspace_args)
         super().__init__(**widthspace_args)
         self._pin_params()
 
@@ -761,6 +773,7 @@ class GateWire(_Conductor):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="same_net")
         self._pin_attribute(widthspace_args)
+        self._blockage_attribute(widthspace_args)
         super().__init__(**widthspace_args)
         self._pin_params()
 
@@ -769,6 +782,7 @@ class MetalWire(_Conductor):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space="same_net")
         self._pin_attribute(widthspace_args)
+        self._blockage_attribute(widthspace_args)
         super().__init__(**widthspace_args)
         self._pin_params()
 
@@ -783,6 +797,7 @@ class Via(_MaskPrimitive):
     ):
         primitive_args["name"] = name
         self._designmask_from_name(primitive_args, fill_space="no")
+        self._blockage_attribute(primitive_args)
         super().__init__(**primitive_args)
 
         self.ports += _PrimitiveNet(self, "conn")

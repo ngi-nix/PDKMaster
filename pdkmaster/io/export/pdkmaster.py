@@ -63,7 +63,12 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             if s:
                 s += " "
             s += f"fill_space='{prim.mask.fill_space}',"
+        if hasattr(prim, "blockage"):
+            if s:
+                s += " "
+            s += f"blockage={_str_prim(prim.blockage)},"
         s += "\n"
+
         return s
 
     def _params_widthspace(self, prim, *, add_fill_space=False):
