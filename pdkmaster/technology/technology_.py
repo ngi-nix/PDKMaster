@@ -291,9 +291,11 @@ class Technology(abc.ABC):
 
         # First add substrate alias if needed. This will only be clear
         # after the rules have been generated.
-        if isinstance(self._substrate, msk._MaskAlias):
-            self._rules += self._substrate
-        self._rules += msk.Connect(self._substrate, wfr.wafer)
+        sub = self.substrate
+        if isinstance(sub, msk._MaskAlias):
+            self._rules += sub
+        if sub != wfr.wafer:
+            self._rules += msk.Connect(sub, wfr.wafer)
 
         # Now we can add the rules
         for prim in prims:
