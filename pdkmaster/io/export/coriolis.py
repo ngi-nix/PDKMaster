@@ -85,7 +85,8 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
 
     def Implant(self, prim):
         return _str_create_basic(
-            prim.name, prim.type_+"Implant",
+            prim.name,
+            f"{prim.type_}Implant" if prim.type_ in ("n", "p") else "other",
             minsize=prim.min_width, minspace=prim.min_space,
             minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
             **_args_gds_layer(prim),
