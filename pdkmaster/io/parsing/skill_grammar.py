@@ -5,6 +5,7 @@ Top Grammar is SkillFile.
 This grammar wants to parse all valid SKILL scripts, including Cadence text technology files,
 Assura rules etc. This parser may parse invalid SKILL scripts.
 """
+# SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 
 import re
 from collections import OrderedDict

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Convert all the SKILL files to yaml files"""
+# SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 import yaml
 
 from files import techfiles, assurafiles, ilfiles, displayfiles

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Script to extract the rules from PDK files"""
+# SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 # Currently this is manual extraction for a signal TSMC 0.18um
 # Plan is to update this is the future to make it generic and driven
 # by an input file.

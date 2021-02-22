@@ -1,4 +1,5 @@
 """Generate coriolis setup file"""
+# SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from textwrap import dedent, indent
 from itertools import product
 import shapely.geometry as sh_geo

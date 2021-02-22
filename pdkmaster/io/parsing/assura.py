@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from ... import _util
 from .skill_grammar import SkillFile, SkillContext, SkillInterpreter, _skill_if
 

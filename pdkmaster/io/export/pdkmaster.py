@@ -1,4 +1,5 @@
 """Generate a pdkmaster technology file"""
+# SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from importlib import import_module
 from textwrap import indent, dedent
 from logging import warn
