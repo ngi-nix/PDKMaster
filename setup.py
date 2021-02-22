@@ -24,7 +24,7 @@ setup(
     author_email="staf@fibraservi.eu",
     description="ASIC PDK Manager",
     long_description=long_description,
-    license="GPL2.0+",
+    license="GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+",
     python_requires="~=3.6",
     setup_requires=["setuptools_scm"],
     install_requires=["setuptools", "modgrammar", "shapely", "descartes"],
