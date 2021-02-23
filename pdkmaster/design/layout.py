@@ -1326,8 +1326,12 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         height = conductor_params["height"]
         r = Rect(-0.5*width, -0.5*height, 0.5*width, 0.5*height)
 
-        portnets = conductor_params["portnets"]
-        net = portnets["conn"]
+        try:
+            portnets = conductor_params["portnets"]
+        except KeyError:
+            net = prim.ports.conn
+        else:
+            net = portnets["conn"]
 
         layout = self.fab.new_layout(
             NetSubLayout(net, MaskPolygon(prim.mask, r)),
@@ -1387,10 +1391,11 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         try:
             portnets = via_params["portnets"]
         except KeyError:
-            raise TypeError(f"No portnets specified for Via '{prim.name}'")
-        if set(portnets.keys()) != {"conn"}:
-            raise ValueError(f"Via '{prim.name}' needs one net for the 'conn' port")
-        net = portnets["conn"]
+            net = prim.ports.net
+        else:
+            if set(portnets.keys()) != {"conn"}:
+                raise ValueError(f"Via '{prim.name}' needs one net for the 'conn' port")
+            net = portnets["conn"]
 
         bottom = via_params["bottom"]
         bottom_enc = via_params["bottom_enclosure"]
@@ -1635,6 +1640,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             an = prim.ports.anode
             cath = prim.ports.cathode
         else:
+            if set(portnets.keys()) != {"anode", "cathode"}:
+                raise ValueError(
+                    f"Diode '{prim.name}' needs two port nets ('anode', 'cathode')"
+                )
             an = portnets["anode"]
             cath = portnets["cathode"]
 
@@ -1671,7 +1680,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         gate_encs = mos_params["gateimplant_enclosures"]
         sdw = mos_params["sd_width"]
 
-        portnets = mos_params["portnets"]
+        try:
+            portnets = mos_params["portnets"]
+        except KeyError:
+            portnets = prim.ports
 
         gate_left = -0.5*l
         gate_right = 0.5*l
