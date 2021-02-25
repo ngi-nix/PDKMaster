@@ -269,9 +269,9 @@ class Generator:
     def __call__(self):
         return {
             "drc": self._s_drc(),
-            "ly_drc": self._s_ly_drc(),
+            "ly_drc": self._ly_drc(),
             "extract": self._s_extract(),
-            "ly_extract": self._s_ly_extract(),
+            "ly_extract": self._ly_extract(),
             "lvs": self._s_lvs(),
         }
 
@@ -286,7 +286,7 @@ class Generator:
 
         return s + self._s_drcrules()
 
-    def _s_ly_drc(self):
+    def _ly_drc(self):
         ly_drc = ET.Element("klayout-macro")
         ET.SubElement(ly_drc, "description")
         ET.SubElement(ly_drc, "version")
@@ -407,7 +407,7 @@ class Generator:
 
         return s
 
-    def _s_ly_extract(self):
+    def _ly_extract(self):
         ly_extract = ET.Element("klayout-macro")
         ET.SubElement(ly_extract, "description")
         ET.SubElement(ly_extract, "version")
