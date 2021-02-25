@@ -274,6 +274,7 @@ class Generator:
             "extract": self._s_extract(),
             "ly_extract": self._ly_extract(),
             "lvs": self._s_lvs(),
+            "ly_tech": self._ly_tech(),
         }
 
     def _s_drc(self):
@@ -473,3 +474,32 @@ class Generator:
         s += "\nnetlist\n"
 
         return s
+
+    def _ly_tech(self):
+        lyt = ET.Element("technology")
+        ET.SubElement(lyt, "name").text = self.export_name
+        ET.SubElement(lyt, "description").text = (
+            f"KLayout generated from {self.tech.name} PDKMaster technology"
+        )
+        ET.SubElement(lyt, "group")
+        ET.SubElement(lyt, "dbu").text = "0.001"
+        ET.SubElement(lyt, "layer-properties_file")
+        ET.SubElement(lyt, "add-other-layers").text = "true"
+        ropts = ET.SubElement(lyt, "reader-options")
+        roptscom = ET.SubElement(ropts, "common")
+        ET.SubElement(roptscom, "create-other-layers").text = "true"
+        def s_gds_layer(l):
+            if isinstance(l, int):
+                return f"{l}/0"
+            else:
+                assert isinstance(l, tuple)
+                return f"{l[0]}/{l[1]}"
+        s_map = ";".join(
+            f"'{s_gds_layer(mask.gds_layer)} : {mask.name}'"
+            for mask in self.tech.designmasks
+        )
+        ET.SubElement(roptscom, "layer-map").text = f"layer_map({s_map})"
+        ET.SubElement(lyt, "writer-options")
+        ET.SubElement(lyt, "connectivity")
+
+        return lyt
