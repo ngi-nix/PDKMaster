@@ -121,6 +121,18 @@ class Technology(abc.ABC):
 
         return f(dim/(mult*self.grid))*mult*self.grid
 
+    @property
+    def dbu(self):
+        """Return database unit compatible with technology grid"""
+        igrid = int(round(1e6*self.grid))
+        assert (igrid%10) == 0
+        if (igrid%100) != 0:
+            return 1e-5
+        elif (igrid%1000) != 0:
+            return 1e-4
+        else:
+            return 1e-3
+
     @abc.abstractmethod
     def _init(self):
         raise RuntimeError("abstract base method _init() has to be implemnted in subclass")

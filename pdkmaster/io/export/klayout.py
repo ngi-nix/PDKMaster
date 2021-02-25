@@ -482,7 +482,7 @@ class Generator:
             f"KLayout generated from {self.tech.name} PDKMaster technology"
         )
         ET.SubElement(lyt, "group")
-        ET.SubElement(lyt, "dbu").text = "0.001"
+        ET.SubElement(lyt, "dbu").text = f"{self.tech.dbu}"
         ET.SubElement(lyt, "layer-properties_file")
         ET.SubElement(lyt, "add-other-layers").text = "true"
         ropts = ET.SubElement(lyt, "reader-options")
