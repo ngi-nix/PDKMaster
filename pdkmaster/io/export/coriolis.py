@@ -690,6 +690,17 @@ class _LibraryGenerator:
                 lib = Library.create(rootlib, '{lib.name}')
         """)
 
+        # Trigger layout generation
+        for cell in lib.cells:
+            l = cell.layout
+
+        s += "    new_cells = {\n"
+        s += "".join(
+            f"        '{cell.name}': Cell.create(lib, '{cell.name}'),\n"
+            for cell in lib.cells
+        )
+        s += "    }\n"
+
         s += indent(
             "".join(self._s_cell(lib, cell) for cell in lib.cells),
             prefix="    ",
@@ -706,7 +717,7 @@ class _LibraryGenerator:
     def _s_cell(self, lib, cell):
         try:
             s = dedent(f"""
-                cell = Cell.create(lib, '{cell.name}')
+                cell = new_cells['{cell.name}']
                 with UpdateSession():
             """)
 
@@ -773,8 +784,9 @@ class _LibraryGenerator:
                     }[sl.rotation]
                     s += indent(
                         dedent(f"""
-                            subcell = lib.getCell('{sl.inst.cell.name}')
-                            if subcell is None:
+                            try:
+                                subcell = new_cells['{sl.inst.cell.name}']
+                            except:
                                 subcell = af.getCell('{sl.inst.cell.name}', 0)
                             trans = Transformation(
                                 u({sl.x}), u({sl.y}), Transformation.Orientation.{r},

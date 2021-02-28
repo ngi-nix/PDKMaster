@@ -876,7 +876,10 @@ class _InstanceSubLayout(_SubLayout):
         cell = inst.cell
 
         if layoutname is None:
-            if not hasattr(cell, "layout"):
+            try:
+                # Create default layout
+                l = cell.layout
+            except:
                 raise ValueError(
                     f"Cell '{cell.name}' has no default layout and no layoutname"
                     " was specified"

@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
+import abc
+
 from .. import _util
 from ..technology import primitive as prm, technology_ as tch
 from . import layout as lay, circuit as ckt
@@ -73,6 +75,46 @@ class _Cell:
                 if cell not in cells:
                     yield cell
                     cells.add(cell)
+
+
+class _OnDemandCell(_Cell, abc.ABC):
+    """_Cell with on demand circuit and layout creation
+    
+    The circuit and layout will only be generated the first time it is accessed.
+    """
+    @property
+    def circuit(self):
+        try:
+            return self.circuits[self.name]
+        except KeyError:
+            self._create_circuit()
+            try:
+                return self.circuits[self.name]
+            except:
+                raise NotImplementedError(
+                    f"Cell '{self.name}' default circuit generation"
+                )
+
+    @property
+    def layout(self):
+        try:
+            return self.layouts[self.name]
+        except KeyError:
+            self._create_layout()
+            try:
+                return self.layouts[self.name]
+            except:
+                raise NotImplementedError(
+                    f"Cell '{self.name}' default layout generation"
+                )
+
+    @abc.abstractmethod
+    def _create_circuit(self):
+        pass
+
+    @abc.abstractmethod
+    def _create_layout(self):
+        pass
 
 
 class _Cells(_util.TypedTuple):
