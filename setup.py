@@ -14,17 +14,17 @@ def scm_version():
         "local_scheme": local_scheme
     }
 
-long_description = r"""
-TODO
-"""
+with open("README.md", "r") as f:
+    long_description = f.read()
 
 setup(
     name="PDKMaster",
     use_scm_version=scm_version(),
     author="Staf Verhaegen",
     author_email="staf@fibraservi.eu",
-    description="ASIC PDK Manager",
+    description="ASIC PDK Manager and Design Framework",
     long_description=long_description,
+    long_description_content_type="text/markdown",
     license="GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+",
     python_requires="~=3.6",
     setup_requires=["setuptools_scm"],

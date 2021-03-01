@@ -1,12 +1,7 @@
 # Description
 
-PDK Master is a tool to manange foundry PDK for ASIC design.
+PDK Master is a tool to manange foundry PDK for ASIC design and a framework for designing circuits and layouts in those technologies.
 It's mainly a work in progress.
-
-# Copyright and licensing
-
-git is used to track copyright of the code in this project.
-Code in this repository is licensed under GNU General Public License v2.0 (see LICENSE) or later.
 
 # Installation
 
@@ -31,3 +26,8 @@ Dependencies:
     - Jupyter notebook capability: jupyter notebook, Jupyter lab, Visual Studio Code, ...  
       jupyter lab has nicer environment of class jupyter notebook
     - ipywidgets integration, likely node.js also needed for ipywidgets integration in jupyter lab.
+
+# Copyright and licensing
+
+git is used to track copyright of the code in this project.
+Code in this repository is multi-licensed, see [LICENSE.md](LICENSE.md) for details.
