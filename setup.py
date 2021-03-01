@@ -28,7 +28,10 @@ setup(
     license="GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+",
     python_requires="~=3.6",
     setup_requires=["setuptools_scm"],
-    install_requires=["setuptools", "modgrammar", "shapely", "descartes"],
+    install_requires=[
+        "setuptools", "modgrammar", "shapely", "descartes",
+        "c4m-PySpice~=1.4.3.post0",
+    ],
     include_package_data=True,
     packages=find_packages(),
     project_urls={

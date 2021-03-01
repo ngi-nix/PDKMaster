@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
-from PySpice.Spice.Netlist import Circuit, SubCircuit
-from PySpice.Unit import u_µm
+from c4m.PySpice.Spice.Netlist import Circuit, SubCircuit
+from c4m.PySpice.Unit import u_µm
 
 from ... import _util
 from ...technology import primitive as prm
