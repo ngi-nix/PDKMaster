@@ -211,7 +211,7 @@ class Technology(abc.ABC):
                 noconn = viabottoms - bottomwires
                 if noconn:
                     raise Technology.ConnectionError(
-                        f"wires ({', '.join(wire.name) for wire in noconn}) not connected from bottom"
+                        f"wires ({', '.join(wire.name for wire in noconn)}) not connected from bottom"
                     )
 
                 for bottom in viabottoms:
