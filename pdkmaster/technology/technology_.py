@@ -230,8 +230,14 @@ class Technology(abc.ABC):
             raise Technology.ConnectionError(
                 f"vias ({', '.join(via.name for via in vias)}) not connected to bottom wires"
             )
+
+        # Add via and it's blockage layers
+        vias = tuple(prims.tt_iter_type(prm.Via))
+        add_prims(prim.blockage for prim in filter(
+            lambda p: hasattr(p, "blockage"), vias
+        ))
         # Now add all vias
-        add_prims(prims.tt_iter_type(prm.Via))
+        add_prims(vias)
 
         # process mosfets
         mosfets = set(prims.tt_iter_type(prm.MOSFET))
