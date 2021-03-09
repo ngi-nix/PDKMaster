@@ -603,7 +603,7 @@ class _LibraryGenerator:
                 cfg.crlcore.powerName = 'vdd'
                 cfg.etesian.aspectRatio = 1.00
                 cfg.etesian.aspectRatio = [10, 1000]
-                cfg.etesian.spaceMargin = 0.05
+                cfg.etesian.spaceMargin = 0.10
                 cfg.etesian.uniformDensity = False
                 cfg.etesian.routingDriven = False
                 cfg.etesian.feedNames = 'tie_x0,fill_x0'
