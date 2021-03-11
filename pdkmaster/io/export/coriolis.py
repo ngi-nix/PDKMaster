@@ -606,7 +606,10 @@ class _LibraryGenerator:
                 cfg.etesian.spaceMargin = 0.10
                 cfg.etesian.uniformDensity = False
                 cfg.etesian.routingDriven = False
-                cfg.etesian.feedNames = 'tie_x0,fill_x0'
+                cfg.etesian.latchUpDistance = u(30.0 - 1.0)
+                cfg.etesian.antennaInsertThreshold = 0.50
+                cfg.etesian.antennaMaxWL = u(250.0)
+                cfg.etesian.feedNames = 'tie_x0'
                 cfg.etesian.cell.zero = 'zero_x0'
                 cfg.etesian.cell.one = 'one_x0'
                 cfg.etesian.bloat = 'disabled'
@@ -625,7 +628,7 @@ class _LibraryGenerator:
                 )
                 cfg.anabatic.routingGauge = '{lib.name}'
                 cfg.anabatic.globalLengthThreshold = 1450
-                cfg.anabatic.saturateRatio = 90
+                cfg.anabatic.saturateRatio = 0.90
                 cfg.anabatic.saturateRp = 10
                 cfg.anabatic.topRoutingLayer = '{topmetal.name}'
                 cfg.anabatic.edgeLength = 48
@@ -661,6 +664,8 @@ class _LibraryGenerator:
         return dedent(f"""
             # Plugins setup
             with CfgCache(priority=Cfg.Parameter.Priority.ConfigurationFile) as cfg:
+                cfg.viewer.minimumSize = 500
+                cfg.viewer.pixelThreshold = 10
                 cfg.chip.block.rails.count = 5
                 cfg.chip.block.rails.hWidth = u(2.68)
                 cfg.chip.block.rails.vWidth = u(2.68)
@@ -1073,7 +1078,7 @@ class _TechnologyGenerator:
                 style.addDrawingStyle( group='Viewer', name='foreground'    , color=toRGB('White'      ), border=1 )
                 style.addDrawingStyle( group='Viewer', name='rubber'        , color=toRGB('192,0,192'  ), border=4, threshold=0.02 )
                 style.addDrawingStyle( group='Viewer', name='phantom'       , color=toRGB('Seashell4'  ), border=1 )
-                style.addDrawingStyle( group='Viewer', name='boundaries'    , color=toRGB('208,199,192'), border=1, pattern='0000000000000000', threshold=0 )
+                style.addDrawingStyle( group='Viewer', name='boundaries'    , color=toRGB('wheat1'     ), border=2, pattern='0000000000000000', threshold=0 )
                 style.addDrawingStyle( group='Viewer', name='marker'        , color=toRGB('80,250,80'  ), border=1 )
                 style.addDrawingStyle( group='Viewer', name='selectionDraw' , color=toRGB('White'      ), border=1 )
                 style.addDrawingStyle( group='Viewer', name='selectionFill' , color=toRGB('White'      ), border=1 )
@@ -1190,6 +1195,20 @@ class _TechnologyGenerator:
             style.addDrawingStyle( group='Knik & Kite', name='Anabatic::GCell', color=toRGB('255,255,190'), pattern='0000000000000000'         , border=2, threshold=threshold )
 
             Viewer.Graphics.addStyle( style )
+
+            # ----------------------------------------------------------------------
+            # Style: Alliance.Classic [white].
+
+            style = Viewer.DisplayStyle( 'Alliance.Classic [white]' )
+            style.inheritFrom( 'Alliance.Classic [black]' )
+            style.setDescription( 'Alliance Classic Look - white background' )
+            style.setDarkening  ( Viewer.DisplayStyle.HSVr(1.0, 3.0, 2.5) )
+
+            style.addDrawingStyle( group='Viewer', name='background', color=toRGB('White'), border=1 )
+            style.addDrawingStyle( group='Viewer', name='foreground', color=toRGB('Black'), border=1 )
+            style.addDrawingStyle( group='Viewer', name='boundaries', color=toRGB('Black'), border=1, pattern='0000000000000000' )
+            Viewer.Graphics.addStyle( style )
+
             Viewer.Graphics.setStyle( 'Alliance.Classic [black]' )
         """[1:]), prefix="    ")
 
