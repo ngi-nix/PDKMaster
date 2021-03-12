@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from textwrap import dedent
 from warnings import warn
-from itertools import product, combinations
+from itertools import product, combinations, chain
 import abc
 
 from .. import _util
@@ -520,6 +520,31 @@ class _Conductor(_WidthSpacePrimitive):
 
         self.ports += _PrimitiveNet(self, "conn")
 
+    def _generate_rules(self, tech):
+        super()._generate_rules(tech)
+
+        # Generate a mask for connection, thus without resistor parts
+        # or ActiveWire without gate etc.
+        indicators = chain(*tuple(r.indicator for r in filter(
+            lambda p: p.wire == self,
+            tech.primitives.tt_iter_type(Resistor),
+        )))
+        polys = tuple(g.poly for g in filter(
+            lambda p: p.active == self,
+            tech.primitives.tt_iter_type(MOSFETGate)
+        ))
+        removes = set(p.mask for p in chain(indicators, polys))
+
+        if removes:
+            if len(removes) == 1:
+                remmask = removes.pop()
+            else:
+                remmask = msk.Join(removes)
+            self.conn_mask = self.mask.remove(remmask).alias(self.mask.name + "__conn")
+            self._rules += (self.conn_mask,)
+        else:
+            self.conn_mask = self.mask
+
 class WaferWire(_Conductor):
     # The wire made from wafer material and normally isolated by LOCOS for old technlogies
     # and STI for other ones.
@@ -670,11 +695,6 @@ class WaferWire(_Conductor):
                 _EnclosureParam(self, "oxide_enclosure", allow_none=True),
             )
 
-    @property
-    def sd_mask(self):
-        "The area of the WaferWire not part of a gate"
-        return self._sd_mask
-
     def cast_params(self, params):
         well_net = params.pop("well_net", None)
         params = super().cast_params(params)
@@ -723,26 +743,11 @@ class WaferWire(_Conductor):
     def _generate_rules(self, tech):
         super()._generate_rules(tech)
 
-        # Derive source drain regions
-        gate_poly_masks = set(
-            gate.poly.mask for gate in tech.primitives.tt_iter_type(MOSFETGate)
-        )
-        if gate_poly_masks:
-            gate_polys_mask = (
-                _util.nth(gate_poly_masks, 0) if len(gate_poly_masks) == 1
-                else msk.Join(gate_poly_masks)
-            )
-            sd_mask = self.mask.remove(gate_polys_mask).alias(f"sd:{self.name}")
-            self._rules += (sd_mask,)
-        else:
-            sd_mask = self.mask
-        self._sd_mask = sd_mask
-
         for i, impl in enumerate(self.implant):
-            sd_mask_impl = msk.Intersect((sd_mask, impl.mask)).alias(
-                f"{sd_mask.name}:{impl.name}",
+            sd_mask_impl = msk.Intersect((self.conn_mask, impl.mask)).alias(
+                f"{self.conn_mask.name}:{impl.name}",
             )
-            self._rules += (sd_mask_impl, msk.Connect(sd_mask, sd_mask_impl))
+            self._rules += (sd_mask_impl, msk.Connect(self.conn_mask, sd_mask_impl))
             if self.allow_in_substrate and (impl.type_ == tech.substrate_type):
                 self._rules += (msk.Connect(sd_mask_impl, tech.substrate),)
             if impl not in self.implant_abut:
@@ -1001,17 +1006,13 @@ class Via(_MaskPrimitive):
         self._rules += (
             self.mask.width == self.width,
             self.mask.space >= self.min_space,
+            msk.Connect((b.conn_mask for b in self.bottom), self.mask),
+            msk.Connect(self.mask, (b.conn_mask for b in self.top)),
         )
-        bottom_masks = (
-            b.sd_mask if isinstance(b, WaferWire) else b.mask
-            for b in self.bottom
-        )
-        self._rules += (msk.Connect(bottom_masks, self.mask),)
         for i in range(len(self.bottom)):
             bot_mask = self.bottom[i].mask
             enc = self.min_bottom_enclosure[i]
             self._rules += (self.mask.enclosed_by(bot_mask) >= enc,)
-        self._rules += (msk.Connect(self.mask, (b.mask for b in self.top)),)
         for i in range(len(self.top)):
             top_mask = self.top[i].mask
             enc = self.min_top_enclosure[i]
@@ -1456,7 +1457,7 @@ class MOSFETGate(_WidthSpacePrimitive):
     def _generate_rules(self, tech):
         _MaskPrimitive._generate_rules(self, tech, gen_mask=False)
         active_mask = self.active.mask
-        poly_mask = self.poly.mask
+        poly_mask = self.poly.conn_mask
 
         # Update mask if it has no oxide
         extra_masks = tuple()
@@ -1486,14 +1487,15 @@ class MOSFETGate(_WidthSpacePrimitive):
                 ), tech.primitives,
             ):
                 extra_masks += tuple(inside.mask for inside in gate.inside)
+        masks = (active_mask, poly_mask)
+        if hasattr(self, "oxide"):
+            masks += (self.oxide.mask,)
+        if hasattr(self, "inside"):
+            masks += tuple(inside.mask for inside in self.inside)
         if extra_masks:
-            # Keep the alias but change the mask of the alias
-            masks = (active_mask, poly_mask)
-            if hasattr(self, "oxide"):
-                masks += (self.oxide.mask,)
-            if hasattr(self, "inside"):
-                masks += tuple(inside.mask for inside in self.inside)
-            self.mask.mask = msk.Intersect((*masks, wfr.outside(extra_masks)))
+            masks += (wfr.outside(extra_masks),)
+        # Keep the alias but change the mask of the alias
+        self.mask.mask = msk.Intersect(masks)
         mask = self.mask
 
         mask_used = False
