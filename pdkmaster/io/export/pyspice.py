@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from c4m.PySpice.Spice.Netlist import Circuit, SubCircuit
-from c4m.PySpice.Unit import u_µm
+from c4m.PySpice.Unit import u_µm, u_Ω
 
 from ... import _util
 from ...technology import primitive as prm
@@ -10,7 +10,7 @@ __all__ = ["PySpiceFactory"]
 
 
 class _SubCircuit(SubCircuit):
-    def __init__(self, circuit):
+    def __init__(self, circuit, lvs):
         if not isinstance(circuit, ckt._Circuit):
             raise TypeError("circuit has to be of type '_Circuit'")
 
@@ -55,7 +55,14 @@ class _SubCircuit(SubCircuit):
                         l=u_µm(round(inst.params["l"],6)), w=u_µm(round(inst.params["w"],6)),
                     )
                 elif isinstance(inst.prim, prm.Resistor):
-                    if hasattr(inst.prim, "model"):
+                    has_model = hasattr(inst.prim, "model")
+                    has_sheetres = hasattr(inst.prim, "sheetres")
+                    if not (has_model or has_sheetres):
+                        raise NotImplementedError(
+                            "Resistor circuit generation without a model or sheet resistance"
+                        )
+
+                    if has_model and not (has_sheetres and lvs):
                         params = getattr(inst.prim, "model_params", {})
                         model_args = {
                             params["width"]: u_µm(round(inst.params["width"], 6)),
@@ -67,8 +74,12 @@ class _SubCircuit(SubCircuit):
                             **model_args,
                         )
                     else:
-                        raise NotImplementedError(
-                            "Resistor circuit generation without a model"
+                        l = inst.params["height"]
+                        w = inst.params["width"]
+                        self.R(
+                            inst.name,
+                            netlookup[inst.ports.port1].name, netlookup[inst.ports.port2].name,
+                            u_Ω(round(inst.prim.sheetres*l/w, 4)),
                         )
             elif isinstance(inst, ckt._CellInstance):
                 pin_args = tuple()
@@ -157,5 +168,5 @@ class PySpiceFactory:
     def new_pyspicecircuit(self, *, corner, top, title=None, gnd=None):
         return _Circuit(self, corner, top, title, gnd)
 
-    def new_pyspicesubcircuit(self, *, circuit):
-        return _SubCircuit(circuit)
+    def new_pyspicesubcircuit(self, *, circuit, lvs=False):
+        return _SubCircuit(circuit, lvs=lvs)

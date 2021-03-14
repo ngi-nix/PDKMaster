@@ -164,7 +164,8 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
                 s += ",\n"
         if hasattr(prim, "model"):
             s += f"model='{prim.model}', model_params={prim.model_params},\n"
-
+        if hasattr(prim, "sheetres"):
+            s += f"sheetres={prim.sheetres},\n"
         s += self._params_widthspace(prim)
         return s
 

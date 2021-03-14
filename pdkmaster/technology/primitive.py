@@ -1052,13 +1052,14 @@ class PadOpening(_Conductor):
             yield mask
         yield self.bottom.mask
 
-# TODO: Allow to specify sheet resistance and not a model
 class Resistor(_WidthSpacePrimitive):
-    def __init__(self, name=None, *,
+    def __init__(self, name, *,
         wire, contact=None, min_contact_space=None, indicator, min_indicator_extension,
         implant=None, min_implant_enclosure=None,
-        model=None, model_params=None, **widthspace_args,
+        model=None, model_params=None, sheetres=None, **widthspace_args,
     ):
+        # If both model and sheetres are specified, sheetres will be used for
+        # LVS circuit generation in pyspice export.
         if not isinstance(wire, (WaferWire, GateWire, MetalWire)):
             raise TypeError(
                 "wire has to be of type '(Wafer|Gate|Metal)Wire'"
@@ -1072,13 +1073,6 @@ class Resistor(_WidthSpacePrimitive):
                 "or an iterable of those"
             )
         self.indicator = indicator
-
-        if "mask" in widthspace_args:
-            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
-        else:
-            widthspace_args["mask"] = msk.Intersect(
-                prim.mask for prim in (wire, *indicator)
-            )
 
         if "grid" in widthspace_args:
             raise TypeError("Resistor got an unexpected keyword argument 'grid'")
@@ -1094,12 +1088,6 @@ class Resistor(_WidthSpacePrimitive):
                 raise ValueError("min_space may not be smaller than base wire min_space")
         else:
             widthspace_args["min_space"] = wire.min_space
-
-        if name is not None:
-            widthspace_args["name"] = name
-        super().__init__(**widthspace_args)
-
-        self.ports += (_PrimitiveNet(self, name) for name in ("port1", "port2"))
 
         min_indicator_extension = _util.v2t(_util.i2f_recursive(min_indicator_extension))
         if not all(isinstance(enc, float) for enc in min_indicator_extension):
@@ -1139,6 +1127,21 @@ class Resistor(_WidthSpacePrimitive):
                 "min_implant_enclosure has to be 'None' if no implant is given"
             )
 
+        if "mask" in widthspace_args:
+            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
+        else:
+            prims = (wire, *indicator)
+            if implant:
+                prims += (implant,)
+            widthspace_args["mask"] = msk.Intersect(prim.mask for prim in prims).alias(
+                f"resistor:{name}"
+            )
+
+        widthspace_args["name"] = name
+        super().__init__(**widthspace_args)
+
+        self.ports += (_PrimitiveNet(self, name) for name in ("port1", "port2"))
+
         if contact is not None:
             if not isinstance(contact, Via):
                 raise TypeError("contact has to be 'None' or of type 'Via'")
@@ -1158,6 +1161,11 @@ class Resistor(_WidthSpacePrimitive):
                 "min_contact_space has to be 'None' if no contact layer is given"
             )
 
+        if (model is None) and (sheetres is None):
+            raise TypeError(
+                "Either model or sheetres has to be not 'None'"
+            )
+
         if model is not None:
             if not isinstance(model, str):
                 raise TypeError("model has to be 'None' or a string")
@@ -1174,10 +1182,19 @@ class Resistor(_WidthSpacePrimitive):
         elif model_params is not None:
             raise TypeError("model_params provided without a model")
 
+        sheetres = _util.i2f(sheetres)
+        if sheetres is not None:
+            if not isinstance(sheetres, float):
+                raise ValueError(
+                    f"sheetres has to be None or a float, not type {type(sheetres)}"
+                )
+            self.sheetres = sheetres
+
     def _generate_rules(self, tech):
         # Do not generate the default width/space rules.
         _Primitive._generate_rules(self, tech)
 
+        self._rules += (self.mask,)
         if self.min_width > self.wire.min_width:
             self._rules += (self.mask.width >= self.min_width,)
         if self.min_space > self.wire.min_space:

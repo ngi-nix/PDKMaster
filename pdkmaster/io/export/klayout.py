@@ -242,16 +242,32 @@ def _str_rule(rule):
         return s + "# Not supported\n"
 
 
+def _str_lvsresistor(tech, res):
+    s = f"# {res.name}\n"
+
+    s_res = _str_mask(res.mask)
+    s_conn = _str_mask(res.wire.conn_mask)
+
+    s += dedent(f"""
+        extract_devices(resistor("{res.name}", {res.sheetres}), {{
+            "R" => {s_res}, "C" => {s_conn},
+        }})
+        same_device_classes("{res.name}", "RES")
+    """[1:])
+
+    return s
+
+
 def _str_lvsmosfet(tech, mosfet):
     s = f"# {mosfet.name}\n"
 
-    s_sd = _str_mask(mosfet.gate.active.sd_mask)
+    s_sd = _str_mask(mosfet.gate.active.conn_mask)
     s_gate = _str_mask(mosfet.gate_mask)
     s_bulk = _str_mask(
         mosfet.well.mask if hasattr(mosfet, "well")
         else tech.substrate
     )
-    s_poly = _str_mask(mosfet.gate.poly.mask)
+    s_poly = _str_mask(mosfet.gate.poly.conn_mask)
 
     s += dedent(f"""
         extract_devices(mos4("{mosfet.model}"), {{
@@ -466,6 +482,10 @@ class Generator:
         s += "\n# Connectivity\n"
         conns = tuple(self.tech.rules.tt_iter_type(msk.Connect))
         s += "".join(_str_rule(conn) for conn in conns)
+
+        s += "\n# Resistors\n"
+        resistors = tuple(self.tech.primitives.tt_iter_type(prm.Resistor))
+        s += "".join(_str_lvsresistor(self.tech, res) for res in resistors)
 
         s += "\n# Transistors\n"
         mosfets = tuple(self.tech.primitives.tt_iter_type(prm.MOSFET))
