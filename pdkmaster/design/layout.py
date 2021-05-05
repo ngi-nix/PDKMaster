@@ -10,7 +10,7 @@ from ..technology import (
     property_ as prp, net as net_, mask as msk, primitive as prm,
     technology_ as tch, dispatcher as dsp
 )
-from . import circuit as ckt, library as lbry
+from . import circuit as ckt
 
 __all__ = [
     "Rect", "MaskPolygon", "MaskPolygons",
