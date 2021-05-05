@@ -492,6 +492,7 @@ class Generator:
 
         """[1:])
         s += self._s_extractrules() + dedent(f"""
+            align
             ok = compare
             if ok then
                 print("LVS OK\\n")
@@ -503,7 +504,8 @@ class Generator:
         return s
 
     def _s_extractrules(self):
-        s = "deep\n\n# Define layers\n"
+        # TODO: bug report for failing LVS on hierarchical LVS and diodes
+        s = "flat\n\n# Define layers\n"
         dms = tuple(self.tech.rules.tt_iter_type(msk.DesignMask))
         s += "".join(_str_designmask(dm) for dm in dms)
         aliases = tuple(self.tech.rules.tt_iter_type(msk._MaskAlias))
