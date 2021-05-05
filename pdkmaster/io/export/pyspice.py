@@ -9,13 +9,16 @@ from ...design import circuit as ckt
 __all__ = ["PySpiceFactory"]
 
 
+def _sanitize_name(name):
+    return name.replace("(", "[").replace(")", "]")
+
 class _SubCircuit(SubCircuit):
     def __init__(self, circuit, lvs):
         if not isinstance(circuit, ckt._Circuit):
             raise TypeError("circuit has to be of type '_Circuit'")
 
-        ports = tuple(port.name for port in circuit.ports)
-        name = circuit.name
+        ports = tuple(_sanitize_name(port.name) for port in circuit.ports)
+        name = _sanitize_name(circuit.name)
 
         super().__init__(name, *ports)
         self._circuit = circuit
@@ -48,7 +51,7 @@ class _SubCircuit(SubCircuit):
                                 f"'{name}'"
                             )
                         else:
-                            sgdb += (net.name,)
+                            sgdb += (_sanitize_name(net.name),)
                     # TODO: support more instance parameters
                     self.M(inst.name, *sgdb,
                         model=inst.prim.model,
@@ -70,7 +73,8 @@ class _SubCircuit(SubCircuit):
                         }
                         self.X(
                             inst.name, inst.prim.model,
-                            netlookup[inst.ports.port1].name, netlookup[inst.ports.port2].name,
+                            _sanitize_name(netlookup[inst.ports.port1].name),
+                            _sanitize_name(netlookup[inst.ports.port2].name),
                             **model_args,
                         )
                     else:
@@ -78,9 +82,23 @@ class _SubCircuit(SubCircuit):
                         w = inst.params["width"]
                         self.R(
                             inst.name,
-                            netlookup[inst.ports.port1].name, netlookup[inst.ports.port2].name,
-                            u_Ω(round(inst.prim.sheetres*l/w, 4)),
+                            _sanitize_name(netlookup[inst.ports.port1].name),
+                            _sanitize_name(netlookup[inst.ports.port2].name),
+                            u_Ω(round(inst.prim.sheetres*l/w, 10)),
                         )
+                elif isinstance(inst.prim, prm.Diode):
+                    if not hasattr(inst.prim, "model"):
+                        raise NotImplementedError(
+                            "Resistor circuit generation without a model or sheet resistance"
+                        )
+                    w = inst.params["width"]
+                    h = inst.params["height"]
+                    self.D(
+                        inst.name,
+                        _sanitize_name(netlookup[inst.ports.anode].name),
+                        _sanitize_name(netlookup[inst.ports.cathode].name),
+                        model=inst.prim.model, area=round(w*h, 6)*1e-12, pj=u_µm(round(2*(w + h), 6)),
+                    )
             elif isinstance(inst, ckt._CellInstance):
                 pin_args = tuple()
                 for port in inst.ports:
@@ -93,14 +111,16 @@ class _SubCircuit(SubCircuit):
                         )
                     else:
                         pin_args += (net.name,)
-                pin_args = tuple(netlookup[port].name for port in inst.ports)
-                self.X(inst.name, inst.circuit.name, *pin_args)
+                pin_args = tuple(
+                    _sanitize_name(netlookup[port].name) for port in inst.ports
+                )
+                self.X(inst.name, _sanitize_name(inst.circuit.name), *pin_args)
             else:
                 raise AssertionError("Internal error")
 
 
 class _Circuit(Circuit):
-    def __init__(self, fab, corner, top, title, gnd):
+    def __init__(self, fab, corner, top, subckts, title, gnd):
         assert isinstance(fab, PySpiceFactory), "Internal error"
 
         if title is None:
@@ -132,11 +152,35 @@ class _Circuit(Circuit):
         self._fab = fab
         self._corner = corner
 
-        subcircuit = fab.new_pyspicesubcircuit(circuit=top)
-        self.subcircuit(subcircuit)
+        if subckts is None:
+            scan = [top]
+            scanned = []
+
+            while scan:
+                circuit = scan.pop()
+                try:
+                    # If it is in the scanned list put the circuit at the end
+                    scanned.remove(circuit)
+                except ValueError:
+                    # If it is not in the scanned list, add subcircuits in the scan list
+                    for inst in circuit.instances.tt_iter_type(ckt._CellInstance):
+                        circuit2 = inst.cell.circuit
+                        try:
+                            scan.remove(circuit2)
+                        except ValueError:
+                            pass
+                        scan.append(circuit2)
+                scanned.append(circuit)
+            scanned.reverse()
+            subckts = scanned
+        psubckts = tuple(
+            fab.new_pyspicesubcircuit(circuit=c) for c in (*subckts, top)
+        )
+        for subckt in psubckts:
+            self.subcircuit(subckt)
         self.X(
             "top", top.name,
-            *(self.gnd if node==gnd else node for node in subcircuit._external_nodes),
+            *(self.gnd if node==gnd else node for node in psubckts[-1]._external_nodes),
         )
 
 
@@ -165,8 +209,8 @@ class PySpiceFactory:
                 raise ValueError(s)
         self.conflicts = conflicts
 
-    def new_pyspicecircuit(self, *, corner, top, title=None, gnd=None):
-        return _Circuit(self, corner, top, title, gnd)
+    def new_pyspicecircuit(self, *, corner, top, subckts=None, title=None, gnd=None):
+        return _Circuit(self, corner, top, subckts, title, gnd)
 
     def new_pyspicesubcircuit(self, *, circuit, lvs=False):
         return _SubCircuit(circuit, lvs=lvs)
