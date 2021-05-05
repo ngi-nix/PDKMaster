@@ -1228,13 +1228,6 @@ class Diode(_WidthSpacePrimitive):
             )
         self.indicator = indicator
 
-        if "mask" in widthspace_args:
-            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
-        else:
-            widthspace_args["mask"] = msk.Intersect(
-                prim.mask for prim in (wire, *indicator)
-            )
-
         if "grid" in widthspace_args:
             raise TypeError("Resistor got an unexpected keyword argument 'grid'")
 
@@ -1249,12 +1242,6 @@ class Diode(_WidthSpacePrimitive):
                 raise ValueError("min_space may not be smaller than base wire min_space")
         else:
             widthspace_args["min_space"] = wire.min_space
-
-        if name is not None:
-            widthspace_args["name"] = name
-        super().__init__(**widthspace_args)
-
-        self.ports += (_PrimitiveNet(self, name) for name in ("anode", "cathode"))
 
         min_indicator_enclosure = _util.v2t(min_indicator_enclosure)
         if not all(isinstance(enc, prp.Enclosure) for enc in min_indicator_enclosure):
@@ -1284,6 +1271,19 @@ class Diode(_WidthSpacePrimitive):
                 )
             self.min_implant_enclosure = min_implant_enclosure
 
+        if "mask" in widthspace_args:
+            raise TypeError("Resistor got an unexpected keyword argument 'mask'")
+        else:
+            widthspace_args["mask"] = msk.Intersect(
+                prim.mask for prim in (wire, *indicator, implant)
+            ).alias(f"diode:{name}")
+
+        if name is not None:
+            widthspace_args["name"] = name
+        super().__init__(**widthspace_args)
+
+        self.ports += (_PrimitiveNet(self, name) for name in ("anode", "cathode"))
+
         if well is None:
             if not wire.allow_in_substrate:
                 raise TypeError(f"wire '{wire.name}' has to be in a well")
@@ -1308,6 +1308,22 @@ class Diode(_WidthSpacePrimitive):
             if not isinstance(model, str):
                 raise TypeError("model has to be 'None' or a string")
             self.model = model
+
+    def _generate_rules(self, tech):
+        # Do not generate the default width/space rules.
+        _Primitive._generate_rules(self, tech)
+
+        self._rules += (self.mask,)
+        if self.min_width > self.wire.min_width:
+            self._rules += (self.mask.width >= self.min_width,)
+        if self.min_space > self.wire.min_space:
+            self._rules += (self.mask.space >= self.min_space,)
+        for i, ind in enumerate(self.indicator):
+            enc = self.min_indicator_enclosure[i]
+            self._rules += (self.wire.mask.enclosed_by(ind.mask) >= enc,)
+        if hasattr(self, "min_implant_enclosure"):
+            enc = self.min_implant_enclosure
+            self._rules += (self.mask.enclosed_by(self.implant.mask) >= enc,)
 
 class MOSFETGate(_WidthSpacePrimitive):
     class _ComputedProps:

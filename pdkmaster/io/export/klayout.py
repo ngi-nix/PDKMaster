@@ -258,6 +258,36 @@ def _str_lvsresistor(tech, res):
     return s
 
 
+def _str_lvsdiode(tech, diode):
+    s = f"# {diode.name}\n"
+
+    is_n = diode.implant.type_ == "n"
+
+    s_diode = _str_mask(diode.mask)
+    s_conn = _str_mask(diode.wire.conn_mask)
+    s_well = _str_mask(
+        diode.well.mask if hasattr(diode, "well")
+        else tech.substrate
+    )
+
+    if is_n:
+        s_p = s_well
+        s_n = s_diode
+        s_conn_port = "tC"
+    else:
+        s_n = s_well
+        s_p = s_diode
+        s_conn_port = "tA"
+
+    s += dedent(f"""
+        extract_devices(diode("{diode.model}"), {{
+            "P" => {s_p}, "N" => {s_n}, "{s_conn_port}" => {s_conn}
+        }})
+    """[1:])
+
+    return s
+
+
 def _str_lvsmosfet(tech, mosfet):
     s = f"# {mosfet.name}\n"
 
@@ -486,6 +516,10 @@ class Generator:
         s += "\n# Resistors\n"
         resistors = tuple(self.tech.primitives.tt_iter_type(prm.Resistor))
         s += "".join(_str_lvsresistor(self.tech, res) for res in resistors)
+
+        s += "\n# Diodes\n"
+        diodes = tuple(self.tech.primitives.tt_iter_type(prm.Diode))
+        s += "".join(_str_lvsdiode(self.tech, diode) for diode in diodes)
 
         s += "\n# Transistors\n"
         mosfets = tuple(self.tech.primitives.tt_iter_type(prm.MOSFET))
