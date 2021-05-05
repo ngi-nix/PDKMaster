@@ -455,6 +455,10 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                         self.mask.length >= w[1],
                     ))
                 self._rules += (msk.Spacing(submask, self.mask) >= row[1],)
+        if hasattr(self, "pin"):
+            self._rules += tuple(
+                msk.Connect(self.mask, pin.mask) for pin in self.pin
+            )
 
 class ExtraProcess(_WidthSpacePrimitive):
     def __init__(self, name, *, fill_space, **widthspace_args):
