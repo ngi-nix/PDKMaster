@@ -30,6 +30,14 @@ pdkmaster.technology.mask
    :undoc-members:
    :show-inheritance:
 
+pdkmaster.technology.geometry
+-----------------------------
+
+.. automodule:: pdkmaster.technology.geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 pdkmaster.technology.net
 ------------------------
 

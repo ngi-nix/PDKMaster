@@ -497,7 +497,7 @@ class MaskPolygons(_util.TypedListMapping[MaskPolygon, msk.DesignMask]):
     def dup(self):
         return MaskPolygons(mp.dup() for mp in self)
 
-    def mps_bounds(self, *, mask=None):
+    def mps_bounds(self, *, mask=None) -> geo.Rect:
         mps = self if mask is None else filter(
             lambda mp: mp.mask == mask, self,
         )
@@ -1230,7 +1230,7 @@ class _Layout:
             self.boundary,
         )
 
-    def bounds(self, *, mask=None, net=None, depth=None):
+    def bounds(self, *, mask=None, net=None, depth=None) -> geo.Rect:
         if mask is not None:
             if not isinstance(mask, msk._Mask):
                 raise TypeError(
