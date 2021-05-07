@@ -3,7 +3,9 @@ import abc
 
 from .. import _util
 
+
 __all__ = ["Net", "Nets"]
+
 
 class Net(abc.ABC):
     @abc.abstractmethod
@@ -17,6 +19,7 @@ class Net(abc.ABC):
 
     def __hash__(self):
         return hash(self.name)
+
 
 class Nets(_util.TypedTuple):
     tt_element_type = Net

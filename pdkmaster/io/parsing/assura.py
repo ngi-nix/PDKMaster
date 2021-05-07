@@ -2,7 +2,9 @@
 from ... import _util
 from .skill_grammar import SkillFile, SkillContext, SkillInterpreter, _skill_if
 
+
 __all__ = ["AssuraFile", "AssuraInterpreter"]
+
 
 #
 # Script interpretation support classes
@@ -14,11 +16,13 @@ class LayerDef(dict):
             s = s[6:]
         return s
 
+
 class DRCExtractContext(SkillContext):
     def __init__(self, context):
         super().__init__(parent=context)
         self.rules = []
         self.extracts = {}
+
 
 class LayerOperation:
     binops = {
@@ -56,6 +60,7 @@ class LayerOperation:
         else:
             assert len(self.args) == 2
             return f"({repr(self.args[0])}{binop}{repr(self.args[1])})"
+
 
 class AssuraInterpreter(SkillInterpreter):
     def __init__(self):
@@ -190,6 +195,7 @@ def _switch(elems, **kwargs):
     elem = _util.strip_literal(elems[0])
     return elem
 
+
 def _layerDefs(elems, **kwargs):
     def parse_type(layerspecs, base, typespec):
         base = _util.strip_literal(base)
@@ -250,6 +256,7 @@ def _layerDefs(elems, **kwargs):
                 d[layername] = {layerfunc: layerspecs}
 
     return {name: d}
+
 
 def _drcExtractRules(elems, *, top=True, unknownfuncs=set(), **kwars):
     _known_funcs = {
@@ -375,6 +382,7 @@ def _drcExtractRules(elems, *, top=True, unknownfuncs=set(), **kwars):
 
     return value
 
+
 def _extractDevice(elems, *, type_, **kwargs):
     value = {
         "name": _util.strip_literal(elems[0]),
@@ -402,6 +410,7 @@ def _extractDevice(elems, *, type_, **kwargs):
 
     return value
 
+
 _value4function_table = {
     "switch": _switch,
     "avSwitch": _switch,
@@ -417,6 +426,7 @@ _value4function_table = {
     #TODO: avCompareRules
 }
 
+
 #
 # Grammar
 #
@@ -429,6 +439,7 @@ class AssuraFile(SkillFile):
     @classmethod
     def parse_string(cls, text):
         return super(AssuraFile, cls).parse_string(text, value4funcs=_value4function_table)
+
 
 class AssuraDRC(dict):
     @staticmethod

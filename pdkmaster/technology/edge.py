@@ -4,7 +4,9 @@ import abc
 from .. import _util
 from . import property_ as prp, mask as msk
 
+
 __all__ = ["MaskEdge"]
+
 
 class _EdgeProperty(prp.Property):
     def __init__(self, edge, name):
@@ -13,6 +15,7 @@ class _EdgeProperty(prp.Property):
         super().__init__(str(edge) + "." + name)
         self.edge = edge
         self.prop_name = name
+
 
 class _DualEdgeProperty(prp.Property):
     def __init__(self, edge1, edge2, name, *, commutative, allow_mask2):
@@ -33,6 +36,7 @@ class _DualEdgeProperty(prp.Property):
         self.edge1 = edge1
         self.edge2 = edge2
         self.prop_name = name
+
 
 class _Edge(abc.ABC):
     @abc.abstractmethod
@@ -61,6 +65,7 @@ class _Edge(abc.ABC):
 
         return _DualEdgeOperation(self, other, "interact_with", allow_mask2=True)
 
+
 class _DualEdgeOperation(_Edge):
     def __init__(self, edge1, edge2, name, allow_mask2=False):
         assert all((
@@ -75,6 +80,7 @@ class _DualEdgeOperation(_Edge):
         self.edge2 = edge2
         self.operation = name
 
+
 class MaskEdge(_Edge):
     def __init__(self, mask):
         if not isinstance(mask, msk._Mask):
@@ -83,6 +89,7 @@ class MaskEdge(_Edge):
 
         super().__init__("edge({})".format(mask.name))
 
+
 class Join(_Edge):
     def __init__(self, edges):
         edges = tuple(edges) if _util.is_iterable(edges) else (edges,)
@@ -90,6 +97,7 @@ class Join(_Edge):
             raise TypeError("edges has to be of type 'Edge' or an iterable of type 'Edge'")
 
         super().__init__("join({})".format(",".join(str(edge) for edge in edges)))
+
 
 class Intersect(_Edge):
     def __init__(self, edges):

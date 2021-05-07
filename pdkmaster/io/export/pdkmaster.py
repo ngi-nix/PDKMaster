@@ -7,10 +7,13 @@ from logging import warn
 from ...technology import dispatcher as dsp, technology_ as tch
 from ...design import circuit as ckt, library as lib
 
+
 __all__ = ["generate"]
+
 
 def _str_prim(prim):
     return f"prims['{prim.name}']"
+
 
 def _str_primtuple(t):
     if len(t) == 0:
@@ -20,14 +23,17 @@ def _str_primtuple(t):
     else:
         return f"({', '.join(_str_prim(p) for p in t)})"
 
+
 def _str_enclosure(enc):
     return f"Enclosure({enc.spec})"
+
 
 def _str_enclosures(encs):
     if len(encs) == 1:
         return f"({_str_enclosure(encs[0])},)"
     else:
         return f"({','.join(_str_enclosure(enc) for enc in encs)})"
+
 
 class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _Primitive(self, prim):
@@ -263,6 +269,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             s += f"model='{prim.model}',\n"
         return s
 
+
 class PDKMasterGenerator:
     def __call__(self, obj):
         if isinstance(obj, tch.Technology):
@@ -450,5 +457,6 @@ class PDKMasterGenerator:
         #     raise NotImplementedError("Library cells export with layout")
 
         return s
+
 
 generate = PDKMasterGenerator()

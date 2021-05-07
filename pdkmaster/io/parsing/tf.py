@@ -2,7 +2,9 @@
 from ... import _util
 from .skill_grammar import SkillFile, _skill_functionlist
 
+
 __all__ = ["TechFile"]
+
 
 #
 # Technology file support functions
@@ -21,9 +23,11 @@ def _get_layername(v):
     else:
         raise ValueError("{!r} is not a valid layer specification")
 
+
 def _get_bool(v):
     assert type(v) is bool
     return v
+
 
 def _get_combinedlayername(v):
     """Returns a combination of layers, the layers will be separated by a ':' as delimiter.
@@ -32,6 +36,7 @@ def _get_combinedlayername(v):
     assert len(v) > 1
     return ":".join([_get_layername(elem) for elem in v])
 
+
 def _get_numornil(v):
     if isinstance(v, bool):
         assert not v
@@ -39,6 +44,7 @@ def _get_numornil(v):
     else:
         assert isinstance(v, (int, float))
         return v
+
 
 def _prop_value(elems, **kwargs):
     ret = {}
@@ -53,6 +59,7 @@ def _prop_value(elems, **kwargs):
             ret[prop] = value
 
     return ret
+
 
 def _prop_layers_value_optextra(elems, **kwargs):
     """data: [prop (layer1 (layer2 (layer3))) value (extraprop (extravalue))]
@@ -90,6 +97,7 @@ def _prop_layers_value_optextra(elems, **kwargs):
 
     return ret
 
+
 def _prop_cumulative_value(elems, *, functionname, **kwargs):
     d = {}
     for v in elems:
@@ -106,12 +114,14 @@ def _prop_cumulative_value(elems, *, functionname, **kwargs):
 
     return {"_": d}
 
+
 def _prop_value_units(elems, **kwargs):
     ret = {}
     for prop, units, value in elems:
         ret[prop] = [value, units]
 
     return ret
+
 
 def _layer_value(elems, *, unique=False, **kwargs):
     ret = {}
@@ -123,6 +133,7 @@ def _layer_value(elems, *, unique=False, **kwargs):
 
     return ret
 
+
 def _layer_values(elems, **kwargs):
     ret = {}
     for v in elems:
@@ -130,11 +141,14 @@ def _layer_values(elems, **kwargs):
 
     return ret
 
+
 def _layers(elems, **kwargs):
     return [_get_layername(elem) for elem in elems]
 
+
 def _combinedlayers(elems, **kwargs):
     return [_get_combinedlayername(elem) for elem in elems]
+
 
 def _techParams(elems, **kwargs):
     ret = {}
@@ -153,6 +167,7 @@ def _techParams(elems, **kwargs):
 
     return ret
 
+
 def _name_abbreviation(elems, **kwargs):
     ret = {}
     for v in elems:
@@ -164,6 +179,7 @@ def _name_abbreviation(elems, **kwargs):
         ret[techname] = d
 
     return ret
+
 
 def _techDisplays(elems, **kwargs):
     ret = {}
@@ -179,6 +195,7 @@ def _techDisplays(elems, **kwargs):
         }
 
     return ret
+
 
 def _standardViaDefs(elems, **kwargs):
     ret = []
@@ -227,6 +244,7 @@ def _standardViaDefs(elems, **kwargs):
 
     return ret
 
+
 def _customViaDefs(elems, **kwargs):
     ret = {}
     for v in elems:
@@ -242,6 +260,7 @@ def _customViaDefs(elems, **kwargs):
         }
 
     return ret
+
 
 def _spacingTables(elems, **kwargs):
     ret = {}
@@ -287,6 +306,7 @@ def _spacingTables(elems, **kwargs):
 
     return ret
 
+
 def _viaSpecs(elems, **kwargs):
     ret = {}
     for v in elems:
@@ -298,6 +318,7 @@ def _viaSpecs(elems, **kwargs):
         ret[layer] = vias
 
     return ret
+
 
 def _antennaModels(elems, **kwargs):
     ret = {}
@@ -320,6 +341,7 @@ def _antennaModels(elems, **kwargs):
         ret[modelname] = rules
 
     return ret
+
 
 def _constraintGroups(elems, **kwargs):
     ret = {}
@@ -391,6 +413,7 @@ def _constraintGroups(elems, **kwargs):
 
     return ret
 
+
 def _techDerivedLayers(elems, **kwargs):
     ret = {}
     for v in elems:
@@ -410,6 +433,7 @@ def _techDerivedLayers(elems, **kwargs):
 
     return ret
 
+
 def _functions(elems, **kwargs):
     ret = {}
     for v in elems:
@@ -421,6 +445,7 @@ def _functions(elems, **kwargs):
             ret[layer]["mask_number"] = v[2]
 
     return ret
+
 
 def _multipartPathTemplates(elems, **kwargs):
     ret = {}
@@ -551,6 +576,7 @@ def _multipartPathTemplates(elems, **kwargs):
 
     return ret
 
+
 def _streamLayers(elems, **kwargs):
     ret = {}
     for layer, number, datatype, translate in elems:
@@ -562,6 +588,7 @@ def _streamLayers(elems, **kwargs):
         }
 
     return ret
+
 
 def _layerFunctions(elems, **kwargs):
     ret = {}
@@ -575,6 +602,7 @@ def _layerFunctions(elems, **kwargs):
         ret[layername] = d
 
     return ret
+
 
 def _spacingRules(elems, **kwargs):
     ret = {}
@@ -592,6 +620,7 @@ def _spacingRules(elems, **kwargs):
             ret[layername] = {specname: specvalue}
 
     return ret
+
 
 def _layerDefinitions(elems, **kwargs):
     class _LookupExtend():
@@ -654,6 +683,7 @@ def _layerDefinitions(elems, **kwargs):
     d_elems["layers"] = [_layerpurpose2value(layerpurpose) for layerpurpose in techlayerpurposes]
     assert len(techlayerproperties) == 0, "Remaining layerproperties: {}".format(list(techlayerproperties.keys()))
     return d_elems
+
 
 _value4function_table = {
     "techLayerPurposePriorities": _layers,

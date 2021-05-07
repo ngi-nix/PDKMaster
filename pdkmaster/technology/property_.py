@@ -4,7 +4,9 @@ import abc
 from .. import _util
 from . import rule as rle
 
+
 __all__ = ["Operators", "Property"]
+
 
 class _Condition(rle._Rule):
     @abc.abstractmethod
@@ -17,6 +19,7 @@ class _Condition(rle._Rule):
     @abc.abstractmethod
     def __repr__(self):
         raise RuntimeError("_Condition subclass needs to implement __repr__() method")
+
 
 class _BinaryPropertyCondition(_Condition, abc.ABC):
     symbol = abc.abstractproperty()
@@ -33,6 +36,7 @@ class _BinaryPropertyCondition(_Condition, abc.ABC):
 
     def __repr__(self):
         return "{} {} {}".format(repr(self.left), self.symbol, repr(self.right))
+
 
 class Operators:
     class Greater(_BinaryPropertyCondition):
@@ -53,6 +57,7 @@ class Operators:
     EQ = Equal
 # Convenience assigns
 Ops = Operators
+
 
 class Property:
     value_conv = _util.i2f
@@ -109,6 +114,7 @@ class Property:
                 value, self.name, self.value_type_str,
             ))
         return value
+
 
 class Enclosure:
     def __init__(self, spec):
@@ -252,6 +258,7 @@ class Enclosure:
 
     def __repr__(self):
         return f"Enclosure({self.spec})"
+
 
 class EnclosureProperty(Property):
     value_conv = Enclosure

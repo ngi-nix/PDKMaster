@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from . import primitive as prm
 
+
 class PrimitiveDispatcher:
     def __call__(self, prim, *args, **kwargs):
         if not isinstance(prim, prm._Primitive):

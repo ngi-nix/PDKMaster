@@ -9,6 +9,7 @@ from . import (
     edge as edg,
 )
 
+
 __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "Implant", "Well",
            "Insulator", "WaferWire", "GateWire", "MetalWire", "TopMetalWire",
@@ -17,6 +18,7 @@ __all__ = ["Marker", "Auxiliary", "ExtraProcess",
            "MOSFETGate", "MOSFET",
            "Spacing",
            "UnusedPrimitiveError", "UnconnectedPrimitiveError"]
+
 
 class _Primitive(abc.ABC):
     _names = set()
@@ -109,6 +111,7 @@ class _Primitive(abc.ABC):
 
         return casted
 
+
 class _Param(prp.Property):
     def __init__(self, primitive, name, *, allow_none=False, default=None):
         if not isinstance(primitive, _Primitive):
@@ -130,10 +133,12 @@ class _Param(prp.Property):
         else:
             return super().cast(value)
 
+
 class _IntParam(_Param):
     value_conv = None
     value_type = int
     value_type_str = "int"
+
 
 class _PrimitiveParam(_Param):
     value_conv = None
@@ -166,6 +171,7 @@ class _PrimitiveParam(_Param):
 
         return value
 
+
 class _EnclosureParam(_Param):
     value_type_str = "'Enclosure'"
 
@@ -186,6 +192,7 @@ class _EnclosureParam(_Param):
                 )
 
         return value
+
 
 class _EnclosuresParam(_Param):
     value_type_str = "iterable of 'Enclosure'"
@@ -227,8 +234,10 @@ class _EnclosuresParam(_Param):
                 )
         return value
 
+
 class _Params(_util.TypedTuple):
     tt_element_type = _Param
+
 
 class _PrimitiveNet(net_.Net):
     def __init__(self, prim, name):
@@ -240,8 +249,10 @@ class _PrimitiveNet(net_.Net):
         super().__init__(name)
         self.prim = prim
 
+
 class _PrimitivePorts(net_.Nets):
     tt_element_type = (_PrimitiveNet, wfr.SubstrateNet)
+
 
 class _MaskPrimitive(_Primitive):
     @abc.abstractmethod
@@ -296,6 +307,7 @@ class _MaskPrimitive(_Primitive):
                 )
             self.blockage = blockage
 
+
 class Marker(_MaskPrimitive):
     def __init__(self, name, **mask_args):
         mask_args["name"] = name
@@ -314,6 +326,7 @@ class Marker(_MaskPrimitive):
     def designmasks(self):
         return super().designmasks
 
+
 class Auxiliary(_MaskPrimitive):
     # Layer not used in other primitives but defined by foundry for the technology
     def __init__(self, name, **mask_args):
@@ -327,6 +340,7 @@ class Auxiliary(_MaskPrimitive):
     @property
     def designmasks(self):
         return super().designmasks
+
 
 class _WidthSpacePrimitive(_MaskPrimitive):
     @abc.abstractmethod
@@ -458,6 +472,7 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                 msk.Connect(self.mask, pin.mask) for pin in self.pin
             )
 
+
 class ExtraProcess(_WidthSpacePrimitive):
     def __init__(self, name, *, fill_space, **widthspace_args):
         if not isinstance(fill_space, str):
@@ -467,6 +482,7 @@ class ExtraProcess(_WidthSpacePrimitive):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space=fill_space)
         super().__init__(**widthspace_args)
+
 
 class Implant(_WidthSpacePrimitive):
     # Implants are supposed to be disjoint unless they are used as combined implant
@@ -482,6 +498,7 @@ class Implant(_WidthSpacePrimitive):
         self.type_ = type_
 
         super().__init__(**widthspace_args)
+
 
 class Well(Implant):
     # Wells are non-overlapping by design
@@ -505,6 +522,7 @@ class Well(Implant):
         if hasattr(self, "min_space_samenet"):
             self._rules += (msk.SameNet(self.mask).space >= self.min_space_samenet,)
 
+
 class Insulator(_WidthSpacePrimitive):
     def __init__(self, name, *, fill_space, **widthspace_args):
         if not isinstance(fill_space, str):
@@ -514,6 +532,7 @@ class Insulator(_WidthSpacePrimitive):
         widthspace_args["name"] = name
         self._designmask_from_name(widthspace_args, fill_space=fill_space)
         super().__init__(**widthspace_args)
+
 
 class _Conductor(_WidthSpacePrimitive):
     @abc.abstractmethod
@@ -546,6 +565,7 @@ class _Conductor(_WidthSpacePrimitive):
             self._rules += (self.conn_mask,)
         else:
             self.conn_mask = self.mask
+
 
 class WaferWire(_Conductor):
     # The wire made from wafer material and normally isolated by LOCOS for old technlogies
@@ -776,6 +796,7 @@ class WaferWire(_Conductor):
                 for w in self.well
             )
 
+
 class GateWire(_Conductor):
     def __init__(self, name, **widthspace_args):
         widthspace_args["name"] = name
@@ -784,6 +805,7 @@ class GateWire(_Conductor):
         self._blockage_attribute(widthspace_args)
         super().__init__(**widthspace_args)
         self._pin_params()
+
 
 class MetalWire(_Conductor):
     def __init__(self, name, **widthspace_args):
@@ -794,8 +816,10 @@ class MetalWire(_Conductor):
         super().__init__(**widthspace_args)
         self._pin_params()
 
+
 class TopMetalWire(MetalWire):
     pass
+
 
 class Via(_MaskPrimitive):
     def __init__(self, name, *,
@@ -1028,6 +1052,7 @@ class Via(_MaskPrimitive):
             for mask in conn.designmasks:
                 yield mask
 
+
 class PadOpening(_Conductor):
     def __init__(self, name, *, bottom, min_bottom_enclosure, **widthspace_args):
         widthspace_args["name"] = name
@@ -1053,6 +1078,7 @@ class PadOpening(_Conductor):
         for mask in super().designmasks:
             yield mask
         yield self.bottom.mask
+
 
 class Resistor(_WidthSpacePrimitive):
     def __init__(self, name, *,
@@ -1209,6 +1235,7 @@ class Resistor(_WidthSpacePrimitive):
             mask = self.wire.mask.remove(ind.mask)
             self._rules += (mask.width >= ext,)
 
+
 class Diode(_WidthSpacePrimitive):
     def __init__(self, name=None, *,
         wire, indicator, min_indicator_enclosure=None,
@@ -1326,6 +1353,7 @@ class Diode(_WidthSpacePrimitive):
         if hasattr(self, "min_implant_enclosure"):
             enc = self.min_implant_enclosure
             self._rules += (self.mask.enclosed_by(self.implant.mask) >= enc,)
+
 
 class MOSFETGate(_WidthSpacePrimitive):
     class _ComputedProps:
@@ -1553,6 +1581,7 @@ class MOSFETGate(_WidthSpacePrimitive):
         if mask_used:
             # This rule has to be put before the other rules that use the alias
             self._rules = (mask,) + self._rules
+
 
 class MOSFET(_Primitive):
     class _ComputedProps:
@@ -1820,6 +1849,7 @@ class MOSFET(_Primitive):
                 for mask in self.contact.designmasks:
                     yield mask
 
+
 class Spacing(_Primitive):
     def __init__(self, *, primitives1, primitives2, min_space):
         primitives1 = tuple(primitives1) if _util.is_iterable(primitives1) else (primitives1,)
@@ -1858,8 +1888,10 @@ class Spacing(_Primitive):
     def __repr__(self):
         return self.name
 
+
 class Primitives(_util.TypedTuple):
     tt_element_type = _Primitive
+
 
 class UnusedPrimitiveError(Exception):
     def __init__(self, primitive):
@@ -1867,6 +1899,7 @@ class UnusedPrimitiveError(Exception):
         super().__init__(
             f"primitive '{primitive.name}' defined but not used"
         )
+
 
 class UnconnectedPrimitiveError(Exception):
     def __init__(self, primitive):

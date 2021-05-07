@@ -6,11 +6,13 @@ from ... import _util
 from ...technology import primitive as prm
 from ...design import circuit as ckt
 
+
 __all__ = ["PySpiceFactory"]
 
 
 def _sanitize_name(name):
     return name.replace("(", "[").replace(")", "]")
+
 
 class _SubCircuit(SubCircuit):
     def __init__(self, circuit, lvs):

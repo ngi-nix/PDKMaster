@@ -10,7 +10,9 @@ Assura rules etc. This parser may parse invalid SKILL scripts.
 import re
 from collections import OrderedDict
 
+
 __all__ = ["SkillFile"]
+
 
 from modgrammar import (
     Grammar, L, NOT_FOLLOWED_BY, WORD, REF, OPTIONAL, WHITESPACE, ZERO_OR_MORE, ONE_OR_MORE,
@@ -85,6 +87,7 @@ class SkillContext:
             raise ValueError(f"procedures {double} already present")
 
         self.procedures.update(procedures)
+
 
 class SkillInterpreter:
     def __init__(self):
@@ -195,6 +198,7 @@ class SkillInterpreter:
             
         return self(args["statements"], context=subcontext)
 
+
 #
 # SKILL builtin functions
 #
@@ -203,6 +207,7 @@ def _skill_let(elems, **kwargs):
         "vars": elems[0],
         "statements": elems[1],
     }
+
 
 def _skill_for(elems, **kwargs):
     assert len(elems) > 3
@@ -213,6 +218,7 @@ def _skill_for(elems, **kwargs):
         "statements": elems[3:],
     }
 
+
 def _skill_foreach(elems, **kwargs):
     assert len(elems) > 2
     return {
@@ -220,6 +226,7 @@ def _skill_foreach(elems, **kwargs):
         "list": elems[1],
         "statements": elems[2:],
     }
+
 
 def _skill_if(elems, **kwargs):
     thenidx = None
@@ -248,6 +255,7 @@ def _skill_if(elems, **kwargs):
 
     return value
 
+
 def _skill_when(elems, **kwargs):
     assert len(elems) > 1
     cond = elems[0]
@@ -259,6 +267,7 @@ def _skill_when(elems, **kwargs):
         "then": elems[1:],
     }
 
+
 def _skill_functionlist(elems, **kwargs):
     """A list of functions with value converted to a dict with the function names as keys"""
     
@@ -268,6 +277,7 @@ def _skill_functionlist(elems, **kwargs):
         value.update(elem)
 
     return value
+
 
 _builtins = {
     "let": _skill_let,
@@ -290,12 +300,14 @@ class _BaseGrammar(Grammar):
             end = self._str_info[2]
             print("{}: {}-{}".format(self.__class__.__name__, start, end))
 
+
 class Symbol(_BaseGrammar):
     grammar = RE(r"'[a-zA-Z_][a-zA-Z0-9_]*")
 
     def grammar_elem_init(self, sessiondata):
         self.value = self.string[1:]
         self.ast = {"Symbol": self.value}
+
 
 class Bool(_BaseGrammar):
     grammar = L("t")|L("nil"), NOT_FOLLOWED_BY(WORD("a-zA-Z0-9_"))
@@ -304,12 +316,14 @@ class Bool(_BaseGrammar):
         self.value = self.string == "t"
         self.ast = {"Bool": self.value}
 
+
 class Identifier(_BaseGrammar):
     grammar = WORD("a-zA-Z_?@", "a-zA-Z0-9_?@."), NOT_FOLLOWED_BY(L("("))
 
     def grammar_elem_init(self, sessiondata):
         self.ast = {"Identifier": self.string}
         self.value = self.string
+
 
 class Number(_BaseGrammar):
     grammar = RE(r"(\+|\-)?([0-9]+(\.[0-9]*)?|\.[0-9]+)(e(\+|-)?[0-9]+)?")
@@ -319,6 +333,7 @@ class Number(_BaseGrammar):
         self.value = float(self.string) if isfloat else int(self.string)
         self.ast = {"Number": self.value}
 
+
 class String(_BaseGrammar):
     grammar = RE(r'"([^"\\]+|\\(.|\n))*"')
 
@@ -326,20 +341,25 @@ class String(_BaseGrammar):
         self.value = self.string
         self.ast = {"String": self.value}
 
+
 class SignSymbol(_BaseGrammar):
     # +/- followed by a digit
     grammar_whitespace_mode = "explicit"
     grammar = RE(r"[\+\-](?=[0-9])")
 
+
 class SignOperator(_BaseGrammar):
     # +/- not followed by a digit
     grammar = RE(r"[\+\-](?![\+\-0-9])")
 
+
 class PrefixOperator(_BaseGrammar):
     grammar = L("!") | RE(r"\+(?!\+)") | RE(r"\-(?!-)")
 
+
 class PostfixOperator(_BaseGrammar):
     grammar = L("++") | L("--")
+
 
 class BinaryOperator(_BaseGrammar):
     grammar = (
@@ -350,8 +370,10 @@ class BinaryOperator(_BaseGrammar):
         L(",")
     )
 
+
 class FieldOperator(_BaseGrammar):
     grammar = L("->") | L("~>")
+
 
 class ItemBase(_BaseGrammar):
     grammar = (
@@ -379,6 +401,7 @@ class ItemBase(_BaseGrammar):
         self.ast = {"ItemBase": ast}
         self.value = value
 
+
 class Item(_BaseGrammar):
     grammar_whitespace_mode = "optional"
     grammar = ZERO_OR_MORE(PrefixOperator), ItemBase, ZERO_OR_MORE(PostfixOperator)
@@ -403,6 +426,7 @@ class Item(_BaseGrammar):
         self.ast = {"Item": ast}
         self.value = value
 
+
 class Expression(_BaseGrammar):
     grammar_whitespace_mode = "optional"
     grammar = Item, ZERO_OR_MORE(BinaryOperator, Item)
@@ -419,6 +443,7 @@ class Expression(_BaseGrammar):
                 value += [op.string, item.value]
         self.ast = {"Expression": ast}
         self.value = value
+
 
 class List(_BaseGrammar):
     grammar_whitespace_mode = "optional"
@@ -451,6 +476,7 @@ class List(_BaseGrammar):
                 "args": [elem.ast for elem in self[1].elements[1:]],
             }}
 
+
 class SymbolList(_BaseGrammar):
     grammar_whitespace_mode = "optional"
     grammar = L("'("), ZERO_OR_MORE(Expression), L(")")
@@ -459,6 +485,7 @@ class SymbolList(_BaseGrammar):
         self.value = [elem.value for elem in self[1]]
         self.ast = {"SymbolList": [elem.ast for elem in self[1]]}
 
+
 class CurlyList(_BaseGrammar):
     grammar_whitespace_mode = "optional"
     grammar = L("{"), ZERO_OR_MORE(Expression), L("}")
@@ -466,6 +493,7 @@ class CurlyList(_BaseGrammar):
     def grammar_elem_init(self, sessiondata):
         self.value = {"{}": [elem.value for elem in self[1]]}
         self.ast = {"CurlyList": [elem.ast for elem in self[1]]}
+
 
 class Function(_BaseGrammar):
     grammar_whitespace_mode = "optional"
@@ -490,6 +518,7 @@ class Function(_BaseGrammar):
             "args": [elem.ast for elem in self[1]]
         }}
 
+
 class ArrayElement(_BaseGrammar):
     grammar_whitespace_mode = "optional"
     grammar = RE(r"[a-zA-Z][a-zA-Z0-9_]*\["), Expression, L(']')
@@ -501,6 +530,7 @@ class ArrayElement(_BaseGrammar):
             "name": name,
             "elem": self[1].ast
         }}
+
 
 class SkillFile(_BaseGrammar):
     grammar_whitespace_mode = "optional"

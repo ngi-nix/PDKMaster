@@ -5,7 +5,9 @@ import abc
 from .. import _util
 from . import property_ as prp, rule as rle, mask as msk, wafer_ as wfr, primitive as prm
 
+
 __all__ = ["Technology"]
+
 
 class Technology(abc.ABC):
     class TechnologyError(Exception):

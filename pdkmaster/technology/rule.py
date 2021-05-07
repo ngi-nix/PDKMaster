@@ -3,7 +3,9 @@ import abc
 
 from .. import _util
 
+
 __all__ = ["Rules"]
+
 
 class _Rule(abc.ABC):
     @abc.abstractmethod
@@ -22,6 +24,7 @@ class _Rule(abc.ABC):
     @abc.abstractmethod
     def __hash__(self):
         raise TypeError("subclasses of _Rule need to implement __hash__()")
+
 
 class Rules(_util.TypedTuple):
     tt_element_type = _Rule

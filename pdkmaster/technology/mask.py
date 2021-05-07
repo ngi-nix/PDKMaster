@@ -4,7 +4,9 @@ import abc
 from .. import _util
 from . import rule as rle, property_ as prp
 
+
 __all__ = ["DesignMask"]
+
 
 class _MaskProperty(prp.Property):
     def __init__(self, mask, name):
@@ -13,6 +15,7 @@ class _MaskProperty(prp.Property):
         super().__init__(mask.name + "." + name)
         self.mask = mask
         self.prop_name = name
+
 
 class _DualMaskProperty(prp.Property):
     def __init__(self, mask1, mask2, name, *, commutative):
@@ -31,6 +34,7 @@ class _DualMaskProperty(prp.Property):
         self.mask2 = mask2
         self.prop_name = name
 
+
 class _DualMaskEnclosureProperty(prp.EnclosureProperty):
     def __init__(self, mask1, mask2, name):
         assert (
@@ -44,6 +48,7 @@ class _DualMaskEnclosureProperty(prp.EnclosureProperty):
         self.mask2 = mask2
         self.prop_name = name
 
+
 class _AsymmetricDualMaskProperty(_DualMaskProperty):
     @classmethod
     def cast(cls, value):
@@ -54,7 +59,8 @@ class _AsymmetricDualMaskProperty(_DualMaskProperty):
             raise TypeError("property value has to be iterable of float of length 2")
 
         return value
-    
+
+
 class _MultiMaskCondition(prp._Condition, abc.ABC):
     operation = abc.abstractproperty()
 
@@ -79,10 +85,12 @@ class _MultiMaskCondition(prp._Condition, abc.ABC):
             ",".join(str(mask) for mask in self.others),
         )
 
+
 class _InsideCondition(_MultiMaskCondition):
     operation = "is_inside"
 class _OutsideCondition(_MultiMaskCondition):
     operation = "is_outside"
+
 
 class _Mask(abc.ABC):
     @abc.abstractmethod
@@ -150,6 +158,7 @@ class _Mask(abc.ABC):
     def designmasks(self):
         return iter(tuple())
 
+
 class DesignMask(_Mask, rle._Rule):
     def __init__(self, name, *, gds_layer=None, fill_space):
         if gds_layer is not None:
@@ -181,6 +190,7 @@ class DesignMask(_Mask, rle._Rule):
     def designmasks(self):
         yield self
 
+
 class _PartsWith(_Mask):
     def __init__(self, *, mask, condition):
         if not isinstance(mask, _Mask):
@@ -209,6 +219,7 @@ class _PartsWith(_Mask):
     def designmasks(self):
         return self.mask.designmasks
 
+
 class Join(_Mask):
     def __init__(self, masks):
         if _util.is_iterable(masks):
@@ -226,6 +237,7 @@ class Join(_Mask):
         for mask in self.masks:
             for designmask in mask.designmasks:
                 yield designmask
+
 
 class Intersect(_Mask):
     def __init__(self, masks):
@@ -245,6 +257,7 @@ class Intersect(_Mask):
             for designmask in mask.designmasks:
                 yield designmask
 
+
 class _MaskRemove(_Mask):
     def __init__(self, *, from_, what):
         if not isinstance(from_, _Mask):
@@ -261,6 +274,7 @@ class _MaskRemove(_Mask):
         for mask in (self.from_, self.what):
             for designmask in mask.designmasks:
                 yield designmask
+
 
 class _MaskAlias(_Mask, rle._Rule):
     def __init__(self, *, name, mask):
@@ -280,6 +294,7 @@ class _MaskAlias(_Mask, rle._Rule):
     def designmasks(self):
         return self.mask.designmasks
 
+
 class Spacing(_DualMaskProperty):
     def __init__(self, mask1, mask2):
         if not all(isinstance(mask, _Mask) for mask in (mask1, mask2)):
@@ -287,12 +302,14 @@ class Spacing(_DualMaskProperty):
 
         super().__init__(mask1, mask2, "space", commutative=True)
 
+
 class OverlapWidth(_DualMaskProperty):
     def __init__(self, mask1, mask2):
         if not all(isinstance(mask, _Mask) for mask in (mask1, mask2)):
             raise TypeError("mask1 and mask2 have to be of type 'Mask'")
 
         super().__init__(mask1, mask2, "overlapwidth", commutative=True)
+
 
 class Connect(rle._Rule):
     def __init__(self, mask1, mask2):
@@ -317,6 +334,7 @@ class Connect(rle._Rule):
             ",".join(m.name for m in self.mask2)
         )
         return f"connect({s1},{s2})"
+
 
 class SameNet(_Mask):
     def __init__(self, mask):

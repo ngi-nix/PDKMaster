@@ -10,7 +10,9 @@ from ...technology import (
 )
 from ...design import layout as lay, library as lbr
 
+
 __all__ = ["CoriolisGenerator"]
+
 
 def _str_create_basic(name, mat, *,
     minsize=None, minspace=None, minarea=None, gds_layer=None, gds_datatype=None
@@ -33,6 +35,7 @@ def _str_create_basic(name, mat, *,
     s += ")\n"
     return s
 
+
 def _str_create_via(via):
     assert isinstance(via, prm.Via)
 
@@ -51,12 +54,14 @@ def _str_create_via(via):
         filter(lambda p: isinstance(p, prm.MetalWire), via.top),
     ))
 
+
 def _args_gds_layer(prim):
     if hasattr(prim, "mask") and hasattr(prim.mask, "gds_layer"):
         gds_layer = prim.mask.gds_layer
         return {"gds_layer": gds_layer[0], "gds_datatype": gds_layer[1]}
     else:
         return {}
+
 
 class _LayerGenerator(dsp.PrimitiveDispatcher):
     def __init__(self, tech: tch.Technology):
@@ -188,6 +193,7 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             f"# TransistorLayer.create(tech, '{prim.name}', '{prim.gate.name}', "
             f"{s_impl}{s_well})\n"
         )
+
 
 class _AnalogGenerator(dsp.PrimitiveDispatcher):
     def __init__(self, tech):

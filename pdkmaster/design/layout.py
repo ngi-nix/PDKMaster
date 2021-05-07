@@ -26,6 +26,7 @@ _rotations = (
 class NetOverlapError(Exception):
     pass
 
+
 def _rect(left, bottom, right, top, *, enclosure=None):
     if enclosure is not None:
         if isinstance(enclosure, prp.Enclosure):
@@ -45,6 +46,7 @@ def _rect(left, bottom, right, top, *, enclosure=None):
         (left, bottom), (right, bottom), (right, top), (left, top),
     ))
 
+
 def _via_array(left, bottom, width, pitch, rows, columns):
     def subrect(rc):
         row = rc[0]
@@ -61,6 +63,7 @@ def _via_array(left, bottom, width, pitch, rows, columns):
     return sh_geo.MultiPolygon(tuple(
         map(subrect, product(range(rows), range(columns)))
     ))
+
 
 def _manhattan_polygon(polygon, *, outer=True):
     def _manhattan_coords(coords, outer):
@@ -133,6 +136,7 @@ def _manhattan_polygon(polygon, *, outer=True):
                 for interior in polygon.interiors
             )
         )
+
 
 class Rect:
     def __init__(
@@ -232,6 +236,7 @@ class Rect:
             f"Rect(left={self.left}, bottom={self.bottom},"
             f" right={self.right}, top={self.top})"
         )
+
 
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
@@ -471,6 +476,7 @@ class MaskPolygon:
             ),
         )
 
+
 class MaskPolygons(_util.TypedTuple):
     tt_index_attribute = "mask"
     tt_index_type = msk.DesignMask
@@ -557,6 +563,7 @@ class MaskPolygons(_util.TypedTuple):
         newpolygons -= other
         return newpolygons
 
+
 class _SubLayout(abc.ABC):
     @abc.abstractmethod
     def __init__(self, polygons):
@@ -581,6 +588,7 @@ class _SubLayout(abc.ABC):
     @abc.abstractmethod
     def moved(self):
         raise AssertionError("Internal error")
+
 
 class NetSubLayout(_SubLayout):
     def __init__(self, net, polygons):
@@ -647,6 +655,7 @@ class NetSubLayout(_SubLayout):
         else:
             return False
 
+
 class NetlessSubLayout(_SubLayout):
     def __init__(self, polygons):
         if isinstance(polygons, MaskPolygon):
@@ -690,6 +699,7 @@ class NetlessSubLayout(_SubLayout):
                 return True
         else:
             return False
+
 
 class MultiNetSubLayout(_SubLayout):
     def __init__(self, sublayouts):
@@ -860,6 +870,7 @@ class MultiNetSubLayout(_SubLayout):
                     raise AssertionError("Internal error")
         else:
             return False
+
 
 class _InstanceSubLayout(_SubLayout):
     def __init__(self, inst, *, x, y, layoutname, rotation):
@@ -1040,6 +1051,7 @@ class _InstanceSubLayout(_SubLayout):
             rotation=rot2
         )
 
+
 class SubLayouts(_util.TypedTuple):
     tt_element_type = _SubLayout
     tt_index_attribute = None
@@ -1100,6 +1112,7 @@ class SubLayouts(_util.TypedTuple):
             return super().__iadd__(other)
         else:
             return self
+
 
 class _Layout:
     def __init__(self, fab, sublayouts, boundary):
@@ -1281,6 +1294,7 @@ class _Layout:
 
     def freeze(self):
         self.sublayouts.tt_freeze()
+
 
 class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
     def __init__(self, fab):
@@ -1791,6 +1805,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
+
 class _CircuitLayouter:
     def __init__(self, fab, circuit, *, boundary):
         assert isinstance(fab, LayoutFactory), "Internal error"
@@ -1981,6 +1996,7 @@ class _CircuitLayouter:
                 continue
             if polygon.mask.fill_space != "no":
                 polygon.connect()
+
 
 class LayoutFactory:
     def __init__(self, tech):
@@ -2180,6 +2196,7 @@ class LayoutFactory:
             raise ValueError("No specs found")
 
         return spec_out
+
 
 class Plotter:
     def __init__(self, plot_specs={}):

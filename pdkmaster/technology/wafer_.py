@@ -2,7 +2,9 @@
 from .. import _util
 from . import net as net_, mask as msk
 
+
 __all__ = ["wafer", "SubstrateNet"]
+
 
 class _Wafer(msk._Mask):
     generated = False
@@ -22,6 +24,7 @@ class _Wafer(msk._Mask):
         return iter(tuple())
 
 wafer = _Wafer()
+
 
 def outside(masks, *, alias=None):
     masks = _util.v2t(masks)

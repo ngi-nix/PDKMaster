@@ -7,7 +7,9 @@ from ..technology import (
 )
 from . import library as lbry
 
+
 __all__ = ["CircuitFactory"]
+
 
 class _Instance(abc.ABC):
     @abc.abstractmethod
@@ -20,6 +22,7 @@ class _Instance(abc.ABC):
         self.name = name
         ports.tt_freeze()
         self.ports = ports
+
 
 class _InstanceNet(net_.Net):
     def __init__(self, inst, net):
@@ -38,12 +41,15 @@ class _InstanceNet(net_.Net):
     def __eq__(self, other):
         return isinstance(other, _InstanceNet) and ((self.full_name) == other.full_name)
 
+
 class _InstanceNets(net_.Nets):
     tt_element_type = _InstanceNet
     tt_index_attribute = "full_name"
 
+
 class _Instances(_util.TypedTuple):
     tt_element_type = _Instance
+
 
 class _PrimitiveInstance(_Instance):
     def __init__(self, name, prim, **params):
@@ -59,6 +65,7 @@ class _PrimitiveInstance(_Instance):
 
         self.prim = prim
         self.params = params
+
 
 class _CellInstance(_Instance):
     def __init__(self, name, cell, *, circuitname=None):
@@ -137,6 +144,7 @@ class _CellInstance(_Instance):
                 )
         yield from layout.net_polygons(net=net)
 
+
 class _Circuit:
     def __init__(self, name, fab):
         assert all((
@@ -196,8 +204,10 @@ class _Circuit:
                 yield inst.cell
                 cells.add(inst.cell)
 
+
 class _Circuits(_util.TypedTuple):
     tt_element_type = _Circuit
+
 
 class _CircuitNet(net_.Net):
     def __init__(self, circuit, name, external):
@@ -214,8 +224,10 @@ class _CircuitNet(net_.Net):
     def freeze(self):
         self.childports.tt_freeze()
 
+
 class _CircuitNets(net_.Nets):
     tt_element_type = _CircuitNet
+
 
 class CircuitFactory:
     def __init__(self, tech):
