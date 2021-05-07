@@ -4,6 +4,9 @@
 *.pyc
 __pychache__
 *files.txt
+/docs/html
+
+/.doit.db*
 
 /PDKMaster.egg-info
 /build
