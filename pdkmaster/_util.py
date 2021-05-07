@@ -9,12 +9,28 @@ def i2f(i):
     return float(i) if (isinstance(i, int) and (type(i) != bool)) else i
 
 def i2f_recursive(values):
+    """Recursively convert int and bool elements of an iterable.
+    Iterables will be converted to tuples"""
     if is_iterable(values):
         return tuple(i2f_recursive(v) for v in values)
     else:
         return i2f(values)
 
 def v2t(value, *, n=None):
+    """Convert a single value or an iterable of value to a tuple.
+
+    Arguments:
+        value: a single value or an iterable of value
+        n: length specification for return value
+
+    Returns:
+        * If n is not specified and value is single value, a tuple with the
+          value will be returned.
+        * If n specified and value is a single value, a tuple with
+          n times the value will be returns.
+        * If n is specified and value is an iterable, the length of
+          iterable will be checked to correspond with given length
+    """
     if is_iterable(value) and (not isinstance(value, str)):
         v = tuple(value)
         if n is not None:
@@ -24,6 +40,7 @@ def v2t(value, *, n=None):
         return (value,) if n is None else tuple(value for _ in range(n))
 
 def is_iterable(it):
+    """Check if a value is Iterable"""
     try:
         iter(it)
     except:
@@ -32,9 +49,26 @@ def is_iterable(it):
         return True
 
 def nth(it, n):
+    """Return nth element from an iterable.
+
+    Arguments:
+        n: element to return starting from 0.  
+           All values up to the element will have been consumed from the
+           iterable.
+
+    Raises:
+        StopIteration: if iterable has less than n+1 elements
+    """
     return next(islice(it, n, None))
 
 def first(it):
+    """Get first element of an iterable
+
+    This function will consume the first element of the iterator
+
+    Raises:
+        StopIteration: if iterable is empty
+    """
     return nth(it, 0)
 
 def last(it: Iterable[_iter_typevar_]) -> _iter_typevar_:
@@ -53,6 +87,10 @@ def last(it: Iterable[_iter_typevar_]) -> _iter_typevar_:
         raise StopIteration
 
 def strip_literal(s):
+    """Strip surrounding '"' of a string.
+
+    Strip head and tail only if they are both '"'
+    """
     if (s[0] == '"') and (s[-1] == '"'):
         return s[1:-1]
     else:
