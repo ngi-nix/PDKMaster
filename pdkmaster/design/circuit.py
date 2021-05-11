@@ -131,7 +131,7 @@ class _CellInstance(_Instance):
                 layout = self.cell.layouts[layoutname]
             except KeyError:
                 raise ValueError(
-                    f"layout '{layoutname}' does not exist of instance '{selfname}'"
+                    f"layout '{layoutname}' does not exist of instance '{self.name}'"
                     f" of cell '{self.cell.name}'"
                 )
         if layout is None:

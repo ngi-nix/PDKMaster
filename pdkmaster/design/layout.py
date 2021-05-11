@@ -502,7 +502,7 @@ class MaskPolygons(_util.TypedTuple):
             for elem in self._t:
                 if elem.mask.name == name:
                     return elem
-        return super().__getattr__(name)
+        raise AttributeError(f"No polygon for mask named '{name}'")
 
     def __iadd__(self, other):
         if self._frozen:
@@ -1512,7 +1512,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         try:
             impl = via_params["bottom_implant"]
         except KeyError:
-            pass
+            impl = None
         else:
             if impl is not None:
                 enc = via_params["bottom_implant_enclosure"]
@@ -1528,13 +1528,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         try:
             well = via_params["bottom_well"]
         except KeyError:
-            pass
+            well = None
         else:
             if well is not None:
                 well_net = via_params.get("well_net", None)
                 enc = via_params["bottom_well_enclosure"]
                 assert enc is not None, "Internal error"
-                if impl.type_ == well.type_:
+                if (impl is not None) and (impl.type_ == well.type_):
                     if well_net is not None:
                         if well_net != net:
                             raise ValueError(
@@ -1640,7 +1640,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 enc = prim.min_implant_enclosure.max()
             except AttributeError:
                 assert isinstance(wire, prm.WaferWire), "Internal error"
-                idx = wire.implant(impl)
+                idx = wire.implant.index(impl)
                 enc = wire.min_implant_enclosure[idx].max()
             impl_width = res_width + 2*enc
             impl_height = res_height + 2*wire_ext + 2*enc
@@ -1819,7 +1819,7 @@ class _CircuitLayouter:
 
     @property
     def tech(self):
-        return self.circuit.layoutfab.tech
+        return self.circuit.fab.tech
 
     def inst_layout(self, inst, *, layoutname=None, rotation="no"):
         if not isinstance(inst, ckt._Instance):

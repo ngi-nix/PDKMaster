@@ -51,7 +51,7 @@ class TypedTuple(abc.ABC):
     def __init__(self, elems=tuple()):
         assert (
             isinstance(self.tt_element_type, tuple)
-            or (not issubclass(self.tt_element_type, tuple))
+            or (isinstance(self.tt_element_type, type))
         ), "Internal error"
         if isinstance(elems, self.tt_element_type):
             self._t = (elems,)
@@ -59,7 +59,7 @@ class TypedTuple(abc.ABC):
             self._t = tuple(elems)
         if not all(isinstance(elem, self.tt_element_type) for elem in self._t):
             raise TypeError(
-                f"elements of {self.__class__.__name__} have to be of type {self.tt_element_type.__name__}"
+                f"elements of {self.__class__.__name__} have to be of type {self.tt_element_type}"
             )
 
         if self.tt_index_attribute is not None:

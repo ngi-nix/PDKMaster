@@ -192,7 +192,7 @@ class Technology(abc.ABC):
         def allwires(wire):
             if isinstance(wire, prm.Resistor):
                 yield allwires(wire.wire)
-                for m in wire.marker:
+                for m in wire.indicator:
                     yield m
             if hasattr(wire, "pin"):
                 for p in wire.pin:
