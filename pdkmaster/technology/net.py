@@ -20,6 +20,9 @@ class Net(abc.ABC):
     def __hash__(self):
         return hash(self.name)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.name})"
+
 
 class Nets(_util.TypedTuple):
     tt_element_type = Net
