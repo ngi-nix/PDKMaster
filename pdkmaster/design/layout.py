@@ -19,13 +19,13 @@ from shapely import geometry as sh_geo, ops as sh_ops, affinity as sh_aff
 
 from .. import _util
 from ..technology import (
-    property_ as prp, net as net_, mask as msk, primitive as prm,
-    technology_ as tch, dispatcher as dsp
+    property_ as prp, net as net_, mask as msk, geometry as geo,
+    primitive as prm, technology_ as tch, dispatcher as dsp
 )
 from . import circuit as ckt
 
 __all__ = [
-    "Rect", "MaskPolygon", "MaskPolygons",
+    "MaskPolygon", "MaskPolygons",
     "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
     "LayoutFactory", "Plotter",
 ]
@@ -150,106 +150,6 @@ def _manhattan_polygon(polygon, *, outer=True):
         )
 
 
-class Rect:
-    def __init__(
-        self, left=None, bottom=None, right=None, top=None, *,
-        x=None, width=None, y=None, height=None,
-    ):
-        rect_params = _util.i2f_recursive((left, bottom, right, top))
-        xy_params = _util.i2f_recursive((x, width, y, height))
-
-        any_rect = any(p is not None for p in rect_params)
-        all_rect = all(p is not None for p in rect_params)
-        any_xy = any(p is not None for p in xy_params)
-        all_xy = all(p is not None for p in xy_params)
-
-        if not (
-            (all_rect or all_xy)
-            and not (all_rect and any_xy)
-            and not (all_xy and any_rect)
-        ):
-            raise TypeError(
-                "Rect object need either all rectangle parameters"
-                " left, bottom, right, top be specified\n"
-                "or all xy parameters x, width, y, height"
-            )
-        if all_rect:
-            if not all(isinstance(p, float) for p in rect_params):
-                raise TypeError(
-                    "Parameters left, bottom, right and top have to be floats"
-                )
-            self._left = left
-            self._bottom = bottom
-            self._right = right
-            self._top = top
-            self._x = 0.5*(left + right)
-            self._width = right - left
-            self._y = 0.5*(bottom + top)
-            self._height = top - bottom
-        elif all_xy:
-            if not all(isinstance(p, float) for p in xy_params):
-                raise TypeError(
-                    "Parameters x, width, y and top have to be floats"
-                )
-            self._left = left = x - 0.5*width
-            self._right = left + width
-            self._bottom = bottom = y - 0.5*height
-            self._top = bottom + height
-            self._x = x
-            self._width = width
-            self._y = y
-            self._height = height
-        else:
-            raise AssertionError("Internal error")
-
-    @property
-    def left(self): return self._left
-    @property
-    def bottom(self): return self._bottom
-    @property
-    def right(self): return self._right
-    @property
-    def top(self): return self._top
-    @property
-    def x(self): return self._x
-    @property
-    def width(self): return self._width
-    @property
-    def y(self): return self._y
-    @property
-    def height(self): return self._height
-
-    @property
-    def area(self):
-        return self.width*self.height
-
-    def moved(self, *, dx, dy, rotation="no"):
-        try:
-            x, y, width, height = {
-                "no": (self.x, self.y, self.width, self.height),
-                "90": (-self.y, self.x, self.height, self.width),
-                "180": (-self.x, -self.y, self.width, self.height),
-                "270": (self.y, -self.x, self.height, self.width),
-                "mirrorx": (-self.x, self.y, self.width, self.height),
-                "mirrorx&90": (-self.y, -self.x, self.height, self.width),
-                "mirrory": (self.x, -self.y, self.width, self.height),
-                "mirrory&90": (self.y, self.x, self.height, self.width),
-            }[rotation]
-        except KeyError:
-            raise NotImplementedError(f"rotation '{rotation}'")
-
-        return Rect(x=(x + dx), y=(y + dy), width=width, height=height)
-
-    def __hash__(self):
-        return hash((self.left, self.bottom, self.right, self.top))
-
-    def __repr__(self):
-        return (
-            f"Rect(left={self.left}, bottom={self.bottom},"
-            f" right={self.right}, top={self.top})"
-        )
-
-
 class MaskPolygon:
     _geometry_types = (sh_geo.Polygon, sh_geo.MultiPolygon)
     _geometry_types_str = "'Polygon'/'MultiPolygon' from shapely"
@@ -260,7 +160,7 @@ class MaskPolygon:
         self.name = mask.name
         self.mask = mask
 
-        if isinstance(polygon, Rect):
+        if isinstance(polygon, geo.Rect):
             polygon = _rect(
                 polygon.left, polygon.bottom, polygon.right, polygon.top
             )
@@ -274,8 +174,9 @@ class MaskPolygon:
         return MaskPolygon(self.mask, self.polygon)
 
     @property
-    def bounds(self):
-        return Rect(*self.polygon.bounds)
+    def bounds(self) -> geo.Rect:
+        values: Any = tuple(self.polygon.bounds)
+        return geo.Rect.from_floats(values=values)
 
     @property
     def polygons(self):
@@ -502,11 +403,11 @@ class MaskPolygons(_util.TypedListMapping[MaskPolygon, msk.DesignMask]):
             lambda mp: mp.mask == mask, self,
         )
         boundslist = tuple(mp.bounds for mp in mps)
-        return Rect(
-            min(bds.left for bds in boundslist),
-            min(bds.bottom for bds in boundslist),
-            max(bds.right for bds in boundslist),
-            max(bds.top for bds in boundslist),
+        return geo.Rect(
+            left=min(bds.left for bds in boundslist),
+            bottom=min(bds.bottom for bds in boundslist),
+            right=max(bds.right for bds in boundslist),
+            top=max(bds.top for bds in boundslist),
         )
 
     def __getattr__(self, name):
@@ -932,7 +833,11 @@ class _InstanceSubLayout(_SubLayout):
             self.inst.cell.layouts[self.layoutname] if hasattr(self, "layoutname")
             else self.inst.cell.layout
         )
-        return l.boundary.moved(dx=self.x, dy=self.y, rotation=self.rotation)
+        return l.boundary.rotate(
+            rotation=geo.Rotation.from_name(self.rotation),
+        ).move(
+            dxy=geo.Point(x=self.x, y=self.y),
+        )
 
     @property
     def polygons(self):
@@ -1148,7 +1053,7 @@ class _Layout:
         assert (
             isinstance(fab, LayoutFactory)
             and isinstance(sublayouts, SubLayouts)
-            and ((boundary is None) or isinstance(boundary, Rect))
+            and ((boundary is None) or isinstance(boundary, geo.Rect))
         ), "Internal error"
         self.fab = fab
         self.sublayouts = sublayouts
@@ -1248,11 +1153,11 @@ class _Layout:
             lambda mp: mp.mask == mask, polygons,
         )
         boundslist = tuple(mp.bounds for mp in mps)
-        return Rect(
-            min(bds.left for bds in boundslist),
-            min(bds.bottom for bds in boundslist),
-            max(bds.right for bds in boundslist),
-            max(bds.top for bds in boundslist),
+        return geo.Rect(
+            left=min(bds.left for bds in boundslist),
+            bottom=min(bds.bottom for bds in boundslist),
+            right=max(bds.right for bds in boundslist),
+            top=max(bds.top for bds in boundslist),
         )
 
     def __iadd__(self, other):
@@ -1315,7 +1220,10 @@ class _Layout:
         if self.boundary is None:
             bound = None
         else:
-            bound = self.boundary.moved(dx=dx, dy=dy, rotation=rotation)
+            bound = self.boundary
+            if rotation != "no":
+                bound = bound.rotate(rotation=geo.Rotation.from_name(rotation))
+            bound = bound.move(dxy=geo.Point(x=dx, y=dy))
         return _Layout(
             self.fab, SubLayouts(sl.moved(dx, dy, rotation) for sl in self.sublayouts),
             bound,
@@ -1358,7 +1266,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             )
         width = widthspace_params["width"]
         height = widthspace_params["height"]
-        r = Rect(-0.5*width, -0.5*height, 0.5*width, 0.5*height)
+        r = geo.Rect.from_size(width=width, height=height)
 
         return self.fab.new_layout(
             NetlessSubLayout(MaskPolygon(prim.mask, r)),
@@ -1373,7 +1281,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         ), "Internal error"
         width = conductor_params["width"]
         height = conductor_params["height"]
-        r = Rect(-0.5*width, -0.5*height, 0.5*width, 0.5*height)
+        r = geo.Rect.from_size(width=width, height=height)
 
         try:
             portnets = conductor_params["portnets"]
@@ -1643,22 +1551,22 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         # Draw wire layer
         layout += MultiNetSubLayout((
             NetSubLayout(port1, MaskPolygon(
-                wire.mask, Rect(
+                wire.mask, geo.Rect.from_floats(values=(
                     -0.5*res_width, -0.5*res_height - wire_ext,
                     0.5*res_width, -0.5*res_height,
-                ),
+                )),
             )),
             NetlessSubLayout(MaskPolygon(
-                wire.mask, Rect(
+                wire.mask, geo.Rect.from_floats(values=(
                     -0.5*res_width, -0.5*res_height,
                     0.5*res_width, 0.5*res_height,
-                ),
+                )),
             )),
             NetSubLayout(port2, MaskPolygon(
-                wire.mask, Rect(
+                wire.mask, geo.Rect.from_floats(values=(
                     -0.5*res_width, 0.5*res_height,
                     0.5*res_width, 0.5*res_height + wire_ext,
-                ),
+                )),
             )),
         ))
 
@@ -2048,7 +1956,7 @@ class LayoutFactory:
             raise TypeError(
                 "sublayouts has to be of type '_SubLayout' or 'SubLayouts'"
             )
-        if not ((boundary is None) or isinstance(boundary, Rect)):
+        if not ((boundary is None) or isinstance(boundary, geo.Rect)):
             raise TypeError("boundary has to be 'None' or of type 'Rect'")
 
         return _Layout(self, sublayouts, boundary)
@@ -2094,8 +2002,13 @@ class LayoutFactory:
                         "expecting both 'bottom' and 'top' spec or none of them"
                     )
             else:
-                if not isinstance(bound_spec, Rect):
-                    bound_spec = Rect(*bound_spec)
+                if not isinstance(bound_spec, geo.Rect):
+                    bound_spec = geo.Rect.from_floats(
+                        values=cast(
+                            Tuple[float, float, float, float],
+                            tuple(bound_spec),
+                        ),
+                    )
                 spec_out.update({
                     "x": (bound_spec.left + bound_spec.right)/2.0,
                     "y": (bound_spec.bottom + bound_spec.top)/2.0,
