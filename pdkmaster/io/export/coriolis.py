@@ -360,12 +360,12 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             s += f"# ('minTransistorW', '{prim.name}', {prim.min_w}, Length, ''),\n"
         if hasattr(prim, "min_sd_width"):
             s += (
-                f"# ('minGateExtension', '{prim.active.name}', '{prim.name}', "
+                f"# ('minGateExtension', '{prim.gate.active.name}', '{prim.name}', "
                 f"{prim.min_sd_width}, Length|Asymmetric, ''),\n"
             )
         if hasattr(prim, "min_polyactive_extension"):
             s += (
-                f"# ('minGateExtension', '{prim.poly.name}', '{prim.name}', "
+                f"# ('minGateExtension', '{prim.gate.poly.name}', '{prim.name}', "
                 f"{prim.min_polyactive_extension}, Length|Asymmetric, ''),\n"
             )
         for i in range(len(prim.implant)):

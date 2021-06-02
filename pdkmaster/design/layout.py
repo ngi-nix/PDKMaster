@@ -586,7 +586,7 @@ class _SubLayout(abc.ABC):
             pg.move(dx, dy, rotation)
 
     @abc.abstractmethod
-    def moved(self):
+    def moved(self, dx, dy, rotation="no"):
         raise AssertionError("Internal error")
 
 
@@ -803,7 +803,7 @@ class MultiNetSubLayout(_SubLayout):
                         self_sublayout += other_sublayout
                         break
                 else:
-                    self.sublayouts += other_sublayout
+                    self.sublayouts += (other_sublayout,)
             self._update_maskpolygon()
 
         return self
@@ -1254,7 +1254,7 @@ class _Layout:
                 f"rotation has to be a string, not of type {type(rotation)}",
             )
         if rotation not in _rotations:
-            ValueError(
+            raise ValueError(
                 f"rotation '{rotation}' is not one of {_rotations}"
             )
 
@@ -1300,6 +1300,9 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
     def __init__(self, fab):
         assert isinstance(fab, LayoutFactory), "Internal error"
         self.fab = fab
+
+    def __call__(self, prim: prm._Primitive, *args, **kwargs) -> _Layout:
+        return super().__call__(prim, *args, **kwargs)
 
     @property
     def tech(self):
@@ -1609,7 +1612,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             layout += self(ind, width=(res_width + 2*ext), height=res_height)
 
         # Draw wire layer
-        layout += MultiNetSubLayout(SubLayouts((
+        layout += MultiNetSubLayout((
             NetSubLayout(port1, MaskPolygon(
                 wire.mask, Rect(
                     -0.5*res_width, -0.5*res_height - wire_ext,
@@ -1628,7 +1631,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                     0.5*res_width, 0.5*res_height + wire_ext,
                 ),
             )),
-        )))
+        ))
 
         # Draw contacts
         layout.add_wire(net=port1, wire=cont, y=cont_y1, **cont_args)
@@ -1908,7 +1911,7 @@ class _CircuitLayouter:
                 f"rotation has to be a string, not of type {type(rotation)}",
             )
         if rotation not in _rotations:
-            ValueError(
+            raise ValueError(
                 f"rotation '{rotation}' is not one of {_rotations}"
             )
 
@@ -1955,6 +1958,8 @@ class _CircuitLayouter:
                 self.layout += sl
 
                 return _Layout(self.fab, SubLayouts(sl), boundary=sl.boundary)
+            else:
+                raise RuntimeError("Internal error: unsupported instance type")
         elif isinstance(object_, _Layout):
             if layoutname is not None:
                 raise TypeError(
