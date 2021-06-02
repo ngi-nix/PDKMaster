@@ -54,10 +54,15 @@ class _Primitive(abc.ABC):
         return self._rules
 
     @abc.abstractmethod
-    def _generate_rules(self, tech):
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Iterable[rle._Rule]:
+        return tuple()
+
+    def _derive_rules(self, tech: tch.Technology) -> None:
         if self._rules is not None:
             raise ValueError("Rules can only be generated once")
-        self._rules = tuple()
+        self._rules = tuple(self._generate_rules(tech))
 
     @abc.abstractproperty
     def designmasks(self):
@@ -274,13 +279,15 @@ class _MaskPrimitive(_Primitive):
             self.grid = grid
 
     @abc.abstractmethod
-    def _generate_rules(self, tech, *, gen_mask=True):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology, *, gen_mask: bool=True,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
         if gen_mask and isinstance(self.mask, rle._Rule):
-            self._rules += (self.mask,)
+            yield cast(rle._Rule, self.mask)
         if hasattr(self, "grid"):
-            self._rules += (self.mask.grid == self.grid,)
+            yield cast(msk.DesignMask, self.mask).grid == self.grid
 
     @property
     def designmasks(self):
@@ -319,8 +326,10 @@ class Marker(_MaskPrimitive):
             _Param(self, "height", allow_none=True),
         )
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Iterable[rle._Rule]:
+        return super()._generate_rules(tech)
 
     @property
     def designmasks(self):
@@ -334,8 +343,10 @@ class Auxiliary(_MaskPrimitive):
         self._designmask_from_name(mask_args, fill_space="no")
         super().__init__(**mask_args)
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Iterable[rle._Rule]:
+        return super()._generate_rules(tech)
 
     @property
     def designmasks(self):
@@ -443,19 +454,21 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                 self, "pin", allow_none=True, choices=self.pin,
             )
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
-        self._rules += (
+        yield from (
             self.mask.width >= self.min_width,
             self.mask.space >= self.min_space,
         )
         if hasattr(self, "min_area"):
-            self._rules += (self.mask.area >= self.min_area,)
+            yield self.mask.area >= self.min_area
         if hasattr(self, "min_density"):
-            self._rules += (self.mask.density >= self.min_density,)
+            yield self.mask.density >= self.min_density
         if hasattr(self, "max_density"):
-            self._rules += (self.mask.density <= self.max_density,)
+            yield self.mask.density <= self.max_density
         if hasattr(self, "space_table"):
             for row in self.space_table:
                 w = row[0]
@@ -468,9 +481,9 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                         self.mask.width >= w[0],
                         self.mask.length >= w[1],
                     ))
-                self._rules += (msk.Spacing(submask, self.mask) >= row[1],)
+                yield msk.Spacing(submask, self.mask) >= row[1]
         if hasattr(self, "pin"):
-            self._rules += tuple(
+            yield from (
                 msk.Connect(self.mask, pin.mask) for pin in self.pin
             )
 
@@ -518,11 +531,13 @@ class Well(Implant):
                 raise ValueError("min_space_samenet has to be smaller than min_space")
             self.min_space_samenet = min_space_samenet
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
         if hasattr(self, "min_space_samenet"):
-            self._rules += (msk.SameNet(self.mask).space >= self.min_space_samenet,)
+            yield msk.SameNet(self.mask).space >= self.min_space_samenet
 
 
 class Insulator(_WidthSpacePrimitive):
@@ -543,8 +558,10 @@ class _Conductor(_WidthSpacePrimitive):
 
         self.ports += _PrimitiveNet(self, "conn")
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
         # Generate a mask for connection, thus without resistor parts
         # or ActiveWire without gate etc.
@@ -564,7 +581,7 @@ class _Conductor(_WidthSpacePrimitive):
             else:
                 remmask = msk.Join(removes)
             self.conn_mask = self.mask.remove(remmask).alias(self.mask.name + "__conn")
-            self._rules += (self.conn_mask,)
+            yield self.conn_mask
         else:
             self.conn_mask = self.mask
 
@@ -764,36 +781,39 @@ class WaferWire(_Conductor):
 
         return params
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
         for i, impl in enumerate(self.implant):
             sd_mask_impl = msk.Intersect((self.conn_mask, impl.mask)).alias(
                 f"{self.conn_mask.name}:{impl.name}",
             )
-            self._rules += (sd_mask_impl, msk.Connect(self.conn_mask, sd_mask_impl))
+            yield from (sd_mask_impl, msk.Connect(self.conn_mask, sd_mask_impl))
             if self.allow_in_substrate and (impl.type_ == tech.substrate_type):
-                self._rules += (msk.Connect(sd_mask_impl, tech.substrate),)
+                yield msk.Connect(sd_mask_impl, tech.substrate)
             if impl not in self.implant_abut:
-                self._rules += (edg.MaskEdge(impl.mask).interact_with(self.mask).length == 0,)
+                yield edg.MaskEdge(impl.mask).interact_with(self.mask).length == 0
             enc = self.min_implant_enclosure[i]
-            self._rules += (self.mask.enclosed_by(impl.mask) >= enc,)
+            yield self.mask.enclosed_by(impl.mask) >= enc
             for w in self.well:
                 if impl.type_ == w.type_:
-                    self._rules += (msk.Connect(sd_mask_impl, w.mask),)
+                    yield msk.Connect(sd_mask_impl, w.mask)
         for implduo in combinations((impl.mask for impl in self.implant_abut), 2):
-            self._rules += (msk.Intersect(implduo).area == 0,)
+            yield msk.Intersect(implduo).area == 0
         # TODO: allow_contactless_implant
         for i, w in enumerate(self.well):
             enc = self.min_well_enclosure[i]
-            self._rules += (self.mask.enclosed_by(w.mask) >= enc,)
+            yield self.mask.enclosed_by(w.mask) >= enc
         if hasattr(self, "min_substrate_enclosure"):
-            self._rules += (
-                self.mask.enclosed_by(tech.substrate) >= self.min_substrate_enclosure,
+            yield (
+                self.mask.enclosed_by(tech.substrate)
+                >= self.min_substrate_enclosure
             )
         if not self.allow_well_crossing:
             mask_edge = edg.MaskEdge(self.mask)
-            self._rules += tuple(
+            yield from (
                 mask_edge.interact_with(edg.MaskEdge(w.mask)).length == 0
                 for w in self.well
             )
@@ -1028,10 +1048,12 @@ class Via(_MaskPrimitive):
 
         return params
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
-        self._rules += (
+        yield from (
             self.mask.width == self.width,
             self.mask.space >= self.min_space,
             msk.Connect((b.conn_mask for b in self.bottom), self.mask),
@@ -1040,11 +1062,11 @@ class Via(_MaskPrimitive):
         for i in range(len(self.bottom)):
             bot_mask = self.bottom[i].mask
             enc = self.min_bottom_enclosure[i]
-            self._rules += (self.mask.enclosed_by(bot_mask) >= enc,)
+            yield self.mask.enclosed_by(bot_mask) >= enc
         for i in range(len(self.top)):
             top_mask = self.top[i].mask
             enc = self.min_top_enclosure[i]
-            self._rules += (self.mask.enclosed_by(top_mask) >= enc,)
+            yield self.mask.enclosed_by(top_mask) >= enc
 
     @property
     def designmasks(self):
@@ -1068,11 +1090,14 @@ class PadOpening(_Conductor):
             raise TypeError("min_bottom_enclosure has to be of type 'Enclosure'")
         self.min_bottom_enclosure = min_bottom_enclosure
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
-        self._rules += (
-            self.mask.enclosed_by(self.bottom.mask) >= self.min_bottom_enclosure,
+        yield (
+            self.mask.enclosed_by(self.bottom.mask)
+            >= self.min_bottom_enclosure
         )
 
     @property
@@ -1220,22 +1245,25 @@ class Resistor(_WidthSpacePrimitive):
                 )
             self.sheetres = sheetres
 
-    def _generate_rules(self, tech):
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
         # Do not generate the default width/space rules.
-        _Primitive._generate_rules(self, tech)
+        yield from _Primitive._generate_rules(self, tech)
 
-        self._rules += (self.mask,)
+        # TODO: Can we provide proper type for self.mask ?
+        yield cast(msk.DesignMask, self.mask)
         if self.min_width > self.wire.min_width:
-            self._rules += (self.mask.width >= self.min_width,)
+            yield self.mask.width >= self.min_width
         if self.min_space > self.wire.min_space:
-            self._rules += (self.mask.space >= self.min_space,)
+            yield self.mask.space >= self.min_space
         if hasattr(self, "min_area"):
             if (not hasattr(self.wire, "min_area")) or (self.min_area > self.wire.min_area):
-                self._rules += (self.mask.area >= self.min_area,)
+                yield self.mask.area >= self.min_area
         for i, ind in enumerate(self.indicator):
             ext = self.min_indicator_extension[i]
             mask = self.wire.mask.remove(ind.mask)
-            self._rules += (mask.width >= ext,)
+            yield mask.width >= ext
 
 
 class Diode(_WidthSpacePrimitive):
@@ -1340,21 +1368,24 @@ class Diode(_WidthSpacePrimitive):
                 raise TypeError("model has to be 'None' or a string")
             self.model = model
 
-    def _generate_rules(self, tech):
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
         # Do not generate the default width/space rules.
-        _Primitive._generate_rules(self, tech)
+        yield from _Primitive._generate_rules(self, tech)
 
-        self._rules += (self.mask,)
+        # TODO: Can we provide proper type for self.mask ?
+        yield cast(msk.DesignMask, self.mask)
         if self.min_width > self.wire.min_width:
-            self._rules += (self.mask.width >= self.min_width,)
+            yield self.mask.width >= self.min_width
         if self.min_space > self.wire.min_space:
-            self._rules += (self.mask.space >= self.min_space,)
+            yield self.mask.space >= self.min_space
         for i, ind in enumerate(self.indicator):
             enc = self.min_indicator_enclosure[i]
-            self._rules += (self.wire.mask.enclosed_by(ind.mask) >= enc,)
+            yield self.wire.mask.enclosed_by(ind.mask) >= enc
         if hasattr(self, "min_implant_enclosure"):
             enc = self.min_implant_enclosure
-            self._rules += (self.mask.enclosed_by(self.implant.mask) >= enc,)
+            yield self.mask.enclosed_by(self.implant.mask) >= enc
 
 
 class MOSFETGate(_WidthSpacePrimitive):
@@ -1519,8 +1550,9 @@ class MOSFETGate(_WidthSpacePrimitive):
             min_width=min(min_l, min_w), min_space=min_gate_space,
         )
 
-    def _generate_rules(self, tech):
-        _MaskPrimitive._generate_rules(self, tech, gen_mask=False)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
         active_mask = self.active.mask
         poly_mask = self.poly.conn_mask
 
@@ -1564,25 +1596,41 @@ class MOSFETGate(_WidthSpacePrimitive):
         mask = self.mask
 
         mask_used = False
+        rules: List[rle._Rule] = []
         if hasattr(self, "min_l"):
-            self._rules += (edg.Intersect((edg.MaskEdge(active_mask), edg.MaskEdge(self.mask))).length >= self.min_l,)
+            rules.append(
+                edg.Intersect(
+                    (edg.MaskEdge(active_mask), edg.MaskEdge(self.mask))
+                ).length >= self.min_l,
+            )
         if hasattr(self, "min_w"):
-            self._rules += (edg.Intersect((edg.MaskEdge(poly_mask), edg.MaskEdge(self.mask))).length >= self.min_w,)
+            rules.append(
+                edg.Intersect(
+                    (edg.MaskEdge(poly_mask), edg.MaskEdge(self.mask))
+                ).length >= self.min_w,
+            )
         if hasattr(self, "min_sd_width"):
-            self._rules += (active_mask.extend_over(mask) >= self.min_sd_width,)
+            rules.append(active_mask.extend_over(mask) >= self.min_sd_width)
             mask_used = True
         if hasattr(self, "min_polyactive_extension"):
-            self._rules += (poly_mask.extend_over(mask) >= self.min_polyactive_extension,)
+            rules.append(
+                poly_mask.extend_over(mask) >= self.min_polyactive_extension,
+            )
             mask_used = True
         if hasattr(self, "min_gate_space"):
-            self._rules += (mask.space >= self.min_gate_space,)
+            rules.append(mask.space >= self.min_gate_space)
             mask_used = True
         if hasattr(self, "min_contactgate_space"):
-            self._rules += (msk.Spacing(mask, self.contact.mask) >= self.min_contactgate_space,)
+            rules.append(
+                msk.Spacing(mask, self.contact.mask) >= self.min_contactgate_space,
+            )
             mask_used = True
+
         if mask_used:
             # This rule has to be put before the other rules that use the alias
-            self._rules = (mask,) + self._rules
+            yield cast(rle._Rule, mask)
+        yield from _MaskPrimitive._generate_rules(self, tech, gen_mask=False)
+        yield from rules
 
 
 class MOSFET(_Primitive):
@@ -1783,8 +1831,10 @@ class MOSFET(_Primitive):
     def gate_mask(self):
         return self._gate_mask
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
         markers = (self.well.mask if hasattr(self, "well") else tech.substrate,)
         if hasattr(self, "implant"):
@@ -1801,37 +1851,39 @@ class MOSFET(_Primitive):
         active_edge = edg.MaskEdge(active_mask)
         fieldgate_edge = edg.Intersect((derivedgate_edge, active_edge))
 
-        self._rules += (derivedgate_mask,)
+        yield derivedgate_mask
         if hasattr(self, "min_l"):
-            self._rules += (
-                edg.Intersect((derivedgate_edge, active_edge)).length >= self.min_l,
-            )
+            yield edg.Intersect(
+                (derivedgate_edge, active_edge),
+            ).length >= self.min_l
         if hasattr(self, "min_w"):
-            self._rules += (
-                edg.Intersect((derivedgate_edge, poly_edge)).length >= self.min_w,
-            )
+            yield edg.Intersect(
+                (derivedgate_edge, poly_edge),
+            ).length >= self.min_w
         if hasattr(self, "min_sd_width"):
-            self._rules += (
-                active_mask.extend_over(derivedgate_mask) >= self.min_sd_width,
+            yield (
+                active_mask.extend_over(derivedgate_mask) >= self.min_sd_width
             )
         if hasattr(self, "min_polyactive_extension"):
-            self._rules += (
-                poly_mask.extend_over(derivedgate_mask) >= self.min_polyactive_extension,
+            yield (
+                poly_mask.extend_over(derivedgate_mask)
+                >= self.min_polyactive_extension
             )
         for i in range(len(self.implant)):
             impl_mask = self.implant[i].mask
             enc = self.min_gateimplant_enclosure[i]
             if isinstance(enc.spec, float):
-                self._rules += (derivedgate_mask.enclosed_by(impl_mask) >= enc,)
+                yield derivedgate_mask.enclosed_by(impl_mask) >= enc
             else:
-                self._rules += (
-                    channel_edge.enclosed_by(impl_mask) >= enc.spec[0],
-                    fieldgate_edge.enclosed_by(impl_mask) >= enc.spec[1],
-                )
+                yield channel_edge.enclosed_by(impl_mask) >= enc.spec[0]
+                yield fieldgate_edge.enclosed_by(impl_mask) >= enc.spec[1]
         if hasattr(self, "min_gate_space"):
-            self._rules += (derivedgate_mask.space >= self.min_gate_space,)
+            yield derivedgate_mask.space >= self.min_gate_space
         if hasattr(self, "min_contactgate_space"):
-            self.rules += (msk.Spacing(derivedgate_mask, self.contact.mask) >= self.min_contactgate_space,)
+            yield (
+                msk.Spacing(derivedgate_mask, self.contact.mask)
+                >= self.min_contactgate_space
+            )
 
     @property
     def designmasks(self):
@@ -1875,10 +1927,12 @@ class Spacing(_Primitive):
         self.primitives2 = primitives2
         self.min_space = min_space
 
-    def _generate_rules(self, tech):
-        super()._generate_rules(tech)
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
 
-        self._rules += tuple(
+        yield from (
             msk.Spacing(prim1.mask,prim2.mask) >= self.min_space
             for prim1, prim2 in product(self.primitives1, self.primitives2)
         )

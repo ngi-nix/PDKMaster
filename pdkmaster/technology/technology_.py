@@ -323,7 +323,7 @@ class Technology(abc.ABC):
 
         # Generate the rule but don't add them yet.
         for prim in prims:
-            prim._generate_rules(self)
+            prim._derive_rules(self)
 
         # First add substrate alias if needed. This will only be clear
         # after the rules have been generated.
