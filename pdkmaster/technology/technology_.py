@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from math import floor, ceil
 import abc
+from typing import Optional, cast
 
 from .. import _util
 from . import property_ as prp, rule as rle, mask as msk, wafer_ as wfr, primitive as prm
@@ -20,7 +21,17 @@ class Technology(abc.ABC):
             assert isinstance(tech, Technology), "Internal error"
             self.tech = tech
 
-        def min_space(self, primitive1, primitive2):
+        def min_space(self,
+            primitive1: "prm._Primitive", primitive2: Optional["prm._Primitive"],
+        ) -> float:
+            if (primitive2 is None) or (primitive1 == primitive2):
+                try:
+                    return cast(prm._WidthSpacePrimitive, primitive1).min_space
+                except AttributeError:
+                    raise AttributeError(
+                        f"min_space between {primitive1} and {primitive2} not found",
+                    )
+
             prims = self.tech.primitives
             for spacing in prims.tt_iter_type(prm.Spacing):
                 if ((
@@ -31,6 +42,10 @@ class Technology(abc.ABC):
                     and (primitive2 in spacing.primitives1)
                 )):
                     return spacing.min_space
+            else:
+                raise AttributeError(
+                    f"min_space between {primitive1} and {primitive2} not found",
+                )
 
         def min_width(self, primitive, *, up=False, down=False, min_enclosure=False):
             if (
