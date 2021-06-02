@@ -406,7 +406,9 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                     if not isinstance(width, float):
                         raise TypeError("first element in a space_table row has to be a float or an iterable of two floats")
                 if not isinstance(space, float):
-                    raise TypeError("second element in a space_table row has to be a float")
+                    raise TypeError(
+                        "second element in a space_table row has to be a float"
+                    )
 
             def conv_spacetable_row(row):
                 width = _util.i2f(row[0])

@@ -11,7 +11,8 @@ class PrimitiveDispatcher:
 
     def _pd_unhandled(self, prim, *args, **kwargs):
         raise RuntimeError(
-            f"Internal error: unhandled dispatcher for object of type {prim.__class__.__name__}"
+            "Internal error: unhandled dispatcher for object of type "
+            f"{prim.__class__.__name__}"
         )
 
     def _Primitive(self, prim, *args, **kwargs):
