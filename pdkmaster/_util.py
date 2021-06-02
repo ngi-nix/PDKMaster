@@ -37,6 +37,21 @@ def nth(it, n):
 def first(it):
     return nth(it, 0)
 
+def last(it: Iterable[_iter_typevar_]) -> _iter_typevar_:
+    """Get last elemeent from an iterator.
+
+    The iterator will be exhausted after calling this function.
+
+    Raises:
+        StopIteration: if iterable is empty
+    """
+    for _v in it:
+        v = _v
+    try:
+        return v # type: ignore
+    except NameError:
+        raise StopIteration
+
 def strip_literal(s):
     if (s[0] == '"') and (s[-1] == '"'):
         return s[1:-1]
