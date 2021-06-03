@@ -9,7 +9,7 @@ from doit.tools import check_timestamp_unchanged, create_folder
 
 
 DOIT_CONFIG = {
-    "default_tasks": ["install", "docs"],
+    "default_tasks": ["install", "docs", "unittest"],
 }
 
 
@@ -40,23 +40,24 @@ docs_dir = top_dir.joinpath("docs")
 # Don't use local module for pdkmaster
 pdkmaster_inst_dir = Path(site.getsitepackages()[0]).joinpath("pdkmaster")
 pdkmaster_local_dir = top_dir.joinpath("pdkmaster")
+test_dir = top_dir.joinpath("test")
 
 pip = get_var_env("pip", default="pip3")
 sphinx_build = get_var_env("sphinx_build", default="sphinx-build")
+coverage = get_var_env("coverage", default="coverage")
 
 ### main tasks
 
 
 #
 # install
+pdkmaster_py_files = tuple(pdkmaster_local_dir.rglob("*.py"))
 def task_install():
     """Install the pyhton module"""
 
-    pdkmaster_py_files = tuple(pdkmaster_local_dir.rglob("*.py"))
-
     return {
         "title": lambda _: "Installing python module",
-        "file_dep": pdkmaster_py_files,
+        "file_dep": (top_dir.joinpath("setup.py"), *pdkmaster_py_files),
         "targets": (pdkmaster_inst_dir,),
         "actions": (f"{pip} install {top_dir}",),
     }
@@ -91,5 +92,23 @@ def task_docs():
         "actions": (
             (create_folder, (docs_html_dir,)),
             f"{sphinx_build} -b html {docs_src_dir} {docs_html_dir}",
+        )
+    }
+
+#
+# test
+test_py_files = tuple(test_dir.rglob("*.py"))
+test_report_file = test_dir.joinpath("cover_report.log")
+def task_unittest():
+    """Run unittests with and coverage"""
+
+    return {
+        "title": lambda _: "Running unittests and coverage",
+        "file_dep": (*pdkmaster_py_files, *test_py_files),
+        "targets": (test_report_file,),
+        "actions": (
+            f"{coverage} run --include 'pdkmaster/*' -m unittest discover -s test -p '*.py'",
+            f"{coverage} report -m | tee {test_report_file}",
+            f"grep 'TOTAL' {test_report_file} 1>&2"
         )
     }

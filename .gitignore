@@ -5,6 +5,9 @@
 __pychache__
 *files.txt
 /docs/html
+*.log
+
+/.coverage
 
 /.doit.db*
 

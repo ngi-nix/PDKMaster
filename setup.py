@@ -33,7 +33,7 @@ setup(
         "c4m-PySpice~=1.4.3.post0",
     ],
     include_package_data=True,
-    packages=find_packages(),
+    packages=find_packages(exclude=("test",)),
     project_urls={
         #"Documentation": "???",
         "Source Code": "https://gitlab.com/Chips4Makers/PDKMaster",
