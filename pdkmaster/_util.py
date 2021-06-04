@@ -162,13 +162,6 @@ class IterTypeMixin(Iterable[_elem_typevar_], Generic[_elem_typevar_]):
                 yield cast(_iter_typevar_, elem)
 
 
-class _TypedTuple(
-    Tuple[_elem_typevar_, ...], _IterTypeMixin[_elem_typevar_],
-    Generic[_elem_typevar_],
-):
-    pass
-
-
 class TypedList(
     List[_elem_typevar_], IterTypeMixin[_elem_typevar_],
     Generic[_elem_typevar_],
