@@ -169,6 +169,8 @@ class Technology(abc.ABC):
         neworder = []
         def add_prims(prims2):
             for prim in prims2:
+                if prim is None:
+                    continue
                 idx = prims.index(prim)
                 if idx not in neworder:
                     neworder.append(idx)
@@ -218,10 +220,10 @@ class Technology(abc.ABC):
                 yield allwires(wire.wire)
                 for m in wire.indicator:
                     yield m
-            if hasattr(wire, "pin"):
+            if isinstance(wire, prm._PinAttribute) and wire.pin is not None:
                 for p in wire.pin:
                     yield p
-            if hasattr(wire, "blockage"):
+            if isinstance(wire, prm._BlockageAttribute) and wire.blockage is not None:
                 yield wire.blockage
             yield wire
 
@@ -259,9 +261,7 @@ class Technology(abc.ABC):
 
         # Add via and it's blockage layers
         vias = tuple(prims.__iter_type__(prm.Via))
-        add_prims(prim.blockage for prim in filter(
-            lambda p: hasattr(p, "blockage"), vias
-        ))
+        add_prims((prim.blockage for prim in vias))
         # Now add all vias
         add_prims(vias)
 
@@ -307,10 +307,11 @@ class Technology(abc.ABC):
         for diode in diodes:
             markers.update(diode.indicator)
 
-        # process spacings
+        # process spacings/enclosures
         spacings = set(prims.__iter_type__(prm.Spacing))
+        enclosures = set(prims.__iter_type__(prm.Enclosure))
 
-        add_prims((*markers, *resistors, *diodes, *spacings))
+        add_prims((*markers, *resistors, *diodes, *spacings, *enclosures))
 
         # process auxiliary
         def aux_key(aux):

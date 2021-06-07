@@ -74,7 +74,8 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             via_conns.update(via.bottom)
             via_conns.update(via.top)
         self.blockages = set(prim.blockage for prim in filter(
-            lambda p: hasattr(p, "blockage"), tech.primitives,
+            lambda p: p.blockage is not None,
+            tech.primitives.__iter_type__(prm._BlockageAttribute),
         ))
 
     def _Primitive(self, prim):
@@ -403,8 +404,14 @@ class _LibraryGenerator:
         self.vias = tuple(tech.primitives.__iter_type__(prm.Via))
         assert len(self.metals) == len(self.vias)
         self.pinmasks = pinmasks = {}
-        for prim in filter(lambda p: hasattr(p, "pin"), tech.primitives):
-            pinmasks.update({p.mask: prim.mask for p in prim.pin})
+        for prim in filter(
+            lambda p: p.pin is not None,
+            tech.primitives.__iter_type__(prm._PinAttribute),
+        ):
+            pinmasks.update({
+                p.mask: cast(prm._MaskPrimitive, prim).mask
+                for p in prim.pin
+            })
 
     def __call__(self, lib):
         assert isinstance(lib, lbr.Library)
@@ -1027,7 +1034,10 @@ class _TechnologyGenerator:
             s_prims += gen(via, via_layer=True)
 
         s_prims += "\n# Blockages\n"
-        for prim in filter(lambda p: hasattr(p, "blockage"), self.tech.primitives):
+        for prim in filter(
+            lambda p: p.blockage is not None,
+            self.tech.primitives.__iter_type__(prm._BlockageAttribute),
+        ):
             s_prims += dedent(f"""
                 tech.getLayer('{prim.name}').setBlockageLayer(
                     tech.getLayer('{prim.blockage.name}')
@@ -1135,7 +1145,7 @@ class _TechnologyGenerator:
                 ", color=toRGB('White'), pattern=toHexa('antihash0.8'), border=1"
                 ", threshold=threshold)\n"
             )
-            if hasattr(prim, "pin"):
+            if prim.pin is not None:
                 for pin in prim.pin:
                     s += (
                         "    style.addDrawingStyle(group='Active Layers'"
@@ -1150,7 +1160,7 @@ class _TechnologyGenerator:
                 f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1"
                 ", threshold=threshold)\n"
             )
-            if hasattr(prim, "pin"):
+            if prim.pin is not None:
                 for pin in prim.pin:
                     s += (
                         "    style.addDrawingStyle(group='Active Layers'"
@@ -1168,7 +1178,7 @@ class _TechnologyGenerator:
                 f", color=toRGB('{rgb}'), pattern=toHexa('{hexa}'), border=1"
                 ", threshold=threshold)\n"
             )
-            if hasattr(prim, "pin"):
+            if prim.pin is not None:
                 for pin in prim.pin:
                     s += (
                         f"    style.addDrawingStyle(group='Routing Layers'"
@@ -1188,7 +1198,8 @@ class _TechnologyGenerator:
 
         s += "\n    # Blockages.\n"
         blockages = set(prim.blockage for prim in filter(
-            lambda p: hasattr(p, "blockage"), self.tech.primitives,
+            lambda p: p.blockage is not None,
+            self.tech.primitives.__iter_type__(prm._BlockageAttribute),
         ))
         for i, prim in enumerate(filter(
             lambda p: p in blockages, self.tech.primitives.__iter_type__(prm.Marker)

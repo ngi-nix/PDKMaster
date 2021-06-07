@@ -3,7 +3,7 @@
 from importlib import import_module
 from textwrap import indent, dedent
 
-from ...technology import dispatcher as dsp, technology_ as tch
+from ...technology import primitive as prm, dispatcher as dsp, technology_ as tch
 from ...design import circuit as ckt, library as lib
 
 
@@ -44,7 +44,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _prim_object(self, prim, add_name=True):
         class_name = prim.__class__.__name__.split(".")[-1]
         if add_name:
-            s_name = f"'{prim.name}'" if add_name else ""
+            s_name = f"name='{prim.name}'" if add_name else ""
             if hasattr(prim, "mask") and hasattr(prim.mask, "gds_layer"):
                 s_name += f", gds_layer={prim.mask.gds_layer}"
         else:
@@ -69,7 +69,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             if s:
                 s += " "
             s += f"fill_space='{prim.mask.fill_space}',"
-        if hasattr(prim, "blockage"):
+        if isinstance(prim, prm._BlockageAttribute) and prim.blockage is not None:
             if s:
                 s += " "
             s += f"blockage={_str_prim(prim.blockage)},"
@@ -90,7 +90,7 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
             s += f"min_density={prim.min_density},\n"
         if hasattr(prim, "max_density"):
             s += f"max_density={prim.max_density},\n"
-        if hasattr(prim, "pin"):
+        if isinstance(prim, prm._PinAttribute) and prim.pin is not None:
             s += f"pin={_str_primtuple(prim.pin)},\n"
         s += self._params_mask(prim, add_fill_space=add_fill_space)
         
@@ -403,9 +403,11 @@ class PDKMasterGenerator:
                     )
 
                 cellname = inst.cell.name
-                s += f"ckt.new_instance('{inst.name}', self.cells['{cellname}'].circuit"
-                if hasattr(inst, "circuitname"):
-                    s += f", circuitname={inst.circuitname}"
+                s += (
+                    f"ckt.new_instance('{inst.name}'"
+                    f", self.cells['{cellname}'].circuit"
+                    f", circuitname={inst.circuitname}"
+                )
                 s += ")\n"
             else:
                 raise AssertionError("Internal error: unsupported instance class")

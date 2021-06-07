@@ -22,15 +22,10 @@ __all__ = ["Marker", "Auxiliary", "ExtraProcess",
 
 
 class _Primitive(abc.ABC):
-    _names = set()
-
     @abc.abstractmethod
-    def __init__(self, name):
+    def __init__(self, *, name):
         if not isinstance(name, str):
             raise TypeError(f"name argument of '{self.__class__.__name__}' is not a string")
-        if name in _Primitive._names:
-            raise ValueError(f"primitive with name '{name}' already exists")
-        _Primitive._names.add(name)
         self.name = name
 
         self.ports = _PrimitivePorts()
@@ -42,8 +37,9 @@ class _Primitive(abc.ABC):
         cname = self.__class__.__name__.split(".")[-1]
         return f"{cname}({self.name})"
 
-    def __eq__(self, other):
-        return (self.__class__ == other.__class__) and (self.name == other.name)
+    def __eq__(self, other: object) -> bool:
+        """Two primitives are the same if their name is the same"""
+        return (isinstance(other, _Primitive)) and (self.name == other.name)
 
     def __hash__(self):
         return hash(self.name)
@@ -116,6 +112,17 @@ class _Primitive(abc.ABC):
             )
 
         return casted
+
+
+class _DerivedPrimitive(_Primitive):
+    """A primitive that is derived from other primitives and not a
+    Primitive that can be part of the primitive list of a technology.
+    """
+    def _generate_rules(self, tech: tch.Technology) -> Tuple[rle._Rule, ...]:
+        """As _DerivedPrimitive will not be added to the list of primitives
+        of a technology node, it does not need to generate rules.
+        """
+        raise RuntimeError("Internal error")
 
 
 class _Param(prp.Property):
@@ -265,10 +272,10 @@ class _PrimitivePorts(
 
 class _MaskPrimitive(_Primitive):
     @abc.abstractmethod
-    def __init__(self, *, mask, grid=None, **primitive_args):
-        if not "name" in primitive_args:
-            primitive_args["name"] = mask.name
-        super().__init__(**primitive_args)
+    def __init__(self, *, name=None, mask, grid=None, **primitive_args):
+        if name is None:
+            name = mask.name
+        super().__init__(name=name, **primitive_args)
 
         if not isinstance(mask, msk._Mask):
             raise TypeError("mask parameter for '{}' has to be of type 'Mask'".format(
@@ -297,33 +304,75 @@ class _MaskPrimitive(_Primitive):
     def designmasks(self):
         return self.mask.designmasks
 
-    def _designmask_from_name(self, args, *, fill_space):
-        if "mask" in args:
+
+class _DesignMaskPrimitive(_MaskPrimitive):
+    @property
+    @abc.abstractmethod
+    def fill_space(self) -> str:
+        raise RuntimeError("Unimplemented abstract property")
+
+    @abc.abstractmethod
+    def __init__(self, *,
+        name: str, gds_layer: OptSingleOrMulti[int].T=None,
+        **super_args,
+    ):
+        if "mask" in super_args:
             raise TypeError(
                 f"{self.__class__.__name__} got unexpected keyword argument 'mask'",
             )
-        args["mask"] = msk.DesignMask(
-            args["name"], gds_layer=args.pop("gds_layer", None),
-            fill_space=fill_space,
+        mask = msk.DesignMask(
+            name=name, gds_layer=gds_layer, fill_space=self.fill_space,
         )
-
-    def _blockage_attribute(self, args):
-        blockage = args.pop("blockage", None)
-        if blockage is not None:
-            if not isinstance(blockage, Marker):
-                raise TypeError(
-                    f"blockage argument for {self.__class__.__name__} has to None,"
-                    " or of type 'Marker',\n"
-                    f"not of type '{type(blockage)}'"
-                )
-            self.blockage = blockage
+        super().__init__(name=name, mask=mask, **super_args)
 
 
-class Marker(_MaskPrimitive):
-    def __init__(self, name, **mask_args):
-        mask_args["name"] = name
-        self._designmask_from_name(mask_args, fill_space="yes")
-        super().__init__(**mask_args)
+class _BlockageAttribute(_Primitive):
+    """Mixin class for primitives with a blockage attribute"""
+    def __init__(self, blockage: Optional["Marker"]=None, **super_args):
+        self.blockage = blockage
+        super().__init__(**super_args)
+
+
+class _PinAttribute(_Primitive):
+    """Mixin class for primitives with a pin attribute"""
+    def __init__(self,
+        pin: Optional[Union["Marker", Iterable["Marker"]]]=None,
+        **super_args,
+    ):
+        if pin is not None:
+            pin = _util.v2t(pin)
+        self.pin = pin
+        super().__init__(**super_args)
+        if pin is not None:
+            self.params += _PrimitiveParam(
+                self, "pin", allow_none=True, choices=self.pin,
+            )
+
+
+class _Intersect(_MaskPrimitive):
+    """A primitive representing the overlap of a list of primitives"""
+    def __init__(self, *, prims: Iterable[_MaskPrimitive]):
+        prims = _util.v2t(cast(
+            Union[_MaskPrimitive, Iterable[_MaskPrimitive]], prims,
+        ))
+        if len(prims) < 2:
+            raise ValueError(f"At least two prims needed for '{self.__class__.__name__}'")
+        self.prims = prims
+
+        mask = msk.Intersect((p.mask for p in prims))
+        _MaskPrimitive.__init__(self, mask=mask)
+
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        return super()._generate_rules(tech, gen_mask=False)
+
+
+class Marker(_DesignMaskPrimitive):
+    fill_space = "yes"
+
+    def __init__(self, **super_args):
+        super().__init__(**super_args)
 
         self.params += (
             _Param(self, "width", allow_none=True),
@@ -336,12 +385,12 @@ class Marker(_MaskPrimitive):
         return super()._generate_rules(tech)
 
 
-class Auxiliary(_MaskPrimitive):
+class Auxiliary(_DesignMaskPrimitive):
     # Layer not used in other primitives but defined by foundry for the technology
-    def __init__(self, name, **mask_args):
-        mask_args["name"] = name
-        self._designmask_from_name(mask_args, fill_space="no")
-        super().__init__(**mask_args)
+    fill_space = "no"
+
+    def __init__(self, **super_args):
+        super().__init__(**super_args)
 
     def _generate_rules(self,
         tech: tch.Technology,
@@ -433,23 +482,6 @@ class _WidthSpacePrimitive(_MaskPrimitive):
             _Param(self, "height", default=self.min_width),
         )
 
-    def _pin_attribute(self, args):
-        pin = args.pop("pin", None)
-        if pin is not None:
-            pin = _util.v2t(pin)
-            if not all(isinstance(p, Marker) for p in pin):
-                raise TypeError(
-                    f"pin argument for {self.__class__.__name__} has to None, "
-                    "of type 'Marker' or an iterable of type 'Marker'"
-                )
-            self.pin = pin
-
-    def _pin_params(self):
-        if hasattr(self, "pin"):
-            self.params += _PrimitiveParam(
-                self, "pin", allow_none=True, choices=self.pin,
-            )
-
     def _generate_rules(self,
         tech: tch.Technology,
     ) -> Generator[rle._Rule, None, None]:
@@ -478,44 +510,41 @@ class _WidthSpacePrimitive(_MaskPrimitive):
                         self.mask.length >= w[1],
                     ))
                 yield msk.Spacing(submask, self.mask) >= row[1]
-        if hasattr(self, "pin"):
+        if isinstance(self, _PinAttribute) and self.pin is not None:
             yield from (
                 msk.Connect(self.mask, pin.mask) for pin in self.pin
             )
 
 
-class ExtraProcess(_WidthSpacePrimitive):
-    def __init__(self, name, *, fill_space, **widthspace_args):
-        if not isinstance(fill_space, str):
-            raise TypeError("fill_space has to be a string")
+class ExtraProcess(_DesignMaskPrimitive, _WidthSpacePrimitive):
+    def __init__(self, *, fill_space: str, **super_args):
         if not fill_space in ("no", "yes"):
             raise ValueError("fill_space has to be either 'yes' or 'no'")
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space=fill_space)
-        super().__init__(**widthspace_args)
+        self._fill_space = fill_space
+        super().__init__(**super_args)
+
+    @property
+    def fill_space(self) -> str:
+        return self._fill_space
 
 
-class Implant(_WidthSpacePrimitive):
+class Implant(_DesignMaskPrimitive, _WidthSpacePrimitive):
+    fill_space = "yes"
+
     # Implants are supposed to be disjoint unless they are used as combined implant
     # MOSFET and other primitives
-    def __init__(self, name, *, type_, **widthspace_args):
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space="yes")
-
-        if not isinstance(type_, str):
-            raise TypeError("type_ has to be a string")
+    def __init__(self, *, type_: str, **super_args):
         if type_ not in ("n", "p", "adjust"):
             raise ValueError("type_ has to be 'n', 'p' or adjust")
         self.type_ = type_
 
-        super().__init__(**widthspace_args)
+        super().__init__(**super_args)
 
 
 class Well(Implant):
     # Wells are non-overlapping by design
-    def __init__(self, name, *, min_space_samenet=None, **implant_args):
-        implant_args["name"] = name
-        super().__init__(**implant_args)
+    def __init__(self, *, min_space_samenet=None, **super_args):
+        super().__init__(**super_args)
 
         self.ports += _PrimitiveNet(self, "conn")
 
@@ -536,21 +565,26 @@ class Well(Implant):
             yield msk.SameNet(self.mask).space >= self.min_space_samenet
 
 
-class Insulator(_WidthSpacePrimitive):
-    def __init__(self, name, *, fill_space, **widthspace_args):
+class Insulator(_DesignMaskPrimitive, _WidthSpacePrimitive):
+    def __init__(self, *, fill_space, **super_args):
         if not isinstance(fill_space, str):
             raise TypeError("fill_space has to be a string")
         if not fill_space in ("no", "yes"):
             raise ValueError("fill_space has to be either 'yes' or 'no'")
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space=fill_space)
-        super().__init__(**widthspace_args)
+        self._fill_space = fill_space
+        super().__init__(**super_args)
+
+    @property
+    def fill_space(self) -> str:
+        return self._fill_space
 
 
-class _Conductor(_WidthSpacePrimitive):
+class _Conductor(
+    _BlockageAttribute, _PinAttribute, _WidthSpacePrimitive,
+):
     @abc.abstractmethod
-    def __init__(self, **widthspace_args):
-        super().__init__(**widthspace_args)
+    def __init__(self, **super_args):
+        super().__init__(**super_args)
 
         self.ports += _PrimitiveNet(self, "conn")
 
@@ -582,19 +616,18 @@ class _Conductor(_WidthSpacePrimitive):
             self.conn_mask = self.mask
 
 
-class WaferWire(_Conductor):
+class WaferWire(_DesignMaskPrimitive, _Conductor):
+    fill_space = "same_net"
+
     # The wire made from wafer material and normally isolated by LOCOS for old technlogies
     # and STI for other ones.
-    def __init__(self, name, *,
+    def __init__(self, *,
         allow_in_substrate,
         implant, min_implant_enclosure, implant_abut, allow_contactless_implant,
         well, min_well_enclosure, min_substrate_enclosure=None, allow_well_crossing,
         oxide=None, min_oxide_enclosure=None,
-        **widthspace_args
+        **super_args
     ):
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space="same_net")
-
         if not isinstance(allow_in_substrate, bool):
             raise TypeError("allow_in_substrate has to be a bool")
         self.allow_in_substrate = allow_in_substrate
@@ -695,10 +728,7 @@ class WaferWire(_Conductor):
         elif min_oxide_enclosure is not None:
             raise ValueError("min_oxide_enclosure provided with no oxide given")
 
-        self._pin_attribute(widthspace_args)
-        self._blockage_attribute(widthspace_args)
-        super().__init__(**widthspace_args)
-        self._pin_params()
+        super().__init__(**super_args)
 
         if len(implant) > 1:
             self.params += (
@@ -814,41 +844,60 @@ class WaferWire(_Conductor):
                 for w in self.well
             )
 
+    def in_(self,
+        prim: Union[_MaskPrimitive, Iterable[_MaskPrimitive]],
+    ) -> "_WaferWireIntersect":
+        return _WaferWireIntersect(waferwire=self, prim=prim)
+
+
+class _WaferWireIntersect(_DerivedPrimitive, _Intersect):
+    """Intersect of WaferWire with one or more of it's implants, wells and
+    oxides"""
+    def __init__(self, *,
+        waferwire: WaferWire, prim: Union[_MaskPrimitive, Iterable[_MaskPrimitive]],
+    ):
+        ww_prims: Set[_MaskPrimitive] = set(waferwire.implant)
+        if waferwire.well is not None:
+            ww_prims.update(waferwire.well)
+        if waferwire.oxide is not None:
+            ww_prims.update(waferwire.oxide)
+        prim = _util.v2t(prim)
+        for p in prim:
+            if p not in ww_prims:
+                raise ValueError(
+                    f"prim '{p.name}' not an implant, well or oxide layer for '{self.name}'"
+                )
+        self.waferwire = waferwire
+        self.prim = prim
+
+        super().__init__(prims=(waferwire, *prim))
+
 
 class GateWire(_Conductor):
-    def __init__(self, name, **widthspace_args):
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space="same_net")
-        self._pin_attribute(widthspace_args)
-        self._blockage_attribute(widthspace_args)
-        super().__init__(**widthspace_args)
-        self._pin_params()
+    fill_space = "same_net"
+
+    def __init__(self, **super_args):
+        super().__init__(**super_args)
 
 
 class MetalWire(_Conductor):
-    def __init__(self, name, **widthspace_args):
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space="same_net")
-        self._pin_attribute(widthspace_args)
-        self._blockage_attribute(widthspace_args)
-        super().__init__(**widthspace_args)
-        self._pin_params()
+    fill_space = "same_net"
+
+    def __init__(self, **super_args):
+        super().__init__(**super_args)
 
 
 class TopMetalWire(MetalWire):
     pass
 
 
-class Via(_MaskPrimitive):
-    def __init__(self, name, *,
+class Via(_BlockageAttribute, _MaskPrimitive):
+    def __init__(self, *,
         bottom, top,
         width, min_space, min_bottom_enclosure, min_top_enclosure,
-        **primitive_args,
+        **super_args,
     ):
-        primitive_args["name"] = name
-        self._designmask_from_name(primitive_args, fill_space="no")
-        self._blockage_attribute(primitive_args)
-        super().__init__(**primitive_args)
+        super().__init__(**super_args)
 
         self.ports += _PrimitiveNet(self, "conn")
 
@@ -1070,12 +1119,38 @@ class Via(_MaskPrimitive):
         for conn in self.bottom + self.top:
             yield from conn.designmasks
 
+    def in_(self,
+        prim: Union[_MaskPrimitive, Iterable[_MaskPrimitive]],
+    ) -> "_ViaIntersect":
+        return _ViaIntersect(via=self, prim=prim)
+
+
+class _ViaIntersect(_DerivedPrimitive, _Intersect):
+    """Intersect of WaferWire with one or more of it's implants, wells and
+    oxides"""
+    def __init__(self, *,
+        via: Via, prim: Union[_MaskPrimitive, Iterable[_MaskPrimitive]],
+    ):
+        via_prims: Set[_MaskPrimitive] = set((*via.bottom, *via.top))
+        prim = _util.v2t(prim)
+        for p in prim:
+            if isinstance(p, _WaferWireIntersect):
+                p = p.waferwire
+            if p not in via_prims:
+                raise ValueError(
+                    f"prim '{p.name}' not a bottom or top layer for Via '{via.name}'"
+                )
+        self.via = via
+        self.prin = prim
+
+        super().__init__(prims=(via, *prim))
+
 
 class PadOpening(_Conductor):
-    def __init__(self, name, *, bottom, min_bottom_enclosure, **widthspace_args):
-        widthspace_args["name"] = name
-        self._designmask_from_name(widthspace_args, fill_space="no")
-        super().__init__(**widthspace_args)
+    fill_space = "no"
+
+    def __init__(self, *, bottom, min_bottom_enclosure, **super_args):
+        super().__init__(**super_args)
 
         if not (isinstance(bottom, MetalWire) and not isinstance(bottom, TopMetalWire)):
             raise TypeError("bottom has to be of type 'MetalWire'")
@@ -1260,7 +1335,7 @@ class Resistor(_WidthSpacePrimitive):
 
 
 class Diode(_WidthSpacePrimitive):
-    def __init__(self, name=None, *,
+    def __init__(self, *, name=None,
         wire, indicator, min_indicator_enclosure=None,
         implant, min_implant_enclosure=None,
         well=None, min_well_enclosure=None,
@@ -1330,9 +1405,7 @@ class Diode(_WidthSpacePrimitive):
                 prim.mask for prim in (wire, *indicator, implant)
             ).alias(f"diode:{name}")
 
-        if name is not None:
-            widthspace_args["name"] = name
-        super().__init__(**widthspace_args)
+        super().__init__(name=name, **widthspace_args)
 
         self.ports += (_PrimitiveNet(self, name) for name in ("anode", "cathode"))
 
@@ -1424,7 +1497,7 @@ class MOSFETGate(_WidthSpacePrimitive):
     def computed(self):
         return MOSFETGate._ComputedProps(self)
 
-    def __init__(self, name=None, *, active, poly, oxide=None, inside=None,
+    def __init__(self, *, name=None, active, poly, oxide=None, inside=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None, min_gate_space=None,
         contact=None, min_contactgate_space=None,
@@ -1674,7 +1747,7 @@ class MOSFET(_Primitive):
         return MOSFET._ComputedProps(self)
 
     def __init__(
-        self, name, *,
+        self, *, name,
         gate, implant, well=None,
         min_l=None, min_w=None,
         min_sd_width=None, min_polyactive_extension=None,
@@ -1684,7 +1757,7 @@ class MOSFET(_Primitive):
     ):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")
-        super().__init__(name)
+        super().__init__(name=name)
 
         if not isinstance(gate, MOSFETGate):
             raise TypeError("gate has to be of type 'MOSFETGate'")
@@ -1821,6 +1894,14 @@ class MOSFET(_Primitive):
             self.params += _Param(self, "contactgate_space", default=spc)
 
     @property
+    def gate_prim(self) -> _Intersect:
+        prims: Tuple[_MaskPrimitive, ...] = (self.gate, *self.implant)
+        if self.well is not None:
+            prims += (self.well,)
+
+        return _Intersect(prims=prims)
+
+    @property
     def gate_mask(self):
         return self._gate_mask
 
@@ -1910,7 +1991,7 @@ class Spacing(_Primitive):
                 else "({})".format(",".join(prim.name for prim in prims))
             ) for prims in (primitives1, primitives2)
         ))
-        super().__init__(name)
+        super().__init__(name=name)
         self.primitives1 = primitives1
         self.primitives2 = primitives2
         self.min_space = min_space
@@ -1933,8 +2014,49 @@ class Spacing(_Primitive):
         return self.name
 
 
+class Enclosure(_Primitive):
+    def __init__(self, *,
+        prim: _MaskPrimitive, by: _MaskPrimitive, min_enclosure: prp.Enclosure,
+    ):
+        name = f"Enclosure(prim={prim!r},by={by!r},min_enclosure={min_enclosure!r})"
+        super().__init__(name=name)
+
+        self.prim = prim
+        self.by = by
+        self.min_enclosure = min_enclosure
+
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
+
+        yield self.prim.mask.enclosed_by(self.by.mask) >= self.min_enclosure
+
+    @property
+    def designmasks(self) -> Generator[msk.DesignMask, None, None]:
+        yield from super().designmasks
+        yield from self.prim.designmasks
+        yield from self.by.designmasks
+
+    def __repr__(self) -> str:
+        return self.name
+
+
 class Primitives(_util.TypedListStrMapping[_Primitive]):
     _elem_type_ = _Primitive
+
+    def __iadd__(self,
+        x: Union[_Primitive, Iterable[_Primitive]],
+    ) -> "Primitives":
+        x = _util.v2t(x)
+        for elem in x:
+            if isinstance(elem, _DerivedPrimitive):
+                raise TypeError(f"_DerivedPrimite '{elem.name}' can't be added to 'Primitives'")
+            if elem in self:
+                raise ValueError(
+                    f"Adding primitive with name '{elem.name}' twice"
+                )
+        return cast("Primitives", super().__iadd__(x))
 
 
 class UnusedPrimitiveError(Exception):
