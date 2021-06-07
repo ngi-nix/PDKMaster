@@ -331,10 +331,6 @@ class Marker(_MaskPrimitive):
     ) -> Iterable[rle._Rule]:
         return super()._generate_rules(tech)
 
-    @property
-    def designmasks(self):
-        return super().designmasks
-
 
 class Auxiliary(_MaskPrimitive):
     # Layer not used in other primitives but defined by foundry for the technology
@@ -347,10 +343,6 @@ class Auxiliary(_MaskPrimitive):
         tech: tch.Technology,
     ) -> Iterable[rle._Rule]:
         return super()._generate_rules(tech)
-
-    @property
-    def designmasks(self):
-        return super().designmasks
 
 
 class _WidthSpacePrimitive(_MaskPrimitive):
@@ -1070,11 +1062,9 @@ class Via(_MaskPrimitive):
 
     @property
     def designmasks(self):
-        for mask in super().designmasks:
-            yield mask
+        yield from super().designmasks
         for conn in self.bottom + self.top:
-            for mask in conn.designmasks:
-                yield mask
+            yield from conn.designmasks
 
 
 class PadOpening(_Conductor):
@@ -1102,8 +1092,7 @@ class PadOpening(_Conductor):
 
     @property
     def designmasks(self):
-        for mask in super().designmasks:
-            yield mask
+        yield from super().designmasks
         yield self.bottom.mask
 
 
@@ -1887,21 +1876,16 @@ class MOSFET(_Primitive):
 
     @property
     def designmasks(self):
-        for mask in super().designmasks:
-            yield mask
-        for mask in self.gate.designmasks:
-            yield mask
+        yield from super().designmasks
+        yield from self.gate.designmasks
         if hasattr(self, "implant"):
             for impl in self.implant:
-                for mask in impl.designmasks:
-                    yield mask
+                yield from impl.designmasks
         if hasattr(self, "well"):
-            for mask in self.well.designmasks:
-                yield mask
+            yield from self.well.designmasks
         if hasattr(self, "contact"):
             if (not hasattr(self.gate, "contact")) or (self.contact != self.gate.contact):
-                for mask in self.contact.designmasks:
-                    yield mask
+                yield from self.contact.designmasks
 
 
 class Spacing(_Primitive):

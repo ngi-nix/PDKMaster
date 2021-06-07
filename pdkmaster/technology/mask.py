@@ -235,8 +235,7 @@ class Join(_Mask):
     @property
     def designmasks(self):
         for mask in self.masks:
-            for designmask in mask.designmasks:
-                yield designmask
+            yield from mask.designmasks
 
 
 class Intersect(_Mask):
@@ -254,8 +253,7 @@ class Intersect(_Mask):
     @property
     def designmasks(self):
         for mask in self.masks:
-            for designmask in mask.designmasks:
-                yield designmask
+            yield from mask.designmasks
 
 
 class _MaskRemove(_Mask):
@@ -272,8 +270,7 @@ class _MaskRemove(_Mask):
     @property
     def designmasks(self):
         for mask in (self.from_, self.what):
-            for designmask in mask.designmasks:
-                yield designmask
+            yield from mask.designmasks
 
 
 class _MaskAlias(_Mask, rle._Rule):
