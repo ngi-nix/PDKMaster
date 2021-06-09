@@ -83,9 +83,18 @@ class Technology(abc.ABC):
         def min_pitch(self, primitive, **kwargs):
             return self.min_width(primitive, **kwargs) + primitive.min_space
 
-    name = abc.abstractproperty()
-    grid = abc.abstractproperty()
-    substrate_type = abc.abstractproperty()
+    @property
+    @abc.abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError
+    @property
+    @abc.abstractmethod
+    def grid(self) -> float:
+        raise NotImplementedError
+    @property
+    @abc.abstractmethod
+    def substrate_type(self) -> str:
+        raise NotImplementedError
 
     def __init__(self):
         self._init_done = False
