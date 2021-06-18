@@ -1248,11 +1248,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             NetlessSubLayout(MaskPolygon(prim.mask, r)),
         )
 
-    def Well(self, prim: prm.Well, **well_params):
-        # Share code with _Conductor
-        return self._Conductor(cast(prm._Conductor, prim), **well_params)
-
-    def _Conductor(self, prim: prm._Conductor, **conductor_params):
+    def _WidthSpaceConductor(self, prim: prm._WidthSpaceConductor, **conductor_params):
         assert (
             (len(prim.ports) == 1) and (prim.ports[0].name == "conn")
         ), "Internal error"
@@ -1290,7 +1286,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         oxide = waferwire_params.pop("oxide", None)
         oxide_enclosure = waferwire_params.pop("oxide_enclosure", None)
 
-        layout = self._Conductor(prim, **waferwire_params)
+        layout = self._WidthSpaceConductor(prim, **waferwire_params)
         layout += NetlessSubLayout(MaskPolygon(
                 implant.mask, _rect(
                     -0.5*width, -0.5*height, 0.5*width, 0.5*height,

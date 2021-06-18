@@ -525,30 +525,6 @@ class Implant(_DesignMaskPrimitive, _WidthSpacePrimitive):
         super().__init__(**super_args)
 
 
-class Well(Implant):
-    # Wells are non-overlapping by design
-    def __init__(self, *,
-        min_space_samenet: Optional[IntFloat]=None, **super_args,
-    ):
-        super().__init__(**super_args)
-
-        self.ports += _PrimitiveNet(self, "conn")
-
-        if min_space_samenet is not None:
-            min_space_samenet = _util.i2f(min_space_samenet)
-            if min_space_samenet >= self.min_space:
-                raise ValueError("min_space_samenet has to be smaller than min_space")
-        self.min_space_samenet = min_space_samenet
-
-    def _generate_rules(self,
-        tech: tch.Technology,
-    ) -> Generator[rle._Rule, None, None]:
-        yield from super()._generate_rules(tech)
-
-        if self.min_space_samenet is not None:
-            yield msk.SameNet(self.mask).space >= self.min_space_samenet
-
-
 class Insulator(_DesignMaskPrimitive, _WidthSpacePrimitive):
     def __init__(self, *, fill_space: str, **super_args):
         if not fill_space in ("no", "yes"):
@@ -561,9 +537,12 @@ class Insulator(_DesignMaskPrimitive, _WidthSpacePrimitive):
         return self._fill_space
 
 
-class _Conductor(
-    _BlockageAttribute, _PinAttribute, _WidthSpacePrimitive,
-):
+class _Conductor(_BlockageAttribute, _PinAttribute, _DesignMaskPrimitive):
+    """Primitive that acts as a conductor.
+
+    This primitive is assumed to use a DesignMask as it's mask. And will
+    allow a blockage and a pin layer.
+    """
     @abc.abstractmethod
     def __init__(self, **super_args):
         super().__init__(**super_args)
@@ -598,7 +577,33 @@ class _Conductor(
             self.conn_mask = self.mask
 
 
-class WaferWire(_DesignMaskPrimitive, _Conductor):
+class _WidthSpaceConductor(_Conductor, _WidthSpacePrimitive):
+    pass
+
+
+class Well(Implant, _WidthSpaceConductor):
+    # Wells are non-overlapping by design
+    def __init__(self, *,
+        min_space_samenet: Optional[IntFloat]=None, **super_args,
+    ):
+        super().__init__(**super_args)
+
+        if min_space_samenet is not None:
+            min_space_samenet = _util.i2f(min_space_samenet)
+            if min_space_samenet >= self.min_space:
+                raise ValueError("min_space_samenet has to be smaller than min_space")
+        self.min_space_samenet = min_space_samenet
+
+    def _generate_rules(self,
+        tech: tch.Technology,
+    ) -> Generator[rle._Rule, None, None]:
+        yield from super()._generate_rules(tech)
+
+        if self.min_space_samenet is not None:
+            yield msk.SameNet(self.mask).space >= self.min_space_samenet
+
+
+class WaferWire(_WidthSpaceConductor):
     fill_space = "same_net"
 
     # The wire made from wafer material and normally isolated by LOCOS for old technlogies
@@ -829,14 +834,14 @@ class _WaferWireIntersect(_DerivedPrimitive, _Intersect):
         super().__init__(prims=(waferwire, *prim))
 
 
-class GateWire(_Conductor):
+class GateWire(_WidthSpaceConductor):
     fill_space = "same_net"
 
     def __init__(self, **super_args):
         super().__init__(**super_args)
 
 
-class MetalWire(_Conductor):
+class MetalWire(_WidthSpaceConductor):
     fill_space = "same_net"
 
     def __init__(self, **super_args):
@@ -849,7 +854,9 @@ class TopMetalWire(MetalWire):
 
 ViaBottom = Union[WaferWire, GateWire, MetalWire, "Resistor"]
 ViaTop = Union[MetalWire, "Resistor"]
-class Via(_BlockageAttribute, _MaskPrimitive):
+class Via(_Conductor):
+    fill_space = "no"
+
     def __init__(self, *,
         bottom: SingleOrMulti[ViaBottom].T, top: SingleOrMulti[ViaTop].T,
         width: IntFloat, min_space: IntFloat,
@@ -858,8 +865,6 @@ class Via(_BlockageAttribute, _MaskPrimitive):
         **super_args,
     ):
         super().__init__(**super_args)
-
-        self.ports += _PrimitiveNet(self, "conn")
 
         self.bottom = bottom = _util.v2t(bottom)
         self.min_bottom_enclosure = min_bottom_enclosure = _util.v2t(min_bottom_enclosure, n=len(bottom))
@@ -1065,7 +1070,7 @@ class _ViaIntersect(_DerivedPrimitive, _Intersect):
         super().__init__(prims=(via, *prim))
 
 
-class PadOpening(_Conductor):
+class PadOpening(_WidthSpaceConductor):
     fill_space = "no"
 
     def __init__(self, *,

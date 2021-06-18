@@ -89,6 +89,12 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         type_ = "blockage" if prim in self.blockages else "other"
         return _str_create_basic(prim.name, type_, **_args_gds_layer(prim))
 
+    def Auxiliary(self, prim):
+        return indent(
+            _str_create_basic(prim.name, "other", **_args_gds_layer(prim)),
+            prefix="# ",
+        )
+
     def ExtraProcess(self, prim: prm.ExtraProcess):
         return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
 
@@ -101,6 +107,9 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             **_args_gds_layer(prim),
         )
 
+    def Insulator(self, prim: prm.Insulator):
+        return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
+
     def Well(self, prim: prm.Well):
         return _str_create_basic(
             prim.name, prim.type_+"Well",
@@ -108,9 +117,6 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
-
-    def Insulator(self, prim: prm.Insulator):
-        return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
 
     def WaferWire(self, prim: prm.WaferWire):
         return _str_create_basic(
@@ -145,12 +151,6 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
                 minsize=prim.width, minspace=prim.min_space,
                 **_args_gds_layer(prim),
             )
-
-    def Auxiliary(self, prim):
-        return indent(
-            _str_create_basic(prim.name, "other", **_args_gds_layer(prim)),
-            prefix="# ",
-        )
 
     def PadOpening(self, prim: prm.PadOpening):
         return _str_create_basic(
