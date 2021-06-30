@@ -616,7 +616,9 @@ class WaferWire(_WidthSpaceConductor):
         allow_contactless_implant: bool,
         well: SingleOrMulti[Well].T,
         min_well_enclosure: SingleOrMulti[prp.Enclosure].T,
-        min_substrate_enclosure: OptSingleOrMulti[prp.Enclosure].T=None,
+        min_well_enclosure_same_type: OptSingleOrMulti[Optional[prp.Enclosure]].T=None,
+        min_substrate_enclosure: Optional[prp.Enclosure]=None,
+        min_substrate_enclosure_same_type: Optional[prp.Enclosure]=None,
         allow_well_crossing: bool,
         oxide: OptSingleOrMulti[Insulator].T=None,
         min_oxide_enclosure: SingleOrMulti[Optional[prp.Enclosure]].T=None,
@@ -654,32 +656,41 @@ class WaferWire(_WidthSpaceConductor):
         for w in well:
             if not any(impl.type_ == w.type_ for impl in implant):
                 raise UnconnectedPrimitiveError(well)
-        min_well_enclosure = _util.v2t(min_well_enclosure, n=len(well))
-        if len(well) != len(min_well_enclosure):
-            raise ValueError(
-                "mismatch between number of well and number of min_well_enclosure"
+        self.min_well_enclosure = min_well_enclosure = _util.v2t(
+            min_well_enclosure, n=len(well),
+        )
+        if min_well_enclosure_same_type is None:
+            self.min_well_enclosure_same_type = None
+        else:
+            self.min_well_enclosure_same_type = cast(
+                Tuple[Optional[prp.Enclosure], ...],
+                _util.v2t(min_well_enclosure_same_type, n=len(well)),
             )
-        self.min_well_enclosure = min_well_enclosure
         if allow_in_substrate:
             if min_substrate_enclosure is None:
                 if len(min_well_enclosure) == 1:
                     min_substrate_enclosure = min_well_enclosure[0]
+                    if min_substrate_enclosure_same_type is not None:
+                        raise TypeError(
+                            "min_substrate_enclosure_same_type has to be 'None' "
+                            "if min_substrate_enclosure is 'None'"
+                        )
+                    if self.min_well_enclosure_same_type is not None:
+                        min_substrate_enclosure_same_type = \
+                            self.min_well_enclosure_same_type[0]
                 else:
                     raise TypeError(
-                        "min_substrate_enclosure has be provided when providing multi min_well_enclosure values"
+                        "min_substrate_enclosure has be provided when providing "
+                        "multiple wells"
                     )
-            if not isinstance(min_substrate_enclosure, prp.Enclosure):
-                raise TypeError(
-                    "min_substrate_enclosure has to be 'None' or of type 'Enclosure'"
-                )
         elif min_substrate_enclosure is not None:
             raise TypeError(
-                "min_substrate_enclosure should be 'None' if allow_in_substrate is 'False'"
+                "min_substrate_enclosure has to be 'None' if allow_in_substrate "
+                "is 'False'"
             )
-        if not isinstance(allow_well_crossing, bool):
-            raise TypeError("allow_well_crossing has to be a bool")
         self.allow_well_crossing = allow_well_crossing
         self.min_substrate_enclosure = min_substrate_enclosure
+        self.min_substrate_enclosure_same_type = min_substrate_enclosure_same_type
 
         if oxide is not None:
             oxide = _util.v2t(oxide)
@@ -792,14 +803,61 @@ class WaferWire(_WidthSpaceConductor):
         for implduo in combinations((impl.mask for impl in self.implant_abut), 2):
             yield msk.Intersect(implduo).area == 0
         # TODO: allow_contactless_implant
+
         for i, w in enumerate(self.well):
             enc = self.min_well_enclosure[i]
-            yield self.mask.enclosed_by(w.mask) >= enc
+            if not isinstance(enc.spec, float):
+                raise NotImplementedError(
+                    f"Asymmetric enclosure of WaferWire '{self.name}' "
+                    f"by well '{w.name}'",
+                )
+            if self.min_well_enclosure_same_type is None:
+                yield self.mask.enclosed_by(w.mask) >= enc
+            else:
+                enc2 = self.min_well_enclosure_same_type[i]
+                if enc2 is None:
+                    yield self.mask.enclosed_by(w.mask) >= enc
+                else:
+                    if not isinstance(enc2.spec, float):
+                        raise NotImplementedError(
+                            f"Asymmetric same type enclosure of WaferWire '{self.name}"
+                            f"by well '{w.name}",
+                        )
+                    for ww in (self.in_(impl) for impl in filter(
+                        # other type
+                        lambda impl2: w.type_ != impl2.type_, self.implant,
+                    )):
+                        yield ww.mask.enclosed_by(w.mask) >= enc
+                    for ww in (self.in_(impl) for impl in filter(
+                        # same type
+                        lambda impl2: w.type_ == impl2.type_, self.implant,
+                    )):
+                        yield ww.mask.enclosed_by(w.mask) >= enc2
+
         if self.min_substrate_enclosure is not None:
-            yield (
-                self.mask.enclosed_by(tech.substrate)
-                >= self.min_substrate_enclosure
-            )
+            if self.min_substrate_enclosure_same_type is None:
+                yield (
+                    self.mask.enclosed_by(tech.substrate)
+                    >= self.min_substrate_enclosure
+                )
+            else:
+                for ww in (self.in_(impl) for impl in filter(
+                    # other type
+                    lambda impl2: tech.substrate_type != impl2.type_, self.implant,
+                )):
+                    yield (
+                        ww.mask.enclosed_by(tech.substrate)
+                        >= self.min_substrate_enclosure
+                    )
+                for ww in (self.in_(impl) for impl in filter(
+                    # same type
+                    lambda impl2: tech.substrate_type == impl2.type_, self.implant,
+                )):
+                    yield (
+                        ww.mask.enclosed_by(tech.substrate)
+                        >= self.min_substrate_enclosure_same_type
+                    )
+
         if not self.allow_well_crossing:
             mask_edge = edg.MaskEdge(self.mask)
             yield from (
