@@ -1189,6 +1189,26 @@ class _Layout:
             portnets={"conn": net}, prim=wire, x=x, y=y, **wire_params,
         )
 
+    def add_shape(self, *,
+        net: net_.Net, wire: prm._Conductor, shape: geo._Shape,
+        xy: geo.Point=geo.origin, **wire_params,
+    ) -> "_Layout":
+        """Add a geometry shape to a _Layout
+
+        Currently only Rect is supported until geometry _Shape objects are fully
+        supported in _Layout class.
+        """
+        if not isinstance(shape, geo.Rect):
+            raise NotImplementedError(
+                "Adding a shape to a '_Layout' that is not a Rect",
+            )
+        c = shape.center
+        return self.add_primitive(
+            portnets={"conn": net}, prim=wire,
+            x=(c.x + xy.x), y=(c.y + xy.y), width=shape.width, height=shape.height,
+            **wire_params,
+        )
+
     def move(self, dx, dy, rotation="no"):
         for mp in self.sublayouts:
             mp.move(dx, dy, rotation)
@@ -1893,6 +1913,24 @@ class _CircuitLayouter:
             )
         return self.layout.add_wire(
             net=net, wire=wire, x=x, y=y, **wire_params,
+        )
+
+    def add_shape(self, *,
+        net: net_.Net, wire: prm._Conductor, shape: geo._Shape,
+        xy: geo.Point=geo.origin, **wire_params,
+    ) -> _Layout:
+        """Add a geometry shape to a _Layout
+
+        Currently only Rect is supported until geometry _Shape objects are fully
+        supported in _Layout class.
+        """
+        if net not in self.circuit.nets:
+            raise ValueError(
+                f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
+            )
+
+        return self.layout.add_shape(
+            net=net, wire=wire, shape=shape, xy=xy, **wire_params,
         )
 
     def add_wireless(self, *, prim, x, y, rotation="no", **prim_params):
