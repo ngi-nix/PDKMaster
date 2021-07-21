@@ -15,7 +15,7 @@ from typing import (
     Iterable, Iterator, Generator, MutableSequence, Mapping, MutableMapping,
     cast, overload,
 )
-
+from .typing import SingleOrMulti, IntFloat
 
 # Typevars used for Generic Collection classes
 _elem_typevar_ = TypeVar("_elem_typevar_")
@@ -25,11 +25,18 @@ _child_class_ = TypeVar("_child_class_")
 _iter_typevar_ = TypeVar("_iter_typevar_")
 
 
+@overload
+def i2f(i: None) -> None:
+    ...
+@overload
+def i2f(i: IntFloat) -> float:
+    ...
 def i2f(i):
-    "Convert i to float if it is an int but not a bool"
-    return float(i) if (isinstance(i, int) and (type(i) != bool)) else i
+    if type(i) == bool:
+        raise ValueError("Use of bool as float not allowed")
+    return i if i is None else float(i)
 
-def i2f_recursive(values):
+def i2f_recursive(values: Any) -> Any:
     """Recursively convert int and bool elements of an iterable.
     Iterables will be converted to tuples"""
     if is_iterable(values):
@@ -37,7 +44,9 @@ def i2f_recursive(values):
     else:
         return i2f(values)
 
-def v2t(value, *, n=None):
+def v2t(
+    value: SingleOrMulti[_elem_typevar_].T, *, n: Optional[int]=None,
+) -> Tuple[_elem_typevar_, ...]:
     """Convert a single value or an iterable of value to a tuple.
 
     Arguments:
@@ -53,14 +62,18 @@ def v2t(value, *, n=None):
           iterable will be checked to correspond with given length
     """
     if is_iterable(value) and (not isinstance(value, str)):
-        v = tuple(value)
+        v = tuple(cast(Iterable[_elem_typevar_], value))
         if n is not None:
             assert n == len(v)
         return v
     else:
-        return (value,) if n is None else tuple(value for _ in range(n))
+        t = (cast(_elem_typevar_, value),)
+        if n is None:
+            return t
+        else:
+            return n*t
 
-def is_iterable(it):
+def is_iterable(it: Any) -> bool:
     """Check if a value is Iterable"""
     try:
         iter(it)
@@ -69,7 +82,7 @@ def is_iterable(it):
     else:
         return True
 
-def nth(it, n):
+def nth(it: Iterable[_elem_typevar_], n) -> _elem_typevar_:
     """Return nth element from an iterable.
 
     Arguments:
@@ -82,7 +95,7 @@ def nth(it, n):
     """
     return next(islice(it, n, None))
 
-def first(it):
+def first(it: Iterable[_elem_typevar_]) -> _elem_typevar_:
     """Get first element of an iterable
 
     This function will consume the first element of the iterator
@@ -107,7 +120,7 @@ def last(it: Iterable[_iter_typevar_]) -> _iter_typevar_:
     except NameError:
         raise StopIteration
 
-def strip_literal(s):
+def strip_literal(s: str) -> str:
     """Strip surrounding '"' of a string.
 
     Strip head and tail only if they are both '"'
@@ -149,9 +162,17 @@ class IterableOverride(Iterable[_iter_typevar_], Generic[_iter_typevar_]):
 
 
 class IterTypeMixin(Iterable[_elem_typevar_], Generic[_elem_typevar_]):
+    @overload
     def __iter_type__(self,
-        type_: Union[Type[_iter_typevar_], Tuple[Type[_iter_typevar_], ...]],
+        type_: Tuple[Type[_iter_typevar_], ...],
     ) -> Generator[_iter_typevar_, None, None]:
+        ...
+    @overload
+    def __iter_type__(self,
+        type_: Type[_iter_typevar_],
+    ) -> Generator[_iter_typevar_, None, None]:
+        ...
+    def __iter_type__(self, type_):
         """Iterate over elems of an Iterable of certain type
 
         Arguments:
@@ -194,7 +215,7 @@ class TypedList(
         return super().__delitem__(i)
 
     def __iadd__(self: _child_class_,
-        x: Union[_elem_typevar_, Iterable[_elem_typevar_]],
+        x: SingleOrMulti[_elem_typevar_].T,
     ) -> _child_class_:
         cself = cast(TypedList[_elem_typevar_], self)
         if isinstance(x, cself._elem_type_):
@@ -293,9 +314,7 @@ class TypedListMapping(
 
     _index_attribute_: Union[abc.abstractproperty, str] = abc.abstractproperty()
 
-    def __init__(self,
-        iterable: Union[_elem_typevar_, Iterable[_elem_typevar_]]=tuple(),
-    ):
+    def __init__(self, iterable: SingleOrMulti[_elem_typevar_].T=tuple()):
         self._list_: TypedList[_elem_typevar_]
         if isinstance(iterable, self._elem_type_):
             self._list_ = self.__class__._List(
@@ -331,10 +350,10 @@ class TypedListMapping(
 
     @overload
     def __getitem__(self, key: Union[int, _index_typevar_]) -> _elem_typevar_:
-        raise RuntimeError
+        ...
     @overload
     def __getitem__(self: _child_class_, key: slice) -> _child_class_:
-        raise RuntimeError
+        ...
     def __getitem__(self: _child_class_, # type: ignore[override]
         key: Union[int, slice, _index_typevar_],
     ) -> Union[_elem_typevar_, _child_class_]:
@@ -357,13 +376,13 @@ class TypedListMapping(
     def __setitem__(self,
         key: Union[int, _index_typevar_], value: _elem_typevar_,
     ) -> None:
-        raise RuntimeError
+        ...
     @overload
     def __setitem__(self, key: slice, value: Iterable[_elem_typevar_]) -> None:
-        raise RuntimeError
+        ...
     def __setitem__(self,
         key: Union[int, slice, _index_typevar_],
-        value: Union[_elem_typevar_, Iterable[_elem_typevar_]],
+        value: SingleOrMulti[_elem_typevar_].T,
     ) -> None:
         if isinstance(key, int):
             old = self._list_[key]
@@ -464,7 +483,7 @@ class TypedListMapping(
         return self._map_.values()
 
     def __iadd__(self: _child_class_,
-        x: Union[_elem_typevar_, Iterable[_elem_typevar_]],
+        x: SingleOrMulti[_elem_typevar_].T,
     ) -> _child_class_:
         cself = cast(TypedListMapping[_elem_typevar_, _index_typevar_], self)
         new: Tuple[_elem_typevar_, ...]
@@ -496,10 +515,10 @@ class _ListMappingOverride(
 ):
     @overload
     def __getitem__(self, key: Union[int, _index_typevar_]) -> _elem_typevar_:
-        raise RuntimeError
+        ...
     @overload
     def __getitem__(self: _child_class_, key: slice) -> _child_class_:
-        raise RuntimeError
+        ...
     def __getitem__(self: _child_class_, # type: ignore[override]
         key: Union[int, slice, _index_typevar_],
     ) -> Union[_elem_typevar_, _child_class_]:
@@ -509,13 +528,13 @@ class _ListMappingOverride(
     def __setitem__(self,
         key: Union[int, _index_typevar_], value: _elem_typevar_,
     ) -> None:
-        raise RuntimeError
+        ...
     @overload
     def __setitem__(self, key: slice, value: Iterable[_elem_typevar_]) -> None:
-        raise RuntimeError
+        ...
     def __setitem__(self,
         key: Union[int, slice, _index_typevar_],
-        value: Union[_elem_typevar_, Iterable[_elem_typevar_]],
+        value: SingleOrMulti[_elem_typevar_].T,
     ) -> None:
         return cast(Any, super()).__setitem__(key, value)
 
@@ -544,7 +563,7 @@ class _ListMappingOverride(
         return cast(Any, super()).insert(index, value)
 
     def __iadd__(self: _child_class_,
-        x: Union[_elem_typevar_, Iterable[_elem_typevar_]],
+        x: SingleOrMulti[_elem_typevar_].T,
     ) -> _child_class_:
         return cast(Any, super()).__iadd__(x)
 

@@ -267,7 +267,7 @@ def _str_lvsdiode(tech, diode):
     s_diode = _str_mask(diode.mask)
     s_conn = _str_mask(diode.wire.conn_mask)
     s_well = _str_mask(
-        diode.well.mask if hasattr(diode, "well")
+        diode.well.mask if diode.well is not None
         else tech.substrate
     )
 
@@ -295,7 +295,7 @@ def _str_lvsmosfet(tech, mosfet):
     s_sd = _str_mask(mosfet.gate.active.conn_mask)
     s_gate = _str_mask(mosfet.gate_mask)
     s_bulk = _str_mask(
-        mosfet.well.mask if hasattr(mosfet, "well")
+        mosfet.well.mask if mosfet.well is not None
         else tech.substrate
     )
     s_poly = _str_mask(mosfet.gate.poly.conn_mask)

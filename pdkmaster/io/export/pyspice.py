@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from c4m.PySpice.Spice.Netlist import Circuit, SubCircuit
-from c4m.PySpice.Unit import u_µm, u_Ω
+from c4m.PySpice.Unit import u_µm, u_Ω # type: ignore
 
 from ... import _util
 from ...technology import primitive as prm
@@ -60,8 +60,8 @@ class _SubCircuit(SubCircuit):
                         l=u_µm(round(inst.params["l"],6)), w=u_µm(round(inst.params["w"],6)),
                     )
                 elif isinstance(inst.prim, prm.Resistor):
-                    has_model = hasattr(inst.prim, "model")
-                    has_sheetres = hasattr(inst.prim, "sheetres")
+                    has_model = inst.prim.model is not None
+                    has_sheetres = inst.prim.sheetres is not None
                     if not (has_model or has_sheetres):
                         raise NotImplementedError(
                             "Resistor circuit generation without a model or sheet resistance"
@@ -82,6 +82,7 @@ class _SubCircuit(SubCircuit):
                     else:
                         l = inst.params["height"]
                         w = inst.params["width"]
+                        assert inst.prim.sheetres is not None
                         self.R(
                             inst.name,
                             _sanitize_name(netlookup[inst.ports.port1].name),
@@ -89,7 +90,7 @@ class _SubCircuit(SubCircuit):
                             u_Ω(round(inst.prim.sheetres*l/w, 10)),
                         )
                 elif isinstance(inst.prim, prm.Diode):
-                    if not hasattr(inst.prim, "model"):
+                    if inst.prim.model is None:
                         raise NotImplementedError(
                             "Resistor circuit generation without a model or sheet resistance"
                         )

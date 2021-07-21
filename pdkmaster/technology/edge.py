@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 import abc
 
+from ..typing import SingleOrMulti
 from .. import _util
 from . import property_ as prp, mask as msk
 
@@ -91,10 +92,8 @@ class MaskEdge(_Edge):
 
 
 class Join(_Edge):
-    def __init__(self, edges):
-        edges = tuple(edges) if _util.is_iterable(edges) else (edges,)
-        if not all(isinstance(edge, _Edge) for edge in edges):
-            raise TypeError("edges has to be of type 'Edge' or an iterable of type 'Edge'")
+    def __init__(self, edges: SingleOrMulti[_Edge].T):
+        self.edges = edges = _util.v2t(edges)
 
         super().__init__("join({})".format(",".join(str(edge) for edge in edges)))
 

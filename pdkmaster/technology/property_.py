@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 import abc
+from typing import Any, Iterable, Tuple, Union, cast
 
 from .. import _util
 from . import rule as rle
@@ -60,9 +61,9 @@ Ops = Operators
 
 
 class Property:
-    value_conv = _util.i2f
-    value_type = float
-    value_type_str = "float"
+    value_conv: Any = _util.i2f
+    value_type: type = float
+    value_type_str: str = "float"
 
     def __init__(self, name, *, allow_none=False):
         if not isinstance(name, str):
@@ -117,36 +118,35 @@ class Property:
 
 
 class Enclosure:
-    def __init__(self, spec):
-        if isinstance(spec, Enclosure):
-            spec = spec.spec
-        spec = _util.i2f_recursive(spec)
-        if not (
-            isinstance(spec, float)
-            or (
-                _util.is_iterable(spec)
-                and len(spec) == 2
-                and all(isinstance(v, float) for v in spec)
-            )
-        ):
-            raise TypeError("spec has to be a float or a pair of floats")
-        self.spec = spec
+    def __init__(self, spec: Union[float, Iterable[float], "Enclosure"]):
+        spec2 = _util.i2f_recursive(
+            spec if not isinstance(spec, Enclosure) else spec.spec
+        )
+        if isinstance(spec2, float):
+            self.spec = spec2
+        else:
+            if not (
+                len(spec2) == 2
+                and all(isinstance(v, float) for v in spec2)
+            ):
+                raise TypeError("spec has to be a float or a pair of floats")
+            self.spec = cast(Tuple[float, float], spec2)
 
     @property
-    def first(self):
+    def first(self) -> float:
         return self.spec if isinstance(self.spec, float) else self.spec[0]
 
     @property
-    def second(self):
+    def second(self) -> float:
         return self.spec if isinstance(self.spec, float) else self.spec[1]
 
-    def min(self):
+    def min(self) -> float:
         return self.spec if isinstance(self.spec, float) else min(self.spec)
 
-    def max(self):
+    def max(self) -> float:
         return self.spec if isinstance(self.spec, float) else max(self.spec)
 
-    def wide(self):
+    def wide(self) -> "Enclosure":
         # Put bigger enclosure value first
         spec = self.spec
         if (
@@ -157,7 +157,7 @@ class Enclosure:
         else:
             return Enclosure((spec[1], spec[0]))
 
-    def tall(self):
+    def tall(self) -> "Enclosure":
         # Put smaller enclosure value first
         spec = self.spec
         if (
@@ -168,27 +168,20 @@ class Enclosure:
         else:
             return Enclosure((spec[1], spec[0]))
 
-    def _get_specs(self, other):
-        try:
-            other = Enclosure(other)
-        except:
-            raise TypeError(
-                "right side of operation has to be of type 'Enclosure',\n"
-                "a float or a pair of floats"
-            )
-        else:
-            return self.spec, other.spec
+    def _get_specs(self, other: "Enclosure"):
+        return self.spec, other.spec
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any) -> bool:
         spec1, spec2 = self._get_specs(other)
         if type(spec1) != type(spec2):
             return False
         elif isinstance(spec1, float):
             return spec1 == spec2
         else: # Both pairs
+            assert isinstance(spec2, tuple)
             return set(spec1) == set(spec2)
 
-    def __gt__(self, other):
+    def __gt__(self, other: Any) -> bool:
         spec1, spec2 = self._get_specs(other)
 
         if isinstance(spec1, float):
@@ -257,7 +250,10 @@ class Enclosure:
                 )
 
     def __repr__(self):
-        return f"Enclosure({self.spec})"
+        if isinstance(self.spec, float):
+            return f"Enclosure({round(self.spec, 6)})"
+        else:
+            return f"Enclosure(({round(self.spec[0], 6)},{round(self.spec[1], 6)}))"
 
 
 class EnclosureProperty(Property):

@@ -12,7 +12,8 @@ on them.
 """
 import abc, logging
 from itertools import product
-from typing import Any, Iterable, Union
+from pdkmaster.typing import IntFloat, SingleOrMulti
+from typing import Any, Iterable, Generator, Mapping, Tuple, Optional, Union, cast
 from matplotlib import pyplot as plt
 import descartes
 from shapely import geometry as sh_geo, ops as sh_ops, affinity as sh_aff
@@ -184,7 +185,7 @@ class MaskPolygon:
         if isinstance(self.polygon, sh_geo.Polygon):
             yield self
         elif isinstance(self.polygon, sh_geo.MultiPolygon):
-            for polygon in self.polygon:
+            for polygon in self.polygon: # type: ignore
                 yield MaskPolygon(self.mask, polygon)
         else:
             raise AssertionError("Internal error")
@@ -410,11 +411,10 @@ class MaskPolygons(_util.TypedListMapping[MaskPolygon, msk.DesignMask]):
             top=max(bds.top for bds in boundslist),
         )
 
-    def __getattr__(self, name):
-        if isinstance(name, str):
-            for elem in self._t:
-                if elem.mask.name == name:
-                    return elem
+    def __getattr__(self, name: str):
+        for elem in self._t:
+            if elem.mask.name == name:
+                return elem
         raise AttributeError(f"No polygon for mask named '{name}'")
 
     def __iadd__(self, other):
@@ -484,9 +484,7 @@ class _SubLayout(abc.ABC):
         self.polygons = polygons
 
     @abc.abstractmethod
-    def overlaps_with(self, sublayout, *, hierarchical=True):
-        if not isinstance(sublayout, _SubLayout):
-            raise TypeError("sublayout has to be of type '_SubLayout'")
+    def overlaps_with(self, sublayout: "_SubLayout", *, hierarchical: bool=True) -> bool:
         return False
 
     @abc.abstractmethod
@@ -535,13 +533,14 @@ class NetSubLayout(_SubLayout):
 
         return self
 
-    def overlaps_with(self, other, *, hierarchical=True):
+    def overlaps_with(self,
+        other: Union["NetlessSubLayout", "NetSubLayout", "MultiNetSubLayout"], *,
+        hierarchical: bool=True,
+    ):
         super().overlaps_with(other, hierarchical=hierarchical)
 
         if isinstance(other, MultiNetSubLayout):
             return other.overlaps_with(self, hierarchical=hierarchical)
-
-        assert isinstance(other, (NetSubLayout, NetlessSubLayout)), "Internal error"
 
         self_polygons = dict((p.mask, p) for p in self.polygons)
         self_masks = set(self_polygons.keys())
@@ -556,7 +555,7 @@ class NetSubLayout(_SubLayout):
                     return True
                 else:
                     try:
-                        net = other.net
+                        net = cast(NetSubLayout, other).net
                     except:
                         othernet = "None"
                     else:
@@ -615,22 +614,8 @@ class NetlessSubLayout(_SubLayout):
 
 
 class MultiNetSubLayout(_SubLayout):
-    def __init__(self, sublayouts):
-        if not _util.is_iterable(sublayouts):
-            raise TypeError(
-                "sublayouts has to be an iterable of 'NetSubLayout' and "
-                "'NetlessSubLayout'"
-            )
-        sublayouts = tuple(sublayouts)
-        if not all((
-            isinstance(netlayout, (NetSubLayout, NetlessSubLayout))
-            for netlayout in sublayouts
-        )):
-            raise TypeError(
-                "sublayouts has to be an iterable of 'NetSubLayout' and "
-                "'NetlessSubLayout'"
-            )
-        self.sublayouts = sublayouts
+    def __init__(self, sublayouts: Iterable[Union[NetSubLayout, NetlessSubLayout]]):
+        self.sublayouts = tuple(sublayouts)
 
         super().__init__(MaskPolygons())
         self._update_maskpolygon()
@@ -828,7 +813,7 @@ class _InstanceSubLayout(_SubLayout):
         return self._layout
 
     @property
-    def boundary(self):
+    def boundary(self) -> geo.Rect:
         l = (
             self.inst.cell.layouts[self.layoutname] if hasattr(self, "layoutname")
             else self.inst.cell.layout
@@ -972,7 +957,7 @@ class _InstanceSubLayout(_SubLayout):
 class SubLayouts(_util.TypedList[_SubLayout]):
     _elem_type_ = _SubLayout
 
-    def __init__(self, iterable: Union[_SubLayout, Iterable[_SubLayout]]=tuple()):
+    def __init__(self, iterable: SingleOrMulti[_SubLayout].T=tuple()):
         if isinstance(iterable, _SubLayout):
             super().__init__((iterable,))
         else:
@@ -981,9 +966,7 @@ class SubLayouts(_util.TypedList[_SubLayout]):
     def dup(self) -> "SubLayouts":
         return SubLayouts(l.dup() for l in self)
 
-    def __iadd__(self,
-        other_: Union[_SubLayout, Iterable[_SubLayout]],
-    ) -> "SubLayouts":
+    def __iadd__(self, other_: SingleOrMulti[_SubLayout].T) -> "SubLayouts":
         other: Iterable[_SubLayout]
         if isinstance(other_, _SubLayout):
             other = (other_,)
@@ -1025,9 +1008,10 @@ class SubLayouts(_util.TypedList[_SubLayout]):
                         # Add all netless together
                         isinstance(other_sublayout, NetlessSubLayout)
                         # or polygons on same net
-                        or (sublayout.net == other_sublayout.net)
+                        or (cast(NetSubLayout, sublayout).net == other_sublayout.net)
                     ):
-                        sublayout += other_sublayout
+                        # TODO: remove ignore after Pylance fix
+                        sublayout += other_sublayout # type: ignore
                         return True
                 else:
                     return False
@@ -1040,9 +1024,7 @@ class SubLayouts(_util.TypedList[_SubLayout]):
             self.extend(other)
         return self
 
-    def __add__(self,
-        other: Union[_SubLayout, Iterable[_SubLayout]],
-    ) -> "SubLayouts":
+    def __add__(self, other: SingleOrMulti[_SubLayout].T) -> "SubLayouts":
         ret = self.dup()
         ret += other
         return ret
@@ -1128,7 +1110,7 @@ class _Layout:
                 else:
                     yield poly
 
-    def dup(self):
+    def dup(self) -> "_Layout":
         return _Layout(
             self.fab,
             SubLayouts(sl.dup() for sl in self.sublayouts),
@@ -1175,7 +1157,10 @@ class _Layout:
 
         return self
 
-    def add_primitive(self, *, prim, x, y, rotation="no", **prim_params):
+    def add_primitive(self, *,
+        prim: prm._Primitive, x: float, y: float, rotation: str="no",
+        **prim_params,
+    ) -> "_Layout":
         if not isinstance(prim, prm._Primitive):
             raise TypeError("prim has to be a '_Primitive'")
         if not (prim in self.fab.tech.primitives):
@@ -1197,17 +1182,9 @@ class _Layout:
         self += primlayout
         return primlayout
 
-    def add_wire(self, *, net, wire, x, y, **wire_params):
-        if not isinstance(net, net_.Net):
-            raise TypeError("net has to be of type 'Net'")
-        if not (
-            hasattr(wire, "ports")
-            and (len(wire.ports) == 1)
-            and (wire.ports[0].name == "conn")
-        ):
-            raise TypeError(
-                f"Wire '{wire.name}' does not have exactly one port named 'conn'"
-            )
+    def add_wire(self, *,
+        net: net_.Net, wire: prm._Conductor, x: float, y: float, **wire_params,
+    ) -> "_Layout":
         return self.add_primitive(
             portnets={"conn": net}, prim=wire, x=x, y=y, **wire_params,
         )
@@ -1234,8 +1211,7 @@ class _Layout:
 
 
 class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
-    def __init__(self, fab):
-        assert isinstance(fab, LayoutFactory), "Internal error"
+    def __init__(self, fab: "LayoutFactory"):
         self.fab = fab
 
     def __call__(self, prim: prm._Primitive, *args, **kwargs) -> _Layout:
@@ -1246,19 +1222,19 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         return self.fab.tech
 
     # Dispatcher implementation
-    def _Primitive(self, prim, **params):
+    def _Primitive(self, prim: prm._Primitive, **params):
         raise NotImplementedError(
             f"Don't know how to generate minimal layout for primitive '{prim.name}'\n"
             f"of type '{prim.__class__.__name__}'"
         )
 
-    def Marker(self, prim, **params):
+    def Marker(self, prim: prm.Marker, **params):
         if ("width" in params) and ("height" in params):
-            return self._WidthSpacePrimitive(prim, **params)
+            return self._WidthSpacePrimitive(cast(prm._WidthSpacePrimitive, prim), **params)
         else:
             super().Marker(prim, **params)
 
-    def _WidthSpacePrimitive(self, prim, **widthspace_params):
+    def _WidthSpacePrimitive(self, prim: prm._WidthSpacePrimitive, **widthspace_params):
         if len(prim.ports) != 0:
             raise NotImplementedError(
                 f"Don't know how to generate minimal layout for primitive '{prim.name}'\n"
@@ -1272,10 +1248,11 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             NetlessSubLayout(MaskPolygon(prim.mask, r)),
         )
 
-    def Well(self, prim, **well_params):
-        return self._Conductor(prim, **well_params)
+    def Well(self, prim: prm.Well, **well_params):
+        # Share code with _Conductor
+        return self._Conductor(cast(prm._Conductor, prim), **well_params)
 
-    def _Conductor(self, prim, **conductor_params):
+    def _Conductor(self, prim: prm._Conductor, **conductor_params):
         assert (
             (len(prim.ports) == 1) and (prim.ports[0].name == "conn")
         ), "Internal error"
@@ -1299,7 +1276,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def WaferWire(self, prim, **waferwire_params):
+    def WaferWire(self, prim: prm.WaferWire, **waferwire_params):
         width = waferwire_params["width"]
         height = waferwire_params["height"]
 
@@ -1344,7 +1321,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             ))
         return layout
 
-    def Via(self, prim, **via_params):
+    def Via(self, prim: prm.Via, **via_params):
         try:
             portnets = via_params["portnets"]
         except KeyError:
@@ -1500,7 +1477,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def Resistor(self, prim, **resistor_params):
+    def Resistor(self, prim: prm.Resistor, **resistor_params):
         try:
             portnets = resistor_params["portnets"]
         except KeyError:
@@ -1513,7 +1490,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 )
             port1 = portnets["port1"]
             port2 = portnets["port2"]
-        if not hasattr(prim, "contact"):
+        if prim.contact is None:
             raise NotImplementedError("Resistor layout without contact layer")
 
         res_width = resistor_params["width"]
@@ -1523,6 +1500,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         cont = prim.contact
         cont_space = prim.min_contact_space
+        assert cont_space is not None
         try:
             wire_idx = cont.bottom.index(wire)
         except ValueError:
@@ -1574,7 +1552,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         layout.add_wire(net=port1, wire=cont, y=cont_y1, **cont_args)
         layout.add_wire(net=port2, wire=cont, y=cont_y2, **cont_args)
 
-        if hasattr(prim, "implant"):
+        if prim.implant is not None:
             impl = prim.implant
             try:
                 enc = prim.min_implant_enclosure.max()
@@ -1590,7 +1568,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def Diode(self, prim, **diode_params):
+    def Diode(self, prim: prm.Diode, **diode_params):
         try:
             portnets = diode_params.pop("portnets")
         except KeyError:
@@ -1604,7 +1582,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             an = portnets["anode"]
             cath = portnets["cathode"]
 
-        if hasattr(prim, "min_implant_enclosure"):
+        if prim.min_implant_enclosure is not None:
             raise NotImplementedError(
                 "Diode layout generation with min_implant_enclosure specified"
             )
@@ -1612,7 +1590,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             "implant": prim.implant,
             "net": an if prim.implant.type_ == "p" else cath,
         }
-        if hasattr(prim, "well"):
+        if prim.well is not None:
             wirenet_args.update({
                 "well": prim.well,
                 "well_net": cath if prim.implant.type_ == "p" else an,
@@ -1630,7 +1608,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         return layout
 
-    def MOSFET(self, prim, **mos_params):
+    def MOSFET(self, prim: prm.MOSFET, **mos_params):
         l = mos_params["l"]
         w = mos_params["w"]
         impl_enc = mos_params["activeimplant_enclosure"]
@@ -1638,7 +1616,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         sdw = mos_params["sd_width"]
 
         try:
-            portnets = mos_params["portnets"]
+            portnets = cast(Mapping[str, net_.Net], mos_params["portnets"])
         except KeyError:
             portnets = prim.ports
 
@@ -1699,7 +1677,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             ),
         )
 
-        if hasattr(prim, "well"):
+        if prim.well is not None:
             enc = active.min_well_enclosure[active.well.index(prim.well)]
             layout += NetSubLayout(
                 portnets["bulk"],
@@ -1709,7 +1687,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 ),
             )
 
-        if hasattr(prim.gate, "oxide"):
+        if prim.gate.oxide is not None:
             # TODO: Check is there is an enclosure rule from oxide around active
             # and apply the if so.
             enc = getattr(
@@ -1720,13 +1698,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
             ))
 
-        if hasattr(prim.gate, "inside"):
+        if prim.gate.inside is not None:
             # TODO: Check is there is an enclosure rule from oxide around active
             # and apply the if so.
             for i, inside in enumerate(prim.gate.inside):
                 enc = (
                     prim.gate.min_gateinside_enclosure[i]
-                    if hasattr(prim.gate, "min_gateinside_enclosure")
+                    if prim.gate.min_gateinside_enclosure is not None
                     else prp.Enclosure(self.tech.grid)
                 )
                 layout += NetlessSubLayout(MaskPolygon(
@@ -1799,11 +1777,12 @@ class _CircuitLayouter:
             layout = None
             if layoutname is None:
                 try:
-                    layout = inst.cell.layouts[inst.circuitname]
+                    circuitname = cast(Any, inst).circuitname
+                    layout = inst.cell.layouts[circuitname]
                 except:
                     layout = inst.cell.layout
                 else:
-                    layoutname = inst.circuitname
+                    layoutname = circuitname
             else:
                 if not isinstance(layoutname, str):
                     raise TypeError(
@@ -1840,7 +1819,9 @@ class _CircuitLayouter:
             wire, portnets={"conn": net}, **wire_params,
         )
 
-    def place(self, object_, *, x, y, layoutname=None, rotation="no"):
+    def place(self, object_, *,
+        x: IntFloat, y: IntFloat, layoutname: Optional[str]=None, rotation: str="no",
+    ) -> _Layout:
         if not isinstance(object_, (ckt._Instance, _Layout)):
             raise TypeError("inst has to be of type '_Instance' or '_Layout'")
         if not isinstance(rotation, str):
@@ -1885,8 +1866,8 @@ class _CircuitLayouter:
                 # TODO: propoer checking of nets for instance
                 if (
                     (layoutname is None)
-                    and hasattr(inst, "circuitname")
-                    and (inst.circtuitname in inst.cell.layout.keys())
+                    and inst.circuitname is not None
+                    and (inst.circuitname in inst.cell.layouts.keys())
                 ):
                     layoutname = inst.circuitname
                 sl = _InstanceSubLayout(
@@ -1909,7 +1890,7 @@ class _CircuitLayouter:
         else:
             raise AssertionError("Internal error")
 
-    def add_wire(self, *, net, wire, x, y, **wire_params):
+    def add_wire(self, *, net, wire, x, y, **wire_params) -> _Layout:
         if net not in self.circuit.nets:
             raise ValueError(
                 f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
@@ -1961,7 +1942,7 @@ class LayoutFactory:
 
         return _Layout(self, sublayouts, boundary)
 
-    def new_primitivelayout(self, prim, **prim_params):
+    def new_primitivelayout(self, prim, **prim_params) -> _Layout:
         prim_params = prim.cast_params(prim_params)
         return self.gen_primlayout(prim, **prim_params)
 

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 import abc
+from typing import Optional, overload
 
 from .. import _util
 from ..technology import (
@@ -68,11 +69,7 @@ class _PrimitiveInstance(_Instance):
 
 
 class _CellInstance(_Instance):
-    def __init__(self, name, cell, *, circuitname=None):
-        assert all((
-            isinstance(name, str),
-            isinstance(cell, lbry._Cell),
-        )), "Internal error"
+    def __init__(self, name: str, cell: lbry._Cell, *, circuitname: Optional[str]=None):
         self.name = name
         self.cell = cell
 
@@ -84,10 +81,8 @@ class _CellInstance(_Instance):
                     "no circuitname provided for cell without default circuit"
                 )
         else:
-            if not isinstance(circuitname, str):
-                raise TypeError("circuitname has to be 'None' or a string")
-            self.circtuitname = circuitname
             circuit = cell.circuits[circuitname]
+        self.circuitname = circuitname
         self.circuit = circuit
 
         super().__init__(
@@ -116,9 +111,9 @@ class _CellInstance(_Instance):
             )
         layout = None
         if layoutname is None:
-            if hasattr(self, "circuitname"):
+            if self.circuitname is not None:
                 try:
-                    layout = self.cell.layouts[self.circtuitname]
+                    layout = self.cell.layouts[self.circuitname]
                 except KeyError:
                     pass
         else:
@@ -146,11 +141,7 @@ class _CellInstance(_Instance):
 
 
 class _Circuit:
-    def __init__(self, name, fab):
-        assert all((
-            isinstance(name, str),
-            isinstance(fab, CircuitFactory),
-        )), "Internal error"
+    def __init__(self, name: str, fab: "CircuitFactory"):
         self.name = name
         self.fab = fab
 
@@ -158,6 +149,16 @@ class _Circuit:
         self.nets = _CircuitNets()
         self.ports = _CircuitNets()
 
+    @overload
+    def new_instance(self,
+        name: str, object_: prm._Primitive, **params,
+    ) -> _PrimitiveInstance:
+        raise RuntimeError
+    @overload
+    def new_instance(self,
+        name: str, object_: lbry._Cell, **params,
+    ) -> _CellInstance:
+        raise RuntimeError
     def new_instance(self, name, object_, **params):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")

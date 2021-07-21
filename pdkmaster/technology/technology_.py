@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from math import floor, ceil
 import abc
-from typing import Optional, cast
+from typing import Tuple, Optional, cast
 
 from .. import _util
 from . import property_ as prp, rule as rle, mask as msk, wafer_ as wfr, primitive as prm
@@ -47,17 +47,12 @@ class Technology(abc.ABC):
                     f"min_space between {primitive1} and {primitive2} not found",
                 )
 
-        def min_width(self, primitive, *, up=False, down=False, min_enclosure=False):
-            if (
-                (not isinstance(primitive, prm._Primitive))
-                and hasattr(primitive, "min_width")
-            ):
-                raise TypeError(
-                    "primitive has to be a '_Primitive' object with"
-                    " the min_with attribute"
-                )
-            if not (isinstance(up, bool) and isinstance(down, bool)):
-                raise TypeError("up and down have to be bools")
+        def min_width(self, primitive, *,
+            up: bool=False, down: bool=False, min_enclosure: bool=False,
+        ):
+            assert primitive.min_width is not None, (
+                "primitive has to have the min_with attribute"
+            )
 
             def wupdown(via):
                 if up and (primitive in via.bottom):
@@ -101,9 +96,6 @@ class Technology(abc.ABC):
 
         if not isinstance(self.name, str):
             raise TypeError("name Technology class attribute has to be a string")
-        self.grid = _util.i2f(self.grid)
-        if not isinstance(self.grid, float):
-            raise TypeError("grid Technology class attribute has to be a float")
         if not isinstance(self.substrate_type, str):
             raise TypeError("substrate_type Technology class attribute has to be a string")
         if not self.substrate_type in ("n", "p", "undoped"):
@@ -209,8 +201,8 @@ class Technology(abc.ABC):
 
         # Add the oxides
         for ww in waferwires:
-            if hasattr(ww, "oxide"):
-                add_prims(sorted(ww.oxide))
+            if ww.oxide is not None:
+                add_prims(sorted(ww.oxide, key=get_name))
 
         # process vias
         vias = set(prims.__iter_type__(prm.Via))
@@ -229,6 +221,7 @@ class Technology(abc.ABC):
 
         connvias = set(filter(lambda via: any(w in via.bottom for w in bottomwires), vias))
         if connvias:
+            viatops = set()
             while connvias:
                 viabottoms = set()
                 viatops = set()
@@ -273,9 +266,9 @@ class Technology(abc.ABC):
         bottomwires.update(polys) # Also need to be connected
         for mosfet in mosfets:
             implants.update(mosfet.implant)
-            if hasattr(mosfet, "well"):
+            if mosfet.well is not None:
                 implants.add(mosfet.well)
-            if hasattr(mosfet.gate, "inside"):
+            if mosfet.gate.inside is not None:
                 markers.update(mosfet.gate.inside)
 
         add_prims((
@@ -314,8 +307,14 @@ class Technology(abc.ABC):
         add_prims((*markers, *resistors, *diodes, *spacings, *enclosures))
 
         # process auxiliary
-        def aux_key(aux):
-            return (getattr(aux.mask, "gds_layer", (1000000, 1000000)), aux.name)
+        def aux_key(aux: prm.Auxiliary) -> Tuple[int, int]:
+            if (
+                isinstance(aux.mask, msk.DesignMask)
+                and (aux.mask.gds_layer is not None)
+            ):
+                return aux.mask.gds_layer
+            else:
+                return (1000000, 1000000)
         add_prims(sorted(prims.__iter_type__(prm.Auxiliary), key=aux_key))
 
         # reorder primitives

@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from textwrap import dedent, indent
 from itertools import product
+from typing import Iterable, Set, Tuple, cast
 import shapely.geometry as sh_geo
 
 from ... import _util
 from ...technology import (
-    primitive as prm, dispatcher as dsp, technology_ as tch,
+    mask as msk, primitive as prm, dispatcher as dsp, technology_ as tch,
 )
 from ...design import layout as lay, library as lbr
 
@@ -55,9 +56,10 @@ def _str_create_via(via):
     ))
 
 
-def _args_gds_layer(prim):
-    if hasattr(prim, "mask") and hasattr(prim.mask, "gds_layer"):
-        gds_layer = prim.mask.gds_layer
+def _args_gds_layer(prim: prm._MaskPrimitive):
+    mask = prim.mask
+    if isinstance(mask, msk.DesignMask) and (mask.gds_layer is not None):
+        gds_layer = mask.gds_layer
         return {"gds_layer": gds_layer[0], "gds_datatype": gds_layer[1]}
     else:
         return {}
@@ -69,7 +71,7 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
         self.poly_layers = set(
             gate.poly for gate in tech.primitives.__iter_type__(prm.MOSFETGate)
         )
-        self.via_conns = via_conns = set()
+        self.via_conns = via_conns = cast(Set[prm._Primitive], set())
         for via in tech.primitives.__iter_type__(prm.Via):
             via_conns.update(via.bottom)
             via_conns.update(via.top)
@@ -78,70 +80,69 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             tech.primitives.__iter_type__(prm._BlockageAttribute),
         ))
 
-    def _Primitive(self, prim):
+    def _Primitive(self, prim: prm._Primitive):
         raise NotImplementedError(
             f"layer code generation for '{prim.__class__.__name__}'"
         )
 
-    def Marker(self, prim):
+    def Marker(self, prim: prm.Marker):
         type_ = "blockage" if prim in self.blockages else "other"
         return _str_create_basic(prim.name, type_, **_args_gds_layer(prim))
 
-    def ExtraProcess(self, prim):
+    def ExtraProcess(self, prim: prm.ExtraProcess):
         return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
 
-    def Implant(self, prim):
+    def Implant(self, prim: prm.Implant):
         return _str_create_basic(
             prim.name,
             f"{prim.type_}Implant" if prim.type_ in ("n", "p") else "other",
             minsize=prim.min_width, minspace=prim.min_space,
-            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
 
-    def Well(self, prim):
+    def Well(self, prim: prm.Well):
         return _str_create_basic(
             prim.name, prim.type_+"Well",
             minsize=prim.min_width, minspace=prim.min_space,
-            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
 
-    def Insulator(self, prim):
+    def Insulator(self, prim: prm.Insulator):
         return _str_create_basic(prim.name, "other", **_args_gds_layer(prim))
 
-    def WaferWire(self, prim):
+    def WaferWire(self, prim: prm.WaferWire):
         return _str_create_basic(
             prim.name, "active",
             minsize=prim.min_width, minspace=prim.min_space,
-            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
 
-    def GateWire(self, prim):
+    def GateWire(self, prim: prm.GateWire):
         return _str_create_basic(
             prim.name, "poly",
             minsize=prim.min_width, minspace=prim.min_space,
-            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
 
-    def MetalWire(self, prim):
+    def MetalWire(self, prim: prm.MetalWire):
         return _str_create_basic(
             prim.name, "metal",
             minsize=prim.min_width, minspace=prim.min_space,
-            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
 
-    def Via(self, prim, *, via_layer=False):
+    def Via(self, prim: prm.Via, *, via_layer: bool=False):
         if via_layer:
             return _str_create_via(prim)
         else:
             return _str_create_basic(
                 prim.name, "cut",
                 minsize=prim.width, minspace=prim.min_space,
-                minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
                 **_args_gds_layer(prim),
             )
 
@@ -151,15 +152,15 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             prefix="# ",
         )
 
-    def PadOpening(self, prim):
+    def PadOpening(self, prim: prm.PadOpening):
         return _str_create_basic(
             prim.name, "cut",
             minsize=prim.min_width, minspace=prim.min_space,
-            minarea=(None if not hasattr(prim, "min_area") else prim.min_area),
+            minarea=prim.min_area,
             **_args_gds_layer(prim),
         )
 
-    def Resistor(self, prim):
+    def Resistor(self, prim: prm.Resistor):
         if len(prim.indicator) == 1:
             s_indicator = f"'{prim.indicator[0].name}'"
         else:
@@ -169,7 +170,7 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             f"{s_indicator})\n"
         )
 
-    def Diode(self, prim):
+    def Diode(self, prim: prm.Diode):
         if len(prim.indicator) == 1:
             s_indicator = f"'{prim.indicator[0].name}'"
         else:
@@ -179,17 +180,17 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
             f"{s_indicator})\n"
         )
 
-    def MOSFETGate(self, prim):
-        s_oxide = f", '{prim.oxide.name}'" if hasattr(prim, "oxide") else ""
+    def MOSFETGate(self, prim: prm.MOSFETGate):
+        s_oxide = f", '{prim.oxide.name}'" if prim.oxide is not None else ""
         return (
             f"# GateLayer.create(tech, '{prim.name}', '{prim.active.name}', "
             f"'{prim.poly.name}'{s_oxide})\n"
         )
 
-    def MOSFET(self, prim):
+    def MOSFET(self, prim: prm.MOSFET):
         impl_names = tuple(impl.name for impl in prim.implant)
         s_impl = f"'{impl_names[0]}'" if len(impl_names) == 1 else str(impl_names)
-        s_well = f", '{prim.well.name}'" if hasattr(prim, "well") else ""
+        s_well = f", '{prim.well.name}'" if prim.well is not None else ""
         return (
             f"# TransistorLayer.create(tech, '{prim.name}', '{prim.gate.name}', "
             f"{s_impl}{s_well})\n"
@@ -200,51 +201,51 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
     def __init__(self, tech):
         self.tech = tech
 
-    def _Primitive(self, prim):
+    def _Primitive(self, prim: prm._Primitive):
         raise NotImplementedError(
             f"analog code generation for '{prim.__class__.__name__}'"
         )
 
-    def _rows_mask(self, prim):
+    def _rows_mask(self, prim: prm._MaskPrimitive):
         s = ""
-        if hasattr(prim, "grid"):
+        if prim.grid is not None:
             s += f"('grid', '{prim.name}', {prim.grid}, Length, ''),\n"
         return s
 
-    def _rows_widthspace(self, prim):
+    def _rows_widthspace(self, prim: prm._WidthSpacePrimitive):
         s = f"('minWidth', '{prim.name}', {prim.min_width}, Length, ''),\n"
         s += f"('minSpacing', '{prim.name}', {prim.min_space}, Length, ''),\n"
         s += self._rows_mask(prim)
-        if hasattr(prim, "min_area"):
+        if prim.min_area is not None:
             s += f"('minArea', '{prim.name}', {prim.min_area}, Area, ''),\n"
-        if hasattr(prim, "min_density"):
+        if prim.min_density is not None:
             s += f"('minDensity', '{prim.name}', {prim.min_density}, Unit, ''),\n"
-        if hasattr(prim, "max_density"):
+        if prim.max_density is not None:
             s += f"('maxDensity', '{prim.name}', {prim.max_density}, Unit, ''),\n"
         return s
 
-    def Marker(self, prim):
+    def Marker(self, prim: prm.Marker):
         return self._rows_mask(prim)
 
-    def ExtraProcess(self, prim):
+    def ExtraProcess(self, prim: prm.ExtraProcess):
         return self._rows_mask(prim)
 
-    def Auxiliary(self, prim):
+    def Auxiliary(self, prim: prm.Auxiliary):
         return self._rows_mask(prim)
 
-    def Implant(self, prim):
+    def Implant(self, prim: prm.Implant):
         return self._rows_widthspace(prim)
 
-    def Well(self, prim):
+    def Well(self, prim: prm.Well):
         s = self._rows_widthspace(prim)
-        if hasattr(prim, "min_space_samenet"):
+        if prim.min_space_samenet is not None:
             s += f"('minSpacingSameNet', '{prim.name}', {prim.min_space_samenet}, Length, ''),\n"
         return s
 
-    def Insulator(self, prim):
+    def Insulator(self, prim: prm.Insulator):
         return self._rows_widthspace(prim)
 
-    def WaferWire(self, prim):
+    def WaferWire(self, prim: prm.WaferWire):
         s = self._rows_widthspace(prim)
         for i in range(len(prim.well)):
             well = prim.well[i]
@@ -253,7 +254,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
                 f"('minEnclosure', '{well.name}', '{prim.name}', {enc},"
                 " Length|Asymmetric, ''),\n"
             )
-        if hasattr(prim, "min_substrate_enclosure"):
+        if prim.min_substrate_enclosure is not None:
             for well in self.tech.primitives.__iter_type__(prm.Well):
                 s += (
                     f"('minSpacing', '{well.name}', '{prim.name}', "
@@ -265,14 +266,14 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         )
         return s
 
-    def GateWire(self, prim):
+    def GateWire(self, prim: prm.GateWire):
         return self._rows_widthspace(prim)
 
-    def MetalWire(self, prim):
+    def MetalWire(self, prim: prm.MetalWire):
         # Also handles TopMetalWire
         return self._rows_widthspace(prim)
 
-    def Via(self, prim):
+    def Via(self, prim: prm.Via):
         s = self._rows_mask(prim)
         s += f"('minWidth', '{prim.name}', {prim.width}, Length, ''),\n"
         s += f"('maxWidth', '{prim.name}', {prim.width}, Length, ''),\n"
@@ -293,7 +294,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             )
         return s
 
-    def PadOpening(self, prim):
+    def PadOpening(self, prim: prm.PadOpening):
         s = self._rows_widthspace(prim)
         s += (
             f"('minEnclosure', '{prim.bottom.name}', '{prim.name}', "
@@ -301,7 +302,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         )
         return s
 
-    def Resistor(self, prim):
+    def Resistor(self, prim: prm.Resistor):
         s = self._rows_widthspace(prim)
         for i in range(len(prim.indicator)):
             ind = prim.indicator[i]
@@ -313,7 +314,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         s = indent(s, prefix="# ")
         return s
 
-    def Diode(self, prim):
+    def Diode(self, prim: prm.Diode):
         s = self._rows_widthspace(prim)
         for i in range(len(prim.indicator)):
             ind = prim.indicator[i]
@@ -325,46 +326,46 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         s = indent(s, prefix="# ")
         return s
 
-    def MOSFETGate(self, prim):
+    def MOSFETGate(self, prim: prm.MOSFETGate):
         s = ""
-        if hasattr(prim, "min_l"):
+        if prim.min_l is not None:
             s += f"# ('minTransistorL', '{prim.name}', {prim.min_l}, Length, ''),\n"
-        if hasattr(prim, "min_w"):
+        if prim.min_w is not None:
             s += f"# ('minTransistorW', '{prim.name}', {prim.min_w}, Length, ''),\n"
-        if hasattr(prim, "min_sd_width"):
+        if prim.min_sd_width is not None:
             s += (
                 f"# ('minGateExtension', '{prim.active.name}', '{prim.name}', "
                 f"{prim.min_sd_width}, Length|Asymmetric, ''),\n"
             )
-        if hasattr(prim, "min_polyactive_extension"):
+        if prim.min_polyactive_extension is not None:
             s += (
                 f"# ('minGateExtension', '{prim.poly.name}', '{prim.name}', "
                 f"{prim.min_polyactive_extension}, Length|Asymmetric, ''),\n"
             )
-        if hasattr(prim, "min_gate_space"):
+        if prim.min_gate_space is not None:
             s += (
                 f"# ('minGateSpacing', '{prim.name}', {prim.min_gate_space}, "
                 "Length, ''),\n"
             )
-        if hasattr(prim, "contact"):
+        if prim.contact is not None:
             s += (
                 f"# ('minGateSpacing', '{prim.contact.name}', '{prim.name}', "
                 f"{prim.min_contactgate_space}, Length|Asymmetric, ''),\n"
             )
         return s
 
-    def MOSFET(self, prim):
+    def MOSFET(self, prim: prm.MOSFET):
         s = ""
-        if hasattr(prim, "min_l"):
+        if prim.min_l is not None:
             s += f"# ('minTransistorL', '{prim.name}', {prim.min_l}, Length, ''),\n"
-        if hasattr(prim, "min_w"):
+        if prim.min_w is not None:
             s += f"# ('minTransistorW', '{prim.name}', {prim.min_w}, Length, ''),\n"
-        if hasattr(prim, "min_sd_width"):
+        if prim.min_sd_width is not None:
             s += (
                 f"# ('minGateExtension', '{prim.gate.active.name}', '{prim.name}', "
                 f"{prim.min_sd_width}, Length|Asymmetric, ''),\n"
             )
-        if hasattr(prim, "min_polyactive_extension"):
+        if prim.min_polyactive_extension is not None:
             s += (
                 f"# ('minGateExtension', '{prim.gate.poly.name}', '{prim.name}', "
                 f"{prim.min_polyactive_extension}, Length|Asymmetric, ''),\n"
@@ -376,19 +377,19 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
                 f"# ('minGateEnclosure', '{impl.name}', '{prim.name}', {enc}, "
                 "Length|Asymmetric, ''),\n"
             )
-        if hasattr(prim, "min_gate_space"):
+        if prim.min_gate_space is not None:
             s += (
                 f"# ('minGateSpacing', '{prim.name}', {prim.min_gate_space}, "
                 "Length, ''),\n"
             )
-        if hasattr(prim, "contact"):
+        if prim.contact is not None:
             s += (
                 f"# ('minGateSpacing', '{prim.contact.name}', '{prim.name}', "
                 f"{prim.min_gate_space}, Length, ''),\n"
             )
         return s
 
-    def Spacing(self, prim):
+    def Spacing(self, prim: prm.Spacing):
         return "".join(
             f"('minSpacing', '{prim1.name}', '{prim2.name}', {prim.min_space}, "
             "Length|Asymmetric, ''),\n"
@@ -400,8 +401,8 @@ class _LibraryGenerator:
     def __init__(self, tech):
         assert isinstance(tech, tch.Technology)
         self.tech = tech
-        self.metals = tuple(tech.primitives.__iter_type__(prm.MetalWire))
-        self.vias = tuple(tech.primitives.__iter_type__(prm.Via))
+        self.metals: Tuple[prm.MetalWire, ...] = tuple(tech.primitives.__iter_type__(prm.MetalWire))
+        self.vias: Tuple[prm.Via, ...] = tuple(tech.primitives.__iter_type__(prm.Via))
         assert len(self.metals) == len(self.vias)
         self.pinmasks = pinmasks = {}
         for prim in filter(
@@ -410,7 +411,7 @@ class _LibraryGenerator:
         ):
             pinmasks.update({
                 p.mask: cast(prm._MaskPrimitive, prim).mask
-                for p in prim.pin
+                for p in cast(Tuple[prm.Marker], prim.pin)
             })
 
     def __call__(self, lib):
@@ -545,6 +546,8 @@ class _LibraryGenerator:
             s_pindir = s_cordir(routedir)
             dw = metal.min_space
 
+            vwidth = None
+
             # Via below
             if i > 0:
                 via = self.vias[i]
@@ -582,6 +585,8 @@ class _LibraryGenerator:
                     setEnclosures(via, metal, (u({henc}), u({venc})))
                 """[1:])
                 vwidth = via.width
+
+            assert vwidth is not None
 
             s += dedent(f"""
                 rg.addLayerGauge(CRL.RoutingLayerGauge.create(
@@ -766,7 +771,7 @@ class _LibraryGenerator:
                     + "\n    }\n"
                 )
 
-                if hasattr(lib, "global_nets"):
+                if lib.global_nets is not None:
                     for net in netnames:
                         if net in lib.global_nets:
                             s += f"    nets['{net}'].setGlobal(True)\n"
@@ -815,14 +820,15 @@ class _LibraryGenerator:
         except NotImplementedError:
             return f"# Export failed for cell '{cell.name}'"
 
-    def _s_polygon(self, mask, polygon):
+    def _s_polygon(self, mask, polygon) -> str:
         if isinstance(polygon, sh_geo.MultiPolygon):
             return "".join(
                 self._s_polygon(mask, poly2)
-                for poly2 in polygon
+                for poly2 in cast(Iterable[sh_geo.Polygon], polygon)
             )
         elif isinstance(polygon, sh_geo.Polygon):
-            p = polygon.simplify(0.000001)
+            p = cast(sh_geo.Polygon, polygon.simplify(0.000001))
+            assert p.exterior is not None
             coords = tuple(p.exterior.coords)
             ints = tuple(p.interiors)
             if not ints:
@@ -873,7 +879,10 @@ class _LibraryGenerator:
                 incoords = tuple(ints[0].coords)
                 if (len(coords) == 5) and (len(incoords) == 5):
                     # Assume outer and inner are boxes
-                    out_left, out_bottom, out_right, out_top = p.exterior.bounds
+                    out_left, out_bottom, out_right, out_top = cast(
+                        Tuple[float, float, float, float],
+                        p.exterior.bounds,
+                    )
                     in_left, in_bottom, in_right, in_top = ints[0].bounds
                     coords2 = (
                         (out_left, out_bottom), (out_right, out_bottom),
@@ -898,7 +907,9 @@ class _LibraryGenerator:
                     "shapely polygon with multiple interiors"
                 )
 
-        return s
+            return s
+        else:
+            raise RuntimeError("Internal error")
 
     def _s_point(self, point):
         assert (
@@ -960,8 +971,10 @@ class _TechnologyGenerator:
         gen = _LayerGenerator(self.tech)
 
         # Take smallest transistor length as lambda
-        lambda_ = min(trans.computed.min_l
-            for trans in self.tech.primitives.__iter_type__(prm.MOSFET))
+        lambda_ = min(
+            trans.computed.min_l
+            for trans in self.tech.primitives.__iter_type__(prm.MOSFET)
+        )
 
         assert (self.tech.grid % 1e-6) < 1e-9, "Unsupported grid"
 
@@ -1040,7 +1053,7 @@ class _TechnologyGenerator:
         ):
             s_prims += dedent(f"""
                 tech.getLayer('{prim.name}').setBlockageLayer(
-                    tech.getLayer('{prim.blockage.name}')
+                    tech.getLayer('{cast(prm.Marker, prim.blockage).name}')
                 )
             """[1:])
 
@@ -1130,8 +1143,8 @@ class _TechnologyGenerator:
                 ", threshold=threshold)\n"
             )
         for prim in filter(
-            lambda p: isinstance(p, prm.Implant) and not isinstance(p, prm.Well),
-            self.tech.primitives,
+            lambda p: not isinstance(p, prm.Well),
+            self.tech.primitives.__iter_type__(prm.Implant),
         ):
             rgb = "LawnGreen" if prim.type_ == "n" else "Yellow"
             s += (

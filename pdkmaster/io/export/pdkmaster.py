@@ -2,8 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from importlib import import_module
 from textwrap import indent, dedent
+from typing import Any
 
-from ...technology import primitive as prm, dispatcher as dsp, technology_ as tch
+from ...technology import (
+    primitive as prm, mask as msk, dispatcher as dsp, technology_ as tch,
+)
 from ...design import circuit as ckt, library as lib
 
 
@@ -45,7 +48,11 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         class_name = prim.__class__.__name__.split(".")[-1]
         if add_name:
             s_name = f"name='{prim.name}'" if add_name else ""
-            if hasattr(prim, "mask") and hasattr(prim.mask, "gds_layer"):
+            if (
+                isinstance(prim, prm._MaskPrimitive)
+                and isinstance(prim.mask, msk.DesignMask)
+                and prim.mask.gds_layer is not None
+            ):
                 s_name += f", gds_layer={prim.mask.gds_layer}"
         else:
             s_name = ""
@@ -61,11 +68,14 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
     def _params_unhandled(self, prim):
         raise RuntimeError(f"Internal error: unhandled params for {prim.__class__.__name__}")
 
-    def _params_mask(self, prim, *, add_fill_space=False):
+    def _params_mask(self, prim: prm._MaskPrimitive, *,
+        add_fill_space=False,
+    ):
         s = ""
-        if hasattr(prim, "grid"):
+        if prim.grid is not None:
             s += f"grid={prim.grid},"
         if add_fill_space:
+            assert isinstance(prim.mask, msk.DesignMask)
             if s:
                 s += " "
             s += f"fill_space='{prim.mask.fill_space}',"
@@ -77,18 +87,19 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
 
         return s
 
-    def _params_widthspace(self, prim, *, add_fill_space=False):
+    def _params_widthspace(self, prim: prm._WidthSpacePrimitive, *,
+        add_fill_space=False,
+    ):
         s = f"min_width={prim.min_width}, min_space={prim.min_space},\n"
-        if hasattr(prim, "space_table"):
+        if prim.space_table is not None:
             s += "space_table=(\n"
             for row in prim.space_table:
                 s += f"    {row},\n"
             s += "),\n"
-        if hasattr(prim, "min_area"):
-            s += f"min_area={prim.min_area},\n"
-        if hasattr(prim, "min_density"):
+        s += f"min_area={prim.min_area},\n"
+        if prim.min_density is not None:
             s += f"min_density={prim.min_density},\n"
-        if hasattr(prim, "max_density"):
+        if prim.max_density is not None:
             s += f"max_density={prim.max_density},\n"
         if isinstance(prim, prm._PinAttribute) and prim.pin is not None:
             s += f"pin={_str_primtuple(prim.pin)},\n"
@@ -96,41 +107,41 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         
         return s
 
-    def _params_Marker(self, prim):
+    def _params_Marker(self, prim: prm.Marker):
         return self._params_mask(prim)
 
-    def _params_Auxiliary(self, prim):
+    def _params_Auxiliary(self, prim: prm.Auxiliary):
         return self._params_mask(prim)
 
-    def _params_ExtraProcess(self, prim):
+    def _params_ExtraProcess(self, prim: prm.ExtraProcess):
         return self._params_widthspace(prim, add_fill_space=True)
 
-    def _params_Implant(self, prim):
+    def _params_Implant(self, prim: prm.Implant):
         s = f"type_='{prim.type_}',\n"
         s += self._params_widthspace(prim)
         return s
 
-    def _params_Well(self, prim):
-        if hasattr(prim, "min_space_samenet"):
+    def _params_Well(self, prim: prm.Well):
+        if prim.min_space_samenet is not None:
             s = f"min_space_samenet={prim.min_space_samenet},\n"
         else:
             s = ""
         s += self._params_Implant(prim)
         return s
 
-    def _params_Insulator(self, prim):
+    def _params_Insulator(self, prim: prm.Insulator):
         return self._params_widthspace(prim, add_fill_space=True)
 
-    def _params_GateWire(self, prim):
+    def _params_GateWire(self, prim: prm.GateWire):
         return self._params_widthspace(prim)
 
-    def _params_MetalWire(self, prim):
+    def _params_MetalWire(self, prim: prm.MetalWire):
         return self._params_widthspace(prim)
 
-    def _params_TopMetalWire(self, prim):
+    def _params_TopMetalWire(self, prim: prm.TopMetalWire):
         return self._params_MetalWire(prim)
 
-    def _params_WaferWire(self, prim):
+    def _params_WaferWire(self, prim: prm.WaferWire):
         s = f"allow_in_substrate={prim.allow_in_substrate},\n"
         s += f"implant={_str_primtuple(prim.implant)},\n"
         s += f"min_implant_enclosure={_str_enclosures(prim.min_implant_enclosure)},\n"
@@ -138,13 +149,14 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s += f"allow_contactless_implant={prim.allow_contactless_implant},\n"
         s += f"well={_str_primtuple(prim.well)},\n"
         s += "min_well_enclosure="+_str_enclosures(prim.min_well_enclosure)+",\n"
-        if hasattr(prim, "min_substrate_enclosure"):
+        if prim.min_substrate_enclosure is not None:
             s += (
                 "min_substrate_enclosure="
                 f"{_str_enclosure(prim.min_substrate_enclosure)},\n"
             )
         s += f"allow_well_crossing={prim.allow_well_crossing},\n"
-        if hasattr(prim, "oxide"):
+        if prim.oxide is not None:
+            assert prim.min_well_enclosure is not None
             s += (
                 f"oxide={_str_primtuple(prim.oxide)},\n"
                 f"min_oxide_enclosure={_str_enclosures(prim.min_oxide_enclosure)},\n"
@@ -152,46 +164,46 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s += self._params_widthspace(prim)
         return s
 
-    def _params_Resistor(self, prim):
+    def _params_Resistor(self, prim: prm.Resistor):
         s = f"wire={_str_prim(prim.wire)}, indicator={_str_primtuple(prim.indicator)},\n"
         s += f"min_indicator_extension={prim.min_indicator_extension},\n"
-        if hasattr(prim, "contact"):
-            assert hasattr(prim, "min_contact_space")
+        if prim.contact is not None:
+            assert prim.min_contact_space is not None
             s += (
                 f"contact={_str_prim(prim.contact)},"
                 f" min_contact_space={prim.min_contact_space},\n"
             )
-        if hasattr(prim, "implant"):
+        if prim.implant is not None:
             s += f"implant={_str_prim(prim.implant)}"
-            if hasattr(prim, "min_implant_enclosure"):
+            if prim.min_implant_enclosure is not None:
                 s += f", min_implant_enclosure={_str_enclosure(prim.min_implant_enclosure)},\n"
             else:
                 s += ",\n"
-        if hasattr(prim, "model"):
+        if prim.model is not None:
             s += f"model='{prim.model}', model_params={prim.model_params},\n"
-        if hasattr(prim, "sheetres"):
+        if prim.sheetres is not None:
             s += f"sheetres={prim.sheetres},\n"
         s += self._params_widthspace(prim)
         return s
 
-    def _params_Diode(self, prim):
+    def _params_Diode(self, prim: prm.Diode):
         s = f"wire={_str_prim(prim.wire)}, indicator={_str_primtuple(prim.indicator)},\n"
         s += f"min_indicator_enclosure={_str_enclosures(prim.min_indicator_enclosure)},\n"
         s += f"implant={_str_prim(prim.implant)}"
-        if hasattr(prim, "min_implant_enclosure"):
+        if prim.min_implant_enclosure is not None:
             s += f", min_implant_enclosure={_str_enclosure(prim.min_implant_enclosure)}"
         s += ",\n"
-        if hasattr(prim, "well"):
+        if prim.well is not None:
             s += f"well={_str_prim(prim.well)}"
-            if hasattr(prim, "min_well_enclosure"):
-                s += f", min_well_enclosure={_str_enclosure(prim.min_well_enclosre)}"
+            if prim.min_well_enclosure is not None:
+                s += f", min_well_enclosure={_str_enclosure(prim.min_well_enclosure)}"
             s += ",\n"
-        if hasattr(prim, "model"):
+        if prim.model is not None:
             s += f"model='{prim.model}',\n"
         s += self._params_widthspace(prim)
         return s
     
-    def _params_Via(self, prim):
+    def _params_Via(self, prim: prm.Via):
         s = f"bottom={_str_primtuple(prim.bottom)},\n"
         s += f"top={_str_primtuple(prim.top)},\n"
         s += f"width={prim.width}, min_space={prim.min_space},\n"
@@ -200,71 +212,71 @@ class _PrimitiveGenerator(dsp.PrimitiveDispatcher):
         s += self._params_mask(prim)
         return s
 
-    def _params_PadOpening(self, prim):
+    def _params_PadOpening(self, prim: prm.PadOpening):
         s = f"bottom={_str_prim(prim.bottom)},\n"
         s += f"min_bottom_enclosure={_str_enclosure(prim.min_bottom_enclosure)},\n"
         s += self._params_widthspace(prim)
         return s
 
-    def _params_Spacing(self, prim):
+    def _params_Spacing(self, prim: prm.Spacing):
         s = f"primitives1={_str_primtuple(prim.primitives1)},\n"
         s += f"primitives2={_str_primtuple(prim.primitives2)},\n"
         s += f"min_space={prim.min_space},\n"
         return s
 
-    def _params_MOSFETGate(self, prim):
+    def _params_MOSFETGate(self, prim: prm.MOSFETGate):
         s = f"active={_str_prim(prim.active)}, poly={_str_prim(prim.poly)},\n"
-        if hasattr(prim, "oxide"):
+        if prim.oxide is not None:
             s += f"oxide={_str_prim(prim.oxide)},\n"
-        if hasattr(prim, "min_gateoxide_enclosure"):
+        if prim.min_gateoxide_enclosure is not None:
             s += (
                 "min_gateoxide_enclosure="
                 f"{_str_enclosure(prim.min_gateoxide_enclosure)},\n"
             )
-        if hasattr(prim, "inside"):
+        if prim.inside is not None:
             s += f"inside={_str_primtuple(prim.inside)},\n"
-        if hasattr(prim, "min_gateinside_enclosure"):
+        if prim.min_gateinside_enclosure is not None:
             s += (
                 "min_gateinside_enclosure="
                 f"{_str_enclosures(prim.min_gateinside_enclosure)},\n"
             )
-        if hasattr(prim, "min_l"):
+        if prim.min_l is not None:
             s += f"min_l={prim.min_l},\n"
-        if hasattr(prim, "min_w"):
+        if prim.min_w is not None:
             s += f"min_w={prim.min_w},\n"
-        if hasattr(prim, "min_sd_width"):
+        if prim.min_sd_width is not None:
             s += f"min_sd_width={prim.min_sd_width},\n"
-        if hasattr(prim, "min_polyactive_extension"):
+        if prim.min_polyactive_extension is not None:
             s += f"min_polyactive_extension={prim.min_polyactive_extension},\n"
-        if hasattr(prim, "min_gate_space"):
+        if prim.min_gate_space is not None:
             s += f"min_gate_space={prim.min_gate_space},\n"
-        if hasattr(prim, "contact"):
+        if prim.contact is not None:
             s += f"contact={_str_prim(prim.contact)}, min_contactgate_space={prim.min_contactgate_space},\n"
         return s
 
-    def _params_MOSFET(self, prim):
+    def _params_MOSFET(self, prim: prm.MOSFET):
         s = f"gate={_str_prim(prim.gate)},\n"
-        if hasattr(prim, "implant"):
+        if prim.implant is not None:
             s += f"implant={_str_primtuple(prim.implant)},\n"
-        if hasattr(prim, "well"):
+        if prim.well is not None:
             s += f"well={_str_prim(prim.well)},\n"
-        if hasattr(prim, "min_l"):
+        if prim.min_l is not None:
             s += f"min_l={prim.min_l},\n"
-        if hasattr(prim, "min_w"):
+        if prim.min_w is not None:
             s += f"min_w={prim.min_w},\n"
-        if hasattr(prim, "min_sd_width"):
+        if prim.min_sd_width is not None:
             s += f"min_sd_width={prim.min_sd_width},\n"
-        if hasattr(prim, "min_polyactive_extension"):
+        if prim.min_polyactive_extension is not None:
             s += f"min_polyactive_extension={prim.min_polyactive_extension},\n"
         s += (
             "min_gateimplant_enclosure="
             f"{_str_enclosures(prim.min_gateimplant_enclosure)},\n"
         )
-        if hasattr(prim, "min_gate_space"):
+        if prim.min_gate_space is not None:
             s += f"min_gate_space={prim.min_gate_space},\n"
-        if hasattr(prim, "contact"):
+        if prim.contact is not None:
             s += f"contact={_str_prim(prim.contact)}, min_contactgate_space={prim.min_contactgate_space},\n"
-        if hasattr(prim, "model"):
+        if prim.model is not None:
             s += f"model='{prim.model}',\n"
         return s
 
@@ -290,6 +302,7 @@ class PDKMasterGenerator:
 
         mod = tech.__class__.__module__
         mod_split = mod.split(".")
+        module: Any
         if mod.startswith("pdkmaster.techs"):
             module = import_module(".".join(mod_split[:3]))
         else:

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 import abc
+from typing import Tuple, Generic, Optional, TypeVar, cast
 
+from ..typing import SingleOrMulti, OptSingleOrMulti
 from .. import _util
 from ..technology import primitive as prm, technology_ as tch
 from . import layout as lay, circuit as ckt
@@ -9,12 +11,11 @@ from . import layout as lay, circuit as ckt
 __all__ = ["RoutingGauge", "Library", "StdCellLibrary"]
 
 
-class _Cell:
-    def __init__(self, lib, name):
-        assert (
-            isinstance(lib, Library)
-            and isinstance(name, str)
-        ), "Internal error"
+LibraryType = TypeVar("LibraryType", bound="Library")
+
+
+class _Cell(Generic[LibraryType]):
+    def __init__(self, lib: LibraryType, name: str):
         self.lib = lib
         self.name = name
 
@@ -79,7 +80,7 @@ class _Cell:
                     cells.add(cell)
 
 
-class _OnDemandCell(_Cell, abc.ABC):
+class _OnDemandCell(_Cell[LibraryType], abc.ABC, Generic[LibraryType]):
     """_Cell with on demand circuit and layout creation
     
     The circuit and layout will only be generated the first time it is accessed.
@@ -119,7 +120,7 @@ class _OnDemandCell(_Cell, abc.ABC):
         pass
 
 
-class _Cells(_util.TypedListStrMapping[_Cell]):
+class _Cells(_util.TypedListStrMapping[_Cell[LibraryType]], Generic[LibraryType]):
     _elem_type_ = _Cell
 
 
@@ -207,34 +208,29 @@ class RoutingGauge:
 
 
 class Library:
-    def __init__(self, name, *, tech, cktfab=None, layoutfab=None, global_nets=None):
-        if not isinstance(name, str):
-            raise TypeError("name has to be a string")
+    def __init__(self, name: str, *,
+        tech: tch.Technology, cktfab: Optional["ckt.CircuitFactory"]=None,
+        layoutfab: Optional["lay.LayoutFactory"]=None,
+        global_nets: OptSingleOrMulti[str].T=None,
+    ):
         self.name = name
-
-        if not isinstance(tech, tch.Technology):
-            raise TypeError("tech has to be of type 'Technology'")
         self.tech = tech
-
         if cktfab is None:
             cktfab = ckt.CircuitFactory(tech)
-        elif not isinstance(cktfab, ckt.CircuitFactory):
-            raise TypeError("cktfab has to be of type 'CircuitFactory'")
         self.cktfab = cktfab
-
         if layoutfab is None:
             layoutfab = lay.LayoutFactory(tech)
-        elif not isinstance(layoutfab, lay.LayoutFactory):
-            raise TypeError("layoutfab has to be of type 'LayoutFactory'")
         self.layoutfab = layoutfab
 
         if global_nets is not None:
-            global_nets = _util.v2t(global_nets)
-            if not all(isinstance(net, str) for net in global_nets):
+            global_nets2 = cast(Tuple[str, ...], _util.v2t(global_nets))
+            if not all(isinstance(net, str) for net in global_nets2):
                 raise TypeError(
                     "global_nets has to be None, a string or an iterable of strings"
                 )
-            self.global_nets=frozenset(global_nets)
+            self.global_nets = frozenset(global_nets2)
+        else:
+            self.global_nets = None
 
         self.cells = _Cells()
     

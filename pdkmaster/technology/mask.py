@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 import abc
+from typing import Iterable, Tuple, cast
 
+from ..typing import OptSingleOrMulti, SingleOrMulti
 from .. import _util
 from . import rule as rle, property_ as prp
 
@@ -94,7 +96,7 @@ class _OutsideCondition(_MultiMaskCondition):
 
 class _Mask(abc.ABC):
     @abc.abstractmethod
-    def __init__(self, name):
+    def __init__(self, name: str):
         self.name = name
         self.width = _MaskProperty(self, "width")
         self.length = _MaskProperty(self, "length")
@@ -105,71 +107,52 @@ class _Mask(abc.ABC):
     def __repr__(self):
         return self.name
 
-    def extend_over(self, other):
-        if not isinstance(other, _Mask):
-            raise TypeError("other has to be of type 'Mask'")
-
+    def extend_over(self, other: "_Mask"):
         return _DualMaskProperty(self, other, "extend_over", commutative=False)
 
-    def enclosed_by(self, other):
-        if not isinstance(other, _Mask):
-            raise TypeError("other has to be of type 'Mask'")
-
+    def enclosed_by(self, other: "_Mask"):
         return _DualMaskEnclosureProperty(self, other, "enclosed_by")
 
-    def is_inside(self, other, *others):
-        if isinstance(other, _Mask):
-            masks = (other, *others)
-        else:
-            try:
-                masks = (*other, *others)
-            except:
-                raise TypeError("Outside mask not of type 'Mask'")
-        for l in masks:
-            if not isinstance(l, _Mask):
-                raise TypeError("Outside mask not of type 'Mask'")
+    def is_inside(self, other: SingleOrMulti["_Mask"].T, *others: "_Mask"):
+        masks = (*_util.v2t(other), *others)
         
         return _InsideCondition(self, masks)
 
-    def is_outside(self, other, *others):
-        if isinstance(other, _Mask):
-            masks = (other, *others)
-        else:
-            try:
-                masks = (*other, *others)
-            except:
-                raise TypeError("Outside mask not of type 'Mask'")
-        for l in masks:
-            if not isinstance(l, _Mask):
-                raise TypeError("Outside mask not of type 'Mask'")
+    def is_outside(self, other: SingleOrMulti["_Mask"].T, *others: "_Mask"):
+        masks = (*_util.v2t(other), *others)
         
         return _OutsideCondition(self, masks)
 
-    def parts_with(self, condition):
+    def parts_with(self, condition: SingleOrMulti[prp._BinaryPropertyCondition].T):
         return _PartsWith(mask=self, condition=condition)
 
-    def remove(self, what):
+    def remove(self, what: "_Mask"):
         return _MaskRemove(from_=self, what=what)
 
-    def alias(self, name):
+    def alias(self, name: str):
         return _MaskAlias(name=name, mask=self)
 
     @abc.abstractproperty
-    def designmasks(self):
-        return iter(tuple())
+    def designmasks(self) -> Iterable["DesignMask"]:
+        return tuple()
 
 
 class DesignMask(_Mask, rle._Rule):
-    def __init__(self, name, *, gds_layer=None, fill_space):
+    def __init__(self, name: str, *,
+        gds_layer: OptSingleOrMulti[int].T=None, fill_space: str,
+    ):
         if gds_layer is not None:
-            gds_layer = tuple(gds_layer) if _util.is_iterable(gds_layer) else (gds_layer, 0)
-            if not ((len(gds_layer) == 2) and all(isinstance(n, int) for n in gds_layer)):
+            gds_layer = _util.v2t(gds_layer)
+            if len(gds_layer) == 1:
+                gds_layer += (0,)
+            if len(gds_layer) != 2:
                 raise TypeError("gds_layer has to be an int or an iterable of two ints")
-            self.gds_layer = gds_layer
+            self.gds_layer = cast(Tuple[int, int], gds_layer)
+        else:
+            self.gds_layer = None
+
         super().__init__(name)
 
-        if not isinstance(fill_space, str):
-            raise TypeError("fill_space has to be a string")
         if not fill_space in ("no", "same_net", "yes"):
             raise ValueError("fill_space has to be one of ('no', 'same_net', 'yes')")
         self.fill_space = fill_space
@@ -178,7 +161,7 @@ class DesignMask(_Mask, rle._Rule):
 
     def __repr__(self):
         sgds = (
-            "" if not hasattr(self, "gds_layer")
+            "" if self.gds_layer is None
             else f", gds_layer={self.gds_layer[0]}.{self.gds_layer[1]}"
         )
         return f"design({self.name}{sgds})"
@@ -188,20 +171,19 @@ class DesignMask(_Mask, rle._Rule):
 
     @property
     def designmasks(self):
-        yield self
+        return (self,)
 
 
 class _PartsWith(_Mask):
-    def __init__(self, *, mask, condition):
-        if not isinstance(mask, _Mask):
-            raise TypeError("mask has to be be of type 'Mask'")
+    def __init__(self, *,
+        mask: _Mask, condition: SingleOrMulti[prp._BinaryPropertyCondition].T,
+    ):
         self.mask = mask
 
-        condition = tuple(condition) if _util.is_iterable(condition) else (condition,)
+        condition = _util.v2t(condition)
         if not all(
             (
-                isinstance(cond, prp._BinaryPropertyCondition)
-                and isinstance(cond.left, _MaskProperty)
+                isinstance(cond.left, _MaskProperty)
                 and cond.left.mask == mask
             ) for cond in condition
         ):
@@ -221,14 +203,8 @@ class _PartsWith(_Mask):
 
 
 class Join(_Mask):
-    def __init__(self, masks):
-        if _util.is_iterable(masks):
-            masks = tuple(masks)
-        else:
-            masks = (masks,)
-        if not all(isinstance(mask, _Mask) for mask in masks):
-            raise TypeError("masks has to be of type 'Mask' or an iterable of type 'Mask'")
-        self.masks = masks
+    def __init__(self, masks: SingleOrMulti[_Mask].T):
+        self.masks = masks = _util.v2t(masks)
 
         super().__init__("join({})".format(",".join(mask.name for mask in masks)))
 
@@ -239,14 +215,8 @@ class Join(_Mask):
 
 
 class Intersect(_Mask):
-    def __init__(self, masks):
-        if _util.is_iterable(masks):
-            masks = tuple(masks)
-        else:
-            masks = (masks,)
-        if not all(isinstance(mask, _Mask) for mask in masks):
-            raise TypeError("masks has to be of type 'Mask' or an iterable of type 'Mask'")
-        self.masks = masks
+    def __init__(self, masks: SingleOrMulti[_Mask].T):
+        self.masks = masks = _util.v2t(masks)
 
         super().__init__("intersect({})".format(",".join(mask.name for mask in masks)))
 
@@ -257,12 +227,7 @@ class Intersect(_Mask):
 
 
 class _MaskRemove(_Mask):
-    def __init__(self, *, from_, what):
-        if not isinstance(from_, _Mask):
-            raise TypeError("from_ has to be of type 'Mask'")
-        if not isinstance(what, _Mask):
-            raise TypeError("what has to be of type 'Mask'")
-
+    def __init__(self, *, from_: _Mask, what: _Mask):
         super().__init__("{}.remove({})".format(from_.name, what.name))
         self.from_ = from_
         self.what = what
@@ -309,16 +274,11 @@ class OverlapWidth(_DualMaskProperty):
 
 
 class Connect(rle._Rule):
-    def __init__(self, mask1, mask2):
-        mask1 = tuple(mask1) if _util.is_iterable(mask1) else (mask1,)
-        if not all(isinstance(mask, _Mask) for mask in mask1):
-            raise TypeError("mask1 has to be of type '_Mask' or an iterable of type '_Mask'")
-        self.mask1 = mask1
-
-        mask2 = tuple(mask2) if _util.is_iterable(mask2) else (mask2,)
-        if not all(isinstance(mask, _Mask) for mask in mask2):
-            raise TypeError("mask1 has to be of type '_Mask' or an iterable of type '_Mask'")
-        self.mask2 = mask2
+    def __init__(self,
+        mask1: SingleOrMulti[_Mask].T, mask2: SingleOrMulti[_Mask].T,
+    ):
+        self.mask1 = mask1 = _util.v2t(mask1)
+        self.mask2 = mask2 = _util.v2t(mask2)
 
     def __hash__(self):
         return hash((self.mask1, self.mask2))
