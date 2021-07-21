@@ -20,7 +20,7 @@ class _Instance(abc.ABC):
         )), "Internal error"
 
         self.name = name
-        ports.tt_freeze()
+        ports._freeze_()
         self.ports = ports
 
 
@@ -42,13 +42,13 @@ class _InstanceNet(net_.Net):
         return isinstance(other, _InstanceNet) and ((self.full_name) == other.full_name)
 
 
-class _InstanceNets(net_.Nets):
-    tt_element_type = _InstanceNet
-    tt_index_attribute = "full_name"
+class _InstanceNets(_util.ListStrMappingOverride[_InstanceNet], net_.Nets):
+    _elem_type_ = _InstanceNet
+    _index_attribute_ = "full_name"
 
 
-class _Instances(_util.TypedTuple):
-    tt_element_type = _Instance
+class _Instances(_util.TypedListStrMapping[_Instance]):
+    _elem_type_ = _Instance
 
 
 class _PrimitiveInstance(_Instance):
@@ -195,7 +195,7 @@ class _Circuit:
     @property
     def subcells_sorted(self):
         cells = set()
-        for inst in self.instances.tt_iter_type(_CellInstance):
+        for inst in self.instances.__iter_type__(_CellInstance):
             if inst.cell not in cells:
                 for subcell in inst.cell.subcells_sorted:
                     if subcell not in cells:
@@ -205,8 +205,8 @@ class _Circuit:
                 cells.add(inst.cell)
 
 
-class _Circuits(_util.TypedTuple):
-    tt_element_type = _Circuit
+class _Circuits(_util.TypedListStrMapping[_Circuit]):
+    _elem_type_ = _Circuit
 
 
 class _CircuitNet(net_.Net):
@@ -222,11 +222,11 @@ class _CircuitNet(net_.Net):
         self.childports = _InstanceNets()
 
     def freeze(self):
-        self.childports.tt_freeze()
+        self.childports._freeze_()
 
 
-class _CircuitNets(net_.Nets):
-    tt_element_type = _CircuitNet
+class _CircuitNets(_util.ListStrMappingOverride[_CircuitNet], net_.Nets):
+    _elem_type = _CircuitNet
 
 
 class CircuitFactory:

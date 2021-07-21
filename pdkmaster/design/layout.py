@@ -12,6 +12,7 @@ on them.
 """
 import abc, logging
 from itertools import product
+from typing import Any, Iterable, Union
 from matplotlib import pyplot as plt
 import descartes
 from shapely import geometry as sh_geo, ops as sh_ops, affinity as sh_aff
@@ -488,10 +489,10 @@ class MaskPolygon:
         )
 
 
-class MaskPolygons(_util.TypedTuple):
-    tt_index_attribute = "mask"
-    tt_index_type = msk.DesignMask
-    tt_element_type = MaskPolygon
+class MaskPolygons(_util.TypedListMapping[MaskPolygon, msk.DesignMask]):
+    _elem_type_ = MaskPolygon
+    _index_attribute_ = "mask"
+    _index_type_ = msk.DesignMask
 
     def dup(self):
         return MaskPolygons(mp.dup() for mp in self)
@@ -516,7 +517,7 @@ class MaskPolygons(_util.TypedTuple):
         raise AttributeError(f"No polygon for mask named '{name}'")
 
     def __iadd__(self, other):
-        if self._frozen:
+        if self._frozen_:
             raise ValueError("Can't add layout to a frozen 'MaskPolygons' object")
         if not isinstance(other, MaskPolygons):
             other = tuple(other) if _util.is_iterable(other) else (other,)
@@ -540,7 +541,7 @@ class MaskPolygons(_util.TypedTuple):
         return self
 
     def __isub__(self, other):
-        if self._frozen:
+        if self._frozen_:
             raise ValueError("Can't subtract from a frozen 'MaskPolygons' object")
         if isinstance(other, MaskPolygons):
             for polygon in self:
@@ -844,7 +845,7 @@ class MultiNetSubLayout(_SubLayout):
             other_polygon = other.polygons[self_polygon.mask]
             if isinstance(other_polygon.polygon, sh_geo.Polygon):
                 add_polygon(self, other_polygon)
-                other.polygons.tt_pop(self_polygon.mask)
+                other.polygons.pop(self_polygon.mask)
             elif isinstance(other_polygon.polygon, sh_geo.MultiPolygon):
                 # Take only parts of other polygon that overlap with out polygon
                 for p2 in filter(
@@ -854,7 +855,7 @@ class MultiNetSubLayout(_SubLayout):
                     add_polygon(self, MaskPolygon(other_polygon.mask, p2))
                     other_polygon.polygon = other_polygon.polygon.difference(p2)
                 if not other_polygon.polygon:
-                    other.polygons.tt_pop(self_polygon.mask)
+                    other.polygons.pop(self_polygon.mask)
             else:
                 raise AssertionError("Internal error")
 
@@ -907,7 +908,7 @@ class _InstanceSubLayout(_SubLayout):
                     " was specified"
                 )
         else:
-            if layoutname not in cell.layouts.tt_keys():
+            if layoutname not in cell.layouts.keys():
                 raise ValueError(
                     f"Cell '{cell.name}' has no layout named '{layoutname}'"
                 )
@@ -1063,15 +1064,26 @@ class _InstanceSubLayout(_SubLayout):
         )
 
 
-class SubLayouts(_util.TypedTuple):
-    tt_element_type = _SubLayout
-    tt_index_attribute = None
+class SubLayouts(_util.TypedList[_SubLayout]):
+    _elem_type_ = _SubLayout
 
-    def dup(self):
+    def __init__(self, iterable: Union[_SubLayout, Iterable[_SubLayout]]=tuple()):
+        if isinstance(iterable, _SubLayout):
+            super().__init__((iterable,))
+        else:
+            super().__init__(iterable)
+
+    def dup(self) -> "SubLayouts":
         return SubLayouts(l.dup() for l in self)
 
-    def __iadd__(self, other):
-        other = tuple(other) if _util.is_iterable(other) else (other,)
+    def __iadd__(self,
+        other_: Union[_SubLayout, Iterable[_SubLayout]],
+    ) -> "SubLayouts":
+        other: Iterable[_SubLayout]
+        if isinstance(other_, _SubLayout):
+            other = (other_,)
+        else:
+            other = tuple(other_)
         if not all(isinstance(sublayout, _SubLayout) for sublayout in other):
             raise TypeError(
                 "Can only add '_SubLayout' object or iterable of '_SubLayout' objects\n"
@@ -1079,7 +1091,7 @@ class SubLayouts(_util.TypedTuple):
             )
 
         # First try to add the sublayout to the multinet polygons
-        multinets = tuple(self.tt_iter_type(MultiNetSubLayout))
+        multinets = tuple(self.__iter_type__(MultiNetSubLayout))
         def add2multinet(other_sublayout):
             if isinstance(other_sublayout, _InstanceSubLayout):
                 return False
@@ -1099,11 +1111,11 @@ class SubLayouts(_util.TypedTuple):
                         and sublayout.overlaps_with(other_sublayout, hierarchical=False)
                     ):
                         if other_sublayout.merge_from(sublayout):
-                            self.tt_remove(sublayout)
+                            self.remove(sublayout)
                 return False
             elif isinstance(other_sublayout, (NetlessSubLayout, NetSubLayout)):
                 # Can only add to same type
-                for sublayout in self.tt_iter_type(other_sublayout.__class__):
+                for sublayout in self.__iter_type__(other_sublayout.__class__):
                     if (
                         # Add all netless together
                         isinstance(other_sublayout, NetlessSubLayout)
@@ -1120,9 +1132,15 @@ class SubLayouts(_util.TypedTuple):
 
         if other:
             # Append remaining sublayouts
-            return super().__iadd__(other)
-        else:
-            return self
+            self.extend(other)
+        return self
+
+    def __add__(self,
+        other: Union[_SubLayout, Iterable[_SubLayout]],
+    ) -> "SubLayouts":
+        ret = self.dup()
+        ret += other
+        return ret
 
 
 class _Layout:
@@ -1145,7 +1163,7 @@ class _Layout:
 
     @property
     def top_polygons(self):
-        for sublayout in self.sublayouts.tt_iter_type((
+        for sublayout in self.sublayouts.__iter_type__((
             NetlessSubLayout, NetSubLayout, MultiNetSubLayout,
         )):
             yield from sublayout.polygons
@@ -1238,7 +1256,7 @@ class _Layout:
         )
 
     def __iadd__(self, other):
-        if self.sublayouts._frozen:
+        if self.sublayouts._frozen_:
             raise ValueError("Can't add sublayouts to a frozen 'Layout' object")
         if not isinstance(other, (_Layout, _SubLayout, SubLayouts)):
             raise TypeError(
@@ -1304,7 +1322,7 @@ class _Layout:
         )
 
     def freeze(self):
-        self.sublayouts.tt_freeze()
+        self.sublayouts._freeze_()
 
 
 class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
@@ -1854,7 +1872,7 @@ class _CircuitLayouter:
                         if (inst == port.inst):
                             yield (port.name, net)
             portnets = dict(_portnets())
-            portnames = set(inst.ports.tt_keys())
+            portnames = set(inst.ports.keys())
             portnetnames = set(portnets.keys())
             if not (portnames == portnetnames):
                 raise ValueError(
@@ -1944,7 +1962,7 @@ class _CircuitLayouter:
                             if (inst == port.inst):
                                 yield (port.name, net)
                 portnets = dict(_portnets())
-                portnames = set(inst.ports.tt_keys())
+                portnames = set(inst.ports.keys())
                 portnetnames = set(portnets.keys())
                 if not (portnames == portnetnames):
                     raise ValueError(
@@ -1960,7 +1978,7 @@ class _CircuitLayouter:
                 if (
                     (layoutname is None)
                     and hasattr(inst, "circuitname")
-                    and (inst.circtuitname in inst.cell.layout.tt_keys())
+                    and (inst.circtuitname in inst.cell.layout.keys())
                 ):
                     layoutname = inst.circuitname
                 sl = _InstanceSubLayout(

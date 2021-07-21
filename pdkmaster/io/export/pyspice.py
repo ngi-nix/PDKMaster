@@ -165,7 +165,7 @@ class _Circuit(Circuit):
                     scanned.remove(circuit)
                 except ValueError:
                     # If it is not in the scanned list, add subcircuits in the scan list
-                    for inst in circuit.instances.tt_iter_type(ckt._CellInstance):
+                    for inst in circuit.instances.__iter_type__(ckt._CellInstance):
                         circuit2 = inst.cell.circuit
                         try:
                             scan.remove(circuit2)

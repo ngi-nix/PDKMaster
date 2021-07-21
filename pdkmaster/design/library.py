@@ -119,8 +119,8 @@ class _OnDemandCell(_Cell, abc.ABC):
         pass
 
 
-class _Cells(_util.TypedTuple):
-    tt_element_type = _Cell
+class _Cells(_util.TypedListStrMapping[_Cell]):
+    _elem_type_ = _Cell
 
 
 class _CellLayout:
@@ -133,11 +133,12 @@ class _CellLayout:
         self.layout = layout
 
 
-class _CellLayouts(_util.TypedTuple):
-    tt_element_type = _CellLayout
+class _CellLayouts(_util.TypedListStrMapping[_CellLayout]):
+    _elem_type_ = _CellLayout
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str): # type: ignore[override]
         elem = super().__getitem__(item)
+        assert isinstance(elem, _CellLayout)
         return elem.layout
 
 
@@ -156,7 +157,7 @@ class RoutingGauge:
             or (not isinstance(top, prm.MetalWire))
         ):
             raise TypeError("bottom and top have to be of type 'MetalWire'")
-        metals = tuple(tech.primitives.tt_iter_type(prm.MetalWire))
+        metals = tuple(tech.primitives.__iter_type__(prm.MetalWire))
         if bottom not in metals:
             raise ValueError(f"bottom is not a MetalWire of technology '{tech.name}'")
         if top not in metals:

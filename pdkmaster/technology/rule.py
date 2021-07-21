@@ -26,6 +26,5 @@ class _Rule(abc.ABC):
         raise TypeError("subclasses of _Rule need to implement __hash__()")
 
 
-class Rules(_util.TypedTuple):
-    tt_element_type = _Rule
-    tt_index_attribute = None
+class Rules(_util.TypedList[_Rule]):
+    _elem_type_ = _Rule

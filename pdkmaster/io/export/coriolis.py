@@ -67,10 +67,10 @@ class _LayerGenerator(dsp.PrimitiveDispatcher):
     def __init__(self, tech: tch.Technology):
         # TODO: get the poly layers
         self.poly_layers = set(
-            gate.poly for gate in tech.primitives.tt_iter_type(prm.MOSFETGate)
+            gate.poly for gate in tech.primitives.__iter_type__(prm.MOSFETGate)
         )
         self.via_conns = via_conns = set()
-        for via in tech.primitives.tt_iter_type(prm.Via):
+        for via in tech.primitives.__iter_type__(prm.Via):
             via_conns.update(via.bottom)
             via_conns.update(via.top)
         self.blockages = set(prim.blockage for prim in filter(
@@ -253,7 +253,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
                 " Length|Asymmetric, ''),\n"
             )
         if hasattr(prim, "min_substrate_enclosure"):
-            for well in self.tech.primitives.tt_iter_type(prm.Well):
+            for well in self.tech.primitives.__iter_type__(prm.Well):
                 s += (
                     f"('minSpacing', '{well.name}', '{prim.name}', "
                     f" {prim.min_substrate_enclosure.spec}, Length|Asymmetric, ''),\n"
@@ -399,8 +399,8 @@ class _LibraryGenerator:
     def __init__(self, tech):
         assert isinstance(tech, tch.Technology)
         self.tech = tech
-        self.metals = tuple(tech.primitives.tt_iter_type(prm.MetalWire))
-        self.vias = tuple(tech.primitives.tt_iter_type(prm.Via))
+        self.metals = tuple(tech.primitives.__iter_type__(prm.MetalWire))
+        self.vias = tuple(tech.primitives.__iter_type__(prm.Via))
         assert len(self.metals) == len(self.vias)
         self.pinmasks = pinmasks = {}
         for prim in filter(lambda p: hasattr(p, "pin"), tech.primitives):
@@ -600,7 +600,7 @@ class _LibraryGenerator:
         return s
 
     def _s_pnr(self, lib):
-        topmetal = tuple(self.tech.primitives.tt_iter_type(prm.MetalWire))[-1]
+        topmetal = tuple(self.tech.primitives.__iter_type__(prm.MetalWire))[-1]
         return dedent(f"""
             # Place & Route setup
             with CfgCache(priority=Cfg.Parameter.Priority.ConfigurationFile) as cfg:
@@ -732,7 +732,7 @@ class _LibraryGenerator:
                 bnd = layout.boundary
                 assert bnd is not None, f"Cell boundary needed for {cell.name}"
 
-                pls = tuple(layout.sublayouts.tt_iter_type(
+                pls = tuple(layout.sublayouts.__iter_type__(
                     (lay.NetSubLayout, lay.MultiNetSubLayout, lay.NetlessSubLayout),
                 ))
                 def get_netname(sl):
@@ -774,7 +774,7 @@ class _LibraryGenerator:
                         prefix="    ",
                     )
 
-                for sl in layout.sublayouts.tt_iter_type(lay._InstanceSubLayout):
+                for sl in layout.sublayouts.__iter_type__(lay._InstanceSubLayout):
                     # Currently usage of af.getCell() may not work as intended when
                     # two libraries have a cell with the same name.
                     # TODO: support libraries with cells with same name properly
@@ -954,7 +954,7 @@ class _TechnologyGenerator:
 
         # Take smallest transistor length as lambda
         lambda_ = min(trans.computed.min_l
-            for trans in self.tech.primitives.tt_iter_type(prm.MOSFET))
+            for trans in self.tech.primitives.__iter_type__(prm.MOSFET))
 
         assert (self.tech.grid % 1e-6) < 1e-9, "Unsupported grid"
 
@@ -979,7 +979,7 @@ class _TechnologyGenerator:
 
         s_prims = ""
         written_prims = set()
-        vias = tuple(self.tech.primitives.tt_iter_type(prm.Via))
+        vias = tuple(self.tech.primitives.__iter_type__(prm.Via))
 
         for prim in self.tech.primitives:
             # Some primitives are handled later or don't need to be handled
@@ -1047,13 +1047,13 @@ class _TechnologyGenerator:
             s_prims += _str_create_basic(name, mat)
 
         s_prims += "\n# Resistors\n"
-        for prim in self.tech.primitives.tt_iter_type(prm.Resistor):
+        for prim in self.tech.primitives.__iter_type__(prm.Resistor):
             assert prim not in written_prims
             s_prims += gen(prim)
             written_prims.add(prim)
 
         s_prims += "\n# Transistors\n"
-        for prim in self.tech.primitives.tt_iter_type((prm.MOSFETGate, prm.MOSFET)):
+        for prim in self.tech.primitives.__iter_type__((prm.MOSFETGate, prm.MOSFET)):
             assert prim not in written_prims
             s_prims += gen(prim)
             written_prims.add(prim)
@@ -1112,7 +1112,7 @@ class _TechnologyGenerator:
         clrs = ("Blue", "Aqua", "LightPink", "Green", "Yellow", "Violet", "Red")
 
         s += "\n    # Active Layers.\n"
-        for prim in self.tech.primitives.tt_iter_type(prm.Well):
+        for prim in self.tech.primitives.__iter_type__(prm.Well):
             rgb = "Tan" if prim.type_ == "n" else "LightYellow"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
@@ -1129,7 +1129,7 @@ class _TechnologyGenerator:
                 f", color=toRGB('{rgb}'), pattern=toHexa('antihash0.8'), border=1"
                 ", threshold=threshold)\n"
             )
-        for prim in self.tech.primitives.tt_iter_type(prm.WaferWire):
+        for prim in self.tech.primitives.__iter_type__(prm.WaferWire):
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
                 ", color=toRGB('White'), pattern=toHexa('antihash0.8'), border=1"
@@ -1143,7 +1143,7 @@ class _TechnologyGenerator:
                         ", pattern=toHexa('antihash0.8'), border=2"
                         ", threshold=threshold)\n"
                     )
-        for i, prim in enumerate(self.tech.primitives.tt_iter_type(prm.GateWire)):
+        for i, prim in enumerate(self.tech.primitives.__iter_type__(prm.GateWire)):
             rgb = "Red" if i == 0 else "Orange"
             s += (
                 f"    style.addDrawingStyle(group='Active Layers', name='{prim.name}'"
@@ -1160,7 +1160,7 @@ class _TechnologyGenerator:
                     )
 
         s += "\n    # Routing Layers.\n"
-        for i, prim in enumerate(self.tech.primitives.tt_iter_type(prm.MetalWire)):
+        for i, prim in enumerate(self.tech.primitives.__iter_type__(prm.MetalWire)):
             rgb = clrs[i%len(clrs)]
             hexa = "slash.8" if i == 0 else "poids4.8"
             s += (
@@ -1178,7 +1178,7 @@ class _TechnologyGenerator:
 
         s += "\n    # Cuts (VIA holes).\n"
         for i, prim in enumerate(
-            self.tech.primitives.tt_iter_type((prm.Via, prm.PadOpening)),
+            self.tech.primitives.__iter_type__((prm.Via, prm.PadOpening)),
         ):
             rgb = clrs[i%len(clrs)] if i > 0 else "0,150,150"
             s += (
@@ -1191,7 +1191,7 @@ class _TechnologyGenerator:
             lambda p: hasattr(p, "blockage"), self.tech.primitives,
         ))
         for i, prim in enumerate(filter(
-            lambda p: p in blockages, self.tech.primitives.tt_iter_type(prm.Marker)
+            lambda p: p in blockages, self.tech.primitives.__iter_type__(prm.Marker)
         )):
             rgb = clrs[i%len(clrs)]
             hexa = "slash.8" if i == 0 else "poids4.8"

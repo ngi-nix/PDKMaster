@@ -404,7 +404,7 @@ class Generator:
         """[1:])
 
         s += "\n# Define layers\n"
-        dms = tuple(self.tech.rules.tt_iter_type(msk.DesignMask))
+        dms = tuple(self.tech.rules.__iter_type__(msk.DesignMask))
         s += "".join(_str_designmask(dm) for dm in dms)
 
         s += "\n# Grid check\n"
@@ -428,11 +428,11 @@ class Generator:
         )
 
         s += "\n# Derived layers\n"
-        aliases = tuple(self.tech.rules.tt_iter_type(msk._MaskAlias))
+        aliases = tuple(self.tech.rules.__iter_type__(msk._MaskAlias))
         s += "".join(_str_rule(alias) for alias in aliases)
 
         s += "\n# Connectivity\n"
-        conns = tuple(self.tech.rules.tt_iter_type(msk.Connect))
+        conns = tuple(self.tech.rules.__iter_type__(msk.Connect))
         s += "".join(_str_rule(conn) for conn in conns)
 
         s += "\n# DRC rules\n" + "".join(
@@ -507,25 +507,25 @@ class Generator:
     def _s_extractrules(self):
         # TODO: bug report for failing LVS on hierarchical LVS and diodes
         s = "flat\n\n# Define layers\n"
-        dms = tuple(self.tech.rules.tt_iter_type(msk.DesignMask))
+        dms = tuple(self.tech.rules.__iter_type__(msk.DesignMask))
         s += "".join(_str_designmask(dm) for dm in dms)
-        aliases = tuple(self.tech.rules.tt_iter_type(msk._MaskAlias))
+        aliases = tuple(self.tech.rules.__iter_type__(msk._MaskAlias))
         s += "".join(_str_alias(alias) for alias in aliases)
 
         s += "\n# Connectivity\n"
-        conns = tuple(self.tech.rules.tt_iter_type(msk.Connect))
+        conns = tuple(self.tech.rules.__iter_type__(msk.Connect))
         s += "".join(_str_rule(conn) for conn in conns)
 
         s += "\n# Resistors\n"
-        resistors = tuple(self.tech.primitives.tt_iter_type(prm.Resistor))
+        resistors = tuple(self.tech.primitives.__iter_type__(prm.Resistor))
         s += "".join(_str_lvsresistor(self.tech, res) for res in resistors)
 
         s += "\n# Diodes\n"
-        diodes = tuple(self.tech.primitives.tt_iter_type(prm.Diode))
+        diodes = tuple(self.tech.primitives.__iter_type__(prm.Diode))
         s += "".join(_str_lvsdiode(self.tech, diode) for diode in diodes)
 
         s += "\n# Transistors\n"
-        mosfets = tuple(self.tech.primitives.tt_iter_type(prm.MOSFET))
+        mosfets = tuple(self.tech.primitives.__iter_type__(prm.MOSFET))
         s += "".join(_str_lvsmosfet(self.tech, mosfet) for mosfet in mosfets)
 
         s += "\nnetlist\n"

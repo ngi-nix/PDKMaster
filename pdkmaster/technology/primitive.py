@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later OR AGPL-3.0-or-later OR CERN-OHL-S-2.0+
 from itertools import product, combinations, chain
 import abc
+from typing import Union
 
 from .. import _util
 from . import (
@@ -240,8 +241,8 @@ class _EnclosuresParam(_Param):
         return value
 
 
-class _Params(_util.TypedTuple):
-    tt_element_type = _Param
+class _Params(_util.TypedListStrMapping[_Param]):
+    _elem_type_ = _Param
 
 
 class _PrimitiveNet(net_.Net):
@@ -255,8 +256,11 @@ class _PrimitiveNet(net_.Net):
         self.prim = prim
 
 
-class _PrimitivePorts(net_.Nets):
-    tt_element_type = (_PrimitiveNet, wfr.SubstrateNet)
+class _PrimitivePorts(
+    _util.IterableOverride[Union[_PrimitiveNet, wfr.SubstrateNet]],
+    net_.Nets,
+):
+    _elem_type_ = (_PrimitiveNet, wfr.SubstrateNet)
 
 
 class _MaskPrimitive(_Primitive):
@@ -559,11 +563,11 @@ class _Conductor(_WidthSpacePrimitive):
         # or ActiveWire without gate etc.
         indicators = chain(*tuple(r.indicator for r in filter(
             lambda p: p.wire == self,
-            tech.primitives.tt_iter_type(Resistor),
+            tech.primitives.__iter_type__(Resistor),
         )))
         polys = tuple(g.poly for g in filter(
             lambda p: p.active == self,
-            tech.primitives.tt_iter_type(MOSFETGate)
+            tech.primitives.__iter_type__(MOSFETGate)
         ))
         removes = set(p.mask for p in chain(indicators, polys))
 
@@ -1929,8 +1933,8 @@ class Spacing(_Primitive):
         return self.name
 
 
-class Primitives(_util.TypedTuple):
-    tt_element_type = _Primitive
+class Primitives(_util.TypedListStrMapping[_Primitive]):
+    _elem_type_ = _Primitive
 
 
 class UnusedPrimitiveError(Exception):

@@ -33,7 +33,7 @@ class Technology(abc.ABC):
                     )
 
             prims = self.tech.primitives
-            for spacing in prims.tt_iter_type(prm.Spacing):
+            for spacing in prims.__iter_type__(prm.Spacing):
                 if ((
                     (primitive1 in spacing.primitives1)
                     and (primitive2 in spacing.primitives2)
@@ -77,7 +77,7 @@ class Technology(abc.ABC):
 
             return max((
                 primitive.min_width,
-                *(wupdown(via) for via in self.tech.primitives.tt_iter_type(prm.Via)),
+                *(wupdown(via) for via in self.tech.primitives.__iter_type__(prm.Via)),
             ))
 
         def min_pitch(self, primitive, **kwargs):
@@ -119,7 +119,7 @@ class Technology(abc.ABC):
         self._build_interconnect()
         self._build_rules()
 
-        prims.tt_freeze()
+        prims._freeze_()
 
         self.computed = self._ComputedSpecs(self)
 
@@ -183,13 +183,13 @@ class Technology(abc.ABC):
         implants = set() # Implants to add
         markers = set() # Markers to add
         # the wells, fixed
-        wells = set(prims.tt_iter_type(prm.Well))
+        wells = set(prims.__iter_type__(prm.Well))
 
         # Wells are the first primitives in line
         add_prims(sorted(wells, key=get_name))
 
         # process waferwires
-        waferwires = set(prims.tt_iter_type(prm.WaferWire))
+        waferwires = set(prims.__iter_type__(prm.WaferWire))
         bottomwires.update(waferwires) # They also need to be connected
         conn_wells = set()
         for wire in waferwires:
@@ -199,7 +199,7 @@ class Technology(abc.ABC):
             raise prm.UnconnectedPrimitiveError((wells - conn_wells).pop())
 
         # process gatewires
-        bottomwires.update(prims.tt_iter_type(prm.GateWire))
+        bottomwires.update(prims.__iter_type__(prm.GateWire))
 
         # Already add implants that are used in the waferwires
         add_prims(sorted(implants, key=get_name))
@@ -211,7 +211,7 @@ class Technology(abc.ABC):
                 add_prims(sorted(ww.oxide))
 
         # process vias
-        vias = set(prims.tt_iter_type(prm.Via))
+        vias = set(prims.__iter_type__(prm.Via))
 
         def allwires(wire):
             if isinstance(wire, prm.Resistor):
@@ -258,7 +258,7 @@ class Technology(abc.ABC):
             )
 
         # Add via and it's blockage layers
-        vias = tuple(prims.tt_iter_type(prm.Via))
+        vias = tuple(prims.__iter_type__(prm.Via))
         add_prims(prim.blockage for prim in filter(
             lambda p: hasattr(p, "blockage"), vias
         ))
@@ -266,7 +266,7 @@ class Technology(abc.ABC):
         add_prims(vias)
 
         # process mosfets
-        mosfets = set(prims.tt_iter_type(prm.MOSFET))
+        mosfets = set(prims.__iter_type__(prm.MOSFET))
         gates = set(mosfet.gate for mosfet in mosfets)
         actives = set(gate.active for gate in gates)
         polys = set(gate.poly for gate in gates)
@@ -288,40 +288,40 @@ class Technology(abc.ABC):
         markers = set()
 
         # proces pad openings
-        padopenings = set(prims.tt_iter_type(prm.PadOpening))
+        padopenings = set(prims.__iter_type__(prm.PadOpening))
         viabottoms = set()
         for padopening in padopenings:
             add_prims(allwires(padopening.bottom))
         add_prims(padopenings)
 
         # process top metal wires
-        add_prims(prims.tt_iter_type(prm.TopMetalWire))
+        add_prims(prims.__iter_type__(prm.TopMetalWire))
 
         # process resistors
-        resistors = set(prims.tt_iter_type(prm.Resistor))
+        resistors = set(prims.__iter_type__(prm.Resistor))
         for resistor in resistors:
             markers.update(resistor.indicator)
 
         # process diodes
-        diodes = set(prims.tt_iter_type(prm.Diode))
+        diodes = set(prims.__iter_type__(prm.Diode))
         for diode in diodes:
             markers.update(diode.indicator)
 
         # process spacings
-        spacings = set(prims.tt_iter_type(prm.Spacing))
+        spacings = set(prims.__iter_type__(prm.Spacing))
 
         add_prims((*markers, *resistors, *diodes, *spacings))
 
         # process auxiliary
         def aux_key(aux):
             return (getattr(aux.mask, "gds_layer", (1000000, 1000000)), aux.name)
-        add_prims(sorted(prims.tt_iter_type(prm.Auxiliary), key=aux_key))
+        add_prims(sorted(prims.__iter_type__(prm.Auxiliary), key=aux_key))
 
         # reorder primitives
         unused = set(range(len(prims))) - set(neworder)
         if unused:
             raise prm.UnusedPrimitiveError(prims[unused.pop()])
-        prims.tt_reorder(neworder)
+        prims._reorder_(neworder)
 
     def _build_rules(self):
         prims = self._primitives
@@ -346,7 +346,7 @@ class Technology(abc.ABC):
         for prim in prims:
             self._rules += prim.rules
 
-        rules.tt_freeze()
+        rules._freeze_()
 
     @property
     def substrate(self):
@@ -354,7 +354,7 @@ class Technology(abc.ABC):
             raise AttributeError("substrate may not be accessed during object initialization")
         if self._substrate is None:
             well_masks = tuple(
-                prim.mask for prim in self._primitives.tt_iter_type(prm.Well)
+                prim.mask for prim in self._primitives.__iter_type__(prm.Well)
             )
             if not well_masks:
                 self._substrate = wfr.wafer
