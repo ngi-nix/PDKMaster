@@ -206,16 +206,16 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             f"analog code generation for '{prim.__class__.__name__}'"
         )
 
-    def _rows_mask(self, prim: prm._MaskPrimitive):
+    def _MaskPrimitive(self, prim: prm._MaskPrimitive):
         s = ""
         if prim.grid is not None:
             s += f"('grid', '{prim.name}', {prim.grid}, Length, ''),\n"
         return s
 
-    def _rows_widthspace(self, prim: prm._WidthSpacePrimitive):
+    def _WidthSpacePrimitive(self, prim: prm._WidthSpacePrimitive):
         s = f"('minWidth', '{prim.name}', {prim.min_width}, Length, ''),\n"
         s += f"('minSpacing', '{prim.name}', {prim.min_space}, Length, ''),\n"
-        s += self._rows_mask(prim)
+        s += self._MaskPrimitive(prim)
         if prim.min_area is not None:
             s += f"('minArea', '{prim.name}', {prim.min_area}, Area, ''),\n"
         if prim.min_density is not None:
@@ -224,29 +224,17 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
             s += f"('maxDensity', '{prim.name}', {prim.max_density}, Unit, ''),\n"
         return s
 
-    def Marker(self, prim: prm.Marker):
-        return self._rows_mask(prim)
-
-    def ExtraProcess(self, prim: prm.ExtraProcess):
-        return self._rows_mask(prim)
-
-    def Auxiliary(self, prim: prm.Auxiliary):
-        return self._rows_mask(prim)
-
-    def Implant(self, prim: prm.Implant):
-        return self._rows_widthspace(prim)
+    # primitives handled by base classes of hierarchy:
+    # Marker, Auxiliary, ExtraProcess, Implant, Insulator, GateWire, (Top)MetalWire
 
     def Well(self, prim: prm.Well):
-        s = self._rows_widthspace(prim)
+        s = self._WidthSpacePrimitive(prim)
         if prim.min_space_samenet is not None:
             s += f"('minSpacingSameNet', '{prim.name}', {prim.min_space_samenet}, Length, ''),\n"
         return s
 
-    def Insulator(self, prim: prm.Insulator):
-        return self._rows_widthspace(prim)
-
     def WaferWire(self, prim: prm.WaferWire):
-        s = self._rows_widthspace(prim)
+        s = self._WidthSpacePrimitive(prim)
         for i in range(len(prim.well)):
             well = prim.well[i]
             enc = prim.min_well_enclosure[i].spec
@@ -266,15 +254,8 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         )
         return s
 
-    def GateWire(self, prim: prm.GateWire):
-        return self._rows_widthspace(prim)
-
-    def MetalWire(self, prim: prm.MetalWire):
-        # Also handles TopMetalWire
-        return self._rows_widthspace(prim)
-
     def Via(self, prim: prm.Via):
-        s = self._rows_mask(prim)
+        s = self._MaskPrimitive(prim)
         s += f"('minWidth', '{prim.name}', {prim.width}, Length, ''),\n"
         s += f"('maxWidth', '{prim.name}', {prim.width}, Length, ''),\n"
         s += f"('minSpacing', '{prim.name}', {prim.min_space}, Length, ''),\n"
@@ -295,7 +276,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         return s
 
     def PadOpening(self, prim: prm.PadOpening):
-        s = self._rows_widthspace(prim)
+        s = self._WidthSpacePrimitive(prim)
         s += (
             f"('minEnclosure', '{prim.bottom.name}', '{prim.name}', "
             f"{prim.min_bottom_enclosure.spec}, Length|Asymmetric, ''),\n"
@@ -303,7 +284,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         return s
 
     def Resistor(self, prim: prm.Resistor):
-        s = self._rows_widthspace(prim)
+        s = self._WidthSpacePrimitive(prim)
         for i in range(len(prim.indicator)):
             ind = prim.indicator[i]
             enc = prim.min_indicator_extension[i]
@@ -315,7 +296,7 @@ class _AnalogGenerator(dsp.PrimitiveDispatcher):
         return s
 
     def Diode(self, prim: prm.Diode):
-        s = self._rows_widthspace(prim)
+        s = self._WidthSpacePrimitive(prim)
         for i in range(len(prim.indicator)):
             ind = prim.indicator[i]
             enc = prim.min_indicator_enclosure[i]
