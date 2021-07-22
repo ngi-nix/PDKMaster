@@ -1571,7 +1571,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         if prim.implant is not None:
             impl = prim.implant
             try:
-                enc = prim.min_implant_enclosure.max()
+                enc = prim.min_implant_enclosure.max() # type: ignore
             except AttributeError:
                 assert isinstance(wire, prm.WaferWire), "Internal error"
                 idx = wire.implant.index(impl)
