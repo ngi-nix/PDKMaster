@@ -15,6 +15,7 @@ from typing import (
     Optional, Union, TypeVar,
 )
 
+from .. import _util
 from ..technology import mask as msk
 
 
@@ -643,6 +644,109 @@ class Rect(Polygon, _Rectangular):
 
     def __hash__(self) -> int:
         return hash((self.left, self.bottom, self.right, self.top))
+
+
+class MultiPartShape(Polygon):
+    """This shape represents a single polygon shape that consist of
+    a build up of touching parts.
+
+    Main use case is to represent a shape where parts are on a different
+    as is typically the case for a WaferWire.
+
+    Arguments:
+        fullshape: The full shape
+        parts: The subshapes
+            The subshapes should be touching shapes and joined should form the
+            fullshape shape. Currently it is only checked if the areas match,
+            in better checking may be implemented.
+
+            The subshapes will be converted to MultiPartShape._Part objects before
+            becoming member of the parts property
+    """
+    class _Part(Polygon):
+        """A shape representing one part of a MultiPartShape
+
+        This object keeps reference to the MultiPartShape so the parts can be added
+        to nets in layout and the shapes still being able to know to which
+        MultiPartShape object they belong.
+        """
+        def __init__(self, *, partshape: Polygon, multipartshape: "MultiPartShape"):
+            self._partshape = partshape
+            self._multipartshape = multipartshape
+
+        @property
+        def partshape(self) -> Polygon:
+            return self._partshape
+        @property
+        def multipartshape(self) -> "MultiPartShape":
+            return self._multipartshape
+
+        @property
+        def pointsshapes(self) -> Generator["Polygon", None, None]:
+            return self.partshape.pointsshapes
+        @property
+        def bounds(self) -> "Rect":
+            return self.partshape.bounds
+
+        def moved(self, *, dxy: Point):
+            idx = self.multipartshape.parts.index(self)
+            return self.multipartshape.moved(dxy=dxy).parts[idx]
+
+        def rotated(self, *, rotation: Rotation):
+            idx = self.multipartshape.parts.index(self)
+            return self.multipartshape.rotated(rotation=rotation).parts[idx]
+
+        # _PointsShape mixin abstract methods
+        @property
+        def points(self):
+            return self.partshape.points
+
+        @property
+        def area(self) -> float:
+            return self.partshape.area
+
+    def __init__(self, fullshape: Polygon, parts: Iterable[Polygon]):
+        # TODO: check if shape is actually build up of the parts
+        self._fullshape = fullshape
+        self._parts = tuple(
+            MultiPartShape._Part(partshape=part, multipartshape=self)
+            for part in parts
+        )
+
+    @property
+    def fullshape(self) -> Polygon:
+        return self._fullshape
+    @property
+    def parts(self) -> Tuple["MultiPartShape._Part", ...]:
+        return self._parts
+
+    @property
+    def pointsshapes(self) -> Generator["Polygon", None, None]:
+        return self.fullshape.pointsshapes
+    @property
+    def bounds(self) -> "Rect":
+        return self.fullshape.bounds
+
+    def moved(self, *, dxy: Point) -> "MultiPartShape":
+        return MultiPartShape(
+            fullshape=self.fullshape.moved(dxy=dxy),
+            parts=(part.partshape.moved(dxy=dxy) for part in self.parts)
+        )
+
+    def rotated(self, *, rotation: Rotation) -> "MultiPartShape":
+        return MultiPartShape(
+            fullshape=self.fullshape.rotated(rotation=rotation),
+            parts=(part.partshape.rotated(rotation=rotation) for part in self.parts)
+        )
+
+    # _PointsShape mixin abstract methods
+    @property
+    def points(self):
+        return self.fullshape.points
+
+    @property
+    def area(self) -> float:
+        return self.fullshape.area
 
 
 class MultiShape(_Shape, Collection[_Shape]):

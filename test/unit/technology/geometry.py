@@ -350,6 +350,36 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(rect5, rect6)
         self.assertEqual(rect5, rect7)
 
+    def test_multipartshape(self):
+        r_all = _geo.Rect(left=-2.0, bottom=-1.0, right=1.0, top=1.0)
+        r_left = _geo.Rect(left=-2.0, bottom=-1.0, right=0.0, top=1.0)
+        r_right = _geo.Rect(left=0.0, bottom=-1.0, right=1.0, top=1.0)
+        mps = _geo.MultiPartShape(fullshape=r_all, parts=(r_left, r_right))
+
+        self.assertEqual(_util.first(mps.pointsshapes), r_all)
+        self.assertEqual(mps.bounds, r_all)
+
+        part0 = _util.first(mps.parts)
+        part1 = _util.nth(mps.parts, 1)
+
+        self.assertEqual(part0.partshape, r_left)
+        self.assertEqual(tuple(part0.points), tuple(r_left.points))
+        self.assertEqual(part0.area, r_left.area)
+        self.assertEqual(part1.multipartshape, mps)
+        self.assertEqual(tuple(part1.pointsshapes), (r_right,))
+        self.assertEqual(part1.bounds, r_right)
+        self.assertEqual(mps.area, part0.area + part1.area)
+
+        p = _geo.Point(x=-2.0, y=3.5)
+        part0_moved = part0 + p
+        self.assertEqual(mps + p, mps.moved(dxy=p))
+        self.assertEqual(part0_moved.multipartshape, p + mps)
+
+        rot = _geo.Rotation.MX90
+        part1_rotated = rot*part1
+        self.assertEqual(rot * mps, mps.rotated(rotation=rot))
+        self.assertEqual(part1_rotated.multipartshape, mps*rot)
+
     def test_multishape(self):
         p = _geo.Point(x=1.0, y=-1.0)
         p2 = _geo.Point(x=1.0, y=1.0)
