@@ -51,11 +51,11 @@ class GeometryTest(unittest.TestCase):
             def bounds(self) -> _geo._Rectangular:
                 return super().bounds
 
-            def move(self, *, dxy: _geo.Point):
-                return super().move(dxy=dxy)
+            def moved(self, *, dxy: _geo.Point):
+                return super().moved(dxy=dxy)
             
-            def rotate(self, *, rotation: _geo.Rotation) -> _geo._Shape:
-                return super().rotate(rotation=rotation)
+            def rotated(self, *, rotation: _geo.Rotation) -> _geo._Shape:
+                return super().rotated(rotation=rotation)
 
             @property
             def area(self) -> float:
@@ -74,9 +74,9 @@ class GeometryTest(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             t.bounds
         with self.assertRaises(NotImplementedError):
-            t.move(dxy=_geo.origin)
+            t.moved(dxy=_geo.origin)
         with self.assertRaises(NotImplementedError):
-            t.rotate(rotation=_geo.Rotation.R0)
+            t.rotated(rotation=_geo.Rotation.R0)
         with self.assertRaises(NotImplementedError):
             t.area
         with self.assertRaises(NotImplementedError):
@@ -111,10 +111,10 @@ class GeometryTest(unittest.TestCase):
             @property
             def bounds(self) -> _geo._Rectangular:
                 return super().bounds
-            def move(self, *, dxy: _geo.Point):
-                return super().move(dxy)
-            def rotate(self, *, rotation: _geo.Rotation) -> _geo._Shape:
-                return super().rotate(rotation)
+            def moved(self, *, dxy: _geo.Point):
+                return super().moved(dxy)
+            def rotated(self, *, rotation: _geo.Rotation) -> _geo._Shape:
+                return super().rotated(rotation)
             @property
             def area(self) -> float:
                 return super().area
@@ -182,28 +182,28 @@ class GeometryTest(unittest.TestCase):
         ):
             p*p
 
-        p2 = p.rotate(rotation=_geo.Rotation.R0)
+        p2 = p.rotated(rotation=_geo.Rotation.R0)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p, p2)
-        p2 = p.rotate(rotation=_geo.Rotation.R90)
+        p2 = p.rotated(rotation=_geo.Rotation.R90)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=2.0, y=-1.0))
-        p2 = p.rotate(rotation=_geo.Rotation.R180)
+        p2 = p.rotated(rotation=_geo.Rotation.R180)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=1.0, y=2.0))
-        p2 = p.rotate(rotation=_geo.Rotation.R270)
+        p2 = p.rotated(rotation=_geo.Rotation.R270)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=-2.0, y=1.0))
-        p2 = p.rotate(rotation=_geo.Rotation.MX)
+        p2 = p.rotated(rotation=_geo.Rotation.MX)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=1.0, y=-2.0))
-        p2 = p.rotate(rotation=_geo.Rotation.MX90)
+        p2 = p.rotated(rotation=_geo.Rotation.MX90)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=2.0, y=1.0))
-        p2 = p.rotate(rotation=_geo.Rotation.MY)
+        p2 = p.rotated(rotation=_geo.Rotation.MY)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=-1.0, y=2.0))
-        p2 = p.rotate(rotation=_geo.Rotation.MY90)
+        p2 = p.rotated(rotation=_geo.Rotation.MY90)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=-2.0, y=-1.0))
 
@@ -232,17 +232,17 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(l.bounds, l)
 
         self.assertEqual(
-            l.rotate(rotation=_geo.Rotation.R90),
+            l.rotated(rotation=_geo.Rotation.R90),
             _geo.Line(
-                point1=p1.rotate(rotation=_geo.Rotation.R90),
-                point2=p2.rotate(rotation=_geo.Rotation.R90),
+                point1=p1.rotated(rotation=_geo.Rotation.R90),
+                point2=p2.rotated(rotation=_geo.Rotation.R90),
             ),
         )
 
         dxy = _geo.Point(x=1.0, y=1.0)
         self.assertEqual(
-            l.move(dxy=dxy),
-            _geo.Line(point1=p1.move(dxy=dxy), point2=p2.move(dxy=dxy)),
+            l.moved(dxy=dxy),
+            _geo.Line(point1=p1.moved(dxy=dxy), point2=p2.moved(dxy=dxy)),
         )
 
         self.assertEqual(str(l), f"{p1}-{p2}")
@@ -300,13 +300,13 @@ class GeometryTest(unittest.TestCase):
         )
         self.assertNotEqual(line1, poly1)
         self.assertEqual(
-            poly1.move(dxy=_geo.Point(x=1.0, y=1.0)),
+            poly1.moved(dxy=_geo.Point(x=1.0, y=1.0)),
             _geo.Polygon.from_floats(points=(
                 (1.0, 1.0), (1.0, 2.0), (2.0, 2.0), (2.0, 1.0), (1.0, 1.0),
             ))
         )
         self.assertEqual(
-            poly1.rotate(rotation=_geo.Rotation.R90),
+            poly1.rotated(rotation=_geo.Rotation.R90),
             _geo.Polygon.from_floats(points=(
                 (0.0, 0.0), (-1.0, 0.0), (-1.0, 1.0), (0.0, 1.0), (0.0, 0.0),
             ))
@@ -332,7 +332,7 @@ class GeometryTest(unittest.TestCase):
             RuntimeError,
             f"Internal error: unsupported rotation 'None'"
         ):
-            rect1.rotate(rotation=None)
+            rect1.rotated(rotation=None)
 
         self.assertEqual(
             str(rect1), "Rect(left=-1.0,bottom=-1.0,right=1.0,top=1.0)",
@@ -343,10 +343,10 @@ class GeometryTest(unittest.TestCase):
         )
         self.assertEqual(rect1, rect2)
         self.assertNotEqual(rect1, 1)
-        self.assertEqual(rect1, rect1.rotate(rotation=_geo.Rotation.MX90))
+        self.assertEqual(rect1, rect1.rotated(rotation=_geo.Rotation.MX90))
         self.assertEqual(round(rect1.area, 6), 4.0)
         self.assertEqual(rect3, rect4)
-        self.assertEqual(rect1.move(dxy=_geo.Point(x=1.0, y=1.0)), rect3)
+        self.assertEqual(rect1.moved(dxy=_geo.Point(x=1.0, y=1.0)), rect3)
         self.assertEqual(rect5, rect6)
         self.assertEqual(rect5, rect7)
 
@@ -375,15 +375,15 @@ class GeometryTest(unittest.TestCase):
         self.assertNotEqual(ms1, ms3)
         self.assertEqual(set(ms1), {p, l, r})
         self.assertEqual(
-            ms1.move(dxy=p),
+            ms1.moved(dxy=p),
             _geo.MultiShape(shapes=(r + p, l + p, 2*p)),
         )
         rot = _geo.Rotation.MY
         self.assertEqual(
-            ms1.rotate(rotation=rot),
+            ms1.rotated(rotation=rot),
             _geo.MultiShape(shapes=(
-                r.rotate(rotation=rot), l.rotate(rotation=rot),
-                p.rotate(rotation=rot),
+                r.rotated(rotation=rot), l.rotated(rotation=rot),
+                p.rotated(rotation=rot),
             )),
         )
         self.assertEqual(
@@ -441,7 +441,7 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(rp1, rp2)
         self.assertEqual(hash(rp1), hash(rp2))
         self.assertNotEqual(rp1, rp3)
-        self.assertEqual(rp1.move(dxy=p), rp3)
+        self.assertEqual(rp1.moved(dxy=p), rp3)
         self.assertNotEqual(rp1, rp4)
         self.assertEqual(rp4, rp5)
         self.assertEqual(rp6, rp7)
@@ -455,12 +455,12 @@ class GeometryTest(unittest.TestCase):
         ))
         ms4 = _geo.MultiShape(shapes=rp4.pointsshapes)
         rot = _geo.Rotation.MY90
-        ms5 = _geo.MultiShape(shapes=rp1.rotate(rotation=rot).pointsshapes)
+        ms5 = _geo.MultiShape(shapes=rp1.rotated(rotation=rot).pointsshapes)
 
         self.assertEqual(ms1, ms2)
         self.assertEqual(rp1.bounds, ms1.bounds)
         self.assertEqual(ms3, ms4)
-        self.assertEqual(ms5, ms2.rotate(rotation=rot))
+        self.assertEqual(ms5, ms2.rotated(rotation=rot))
         self.assertEqual(rp4.bounds, ms4.bounds)
 
         self.assertIsInstance(repr(rp1), str) # __repr__ coverage
@@ -478,7 +478,7 @@ class GeometryTest(unittest.TestCase):
         ms4 = _geo.MaskShape(mask=m1, shape=l)
         ms5 = _geo.MaskShape(mask=m1, shape=(r1 + p))
         rot = _geo.Rotation.R270
-        ms6 = _geo.MaskShape(mask=m1, shape=l.rotate(rotation=rot))
+        ms6 = _geo.MaskShape(mask=m1, shape=l.rotated(rotation=rot))
 
         self.assertEqual(ms1.mask, m1)
         self.assertEqual(ms1.shape, r1)
@@ -490,5 +490,5 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(ms1, ms3)
         self.assertEqual(hash(ms1), hash(ms3))
         self.assertNotEqual(ms1, ms4)
-        self.assertEqual(ms1.move(dxy=p), ms5)
-        self.assertEqual(ms4.rotate(rotation=rot), ms6)
+        self.assertEqual(ms1.moved(dxy=p), ms5)
+        self.assertEqual(ms4.rotated(rotation=rot), ms6)

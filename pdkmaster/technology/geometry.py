@@ -99,7 +99,7 @@ class _Shape(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def move(self: "_shape_childclass", *, dxy: "Point") -> "_shape_childclass":
+    def moved(self: "_shape_childclass", *, dxy: "Point") -> "_shape_childclass":
         """Move a _Shape object by a given vector"""
         raise NotImplementedError
 
@@ -114,7 +114,7 @@ class _Shape(abc.ABC):
                 "unsupported operand type(s) for +: "
                 f"'{type(self)}' and '{type(dxy)}'"
             )
-        return self.move(dxy=dxy)
+        return self.moved(dxy=dxy)
 
     def __sub__(self, mdxy: "Point") -> "_Shape":
         """Operation `_Shape` + `Point`
@@ -127,7 +127,7 @@ class _Shape(abc.ABC):
                 "unsupported operand type(s) for -: "
                 f"'{type(self)}' and '{type(mdxy)}'"
             )
-        return self.move(dxy=-mdxy)
+        return self.moved(dxy=-mdxy)
 
     def repeat(self, *,
         offset0: "Point",
@@ -139,7 +139,7 @@ class _Shape(abc.ABC):
         )
 
     @abc.abstractmethod
-    def rotate(self: "_shape_childclass", *, rotation: Rotation) -> "_shape_childclass":
+    def rotated(self: "_shape_childclass", *, rotation: Rotation) -> "_shape_childclass":
         raise NotImplementedError
 
     @property
@@ -281,13 +281,13 @@ class Point(_PointsShape, _Rectangular):
     def bounds(self) -> "Point":
         return self
 
-    def move(self, *, dxy: "Point") -> "Point":
+    def moved(self, *, dxy: "Point") -> "Point":
         x = self.x + dxy.x
         y = self.y + dxy.y
 
         return Point(x=x, y=y)
 
-    def rotate(self, *, rotation: Rotation) -> "Point":
+    def rotated(self, *, rotation: Rotation) -> "Point":
         x = self.x
         y = self.y
         tx, ty = {
@@ -381,16 +381,16 @@ class Line(_PointsShape, _Rectangular):
     def bounds(self) -> "Line":
         return self
 
-    def move(self, *, dxy: Point) -> "Line":
+    def moved(self, *, dxy: Point) -> "Line":
         return Line(
-            point1=self._point1.move(dxy=dxy),
-            point2=self._point2.move(dxy=dxy),
+            point1=self._point1.moved(dxy=dxy),
+            point2=self._point2.moved(dxy=dxy),
         )
 
-    def rotate(self, *, rotation: Rotation) -> "Line":
+    def rotated(self, *, rotation: Rotation) -> "Line":
         return Line(
-            point1=self.point1.rotate(rotation=rotation),
-            point2=self.point2.rotate(rotation=rotation),
+            point1=self.point1.rotated(rotation=rotation),
+            point2=self.point2.rotated(rotation=rotation),
         )
 
     # _PointsShape mixin abstract methods
@@ -455,12 +455,12 @@ class Polygon(_PointsShape):
     def bounds(self) -> "Rect":
         return self._bounds
 
-    def move(self, *, dxy: Point) -> "Polygon":
+    def moved(self, *, dxy: Point) -> "Polygon":
         return Polygon(points=(point + dxy for point in self.points))
 
-    def rotate(self, *, rotation: Rotation) -> "Polygon":
+    def rotated(self, *, rotation: Rotation) -> "Polygon":
         return Polygon(points=(
-            point.rotate(rotation=rotation) for point in self.points
+            point.rotated(rotation=rotation) for point in self.points
         ))
 
     # _PointsShape mixin abstract methods
@@ -577,7 +577,7 @@ class Rect(Polygon, _Rectangular):
         return self.top - self.bottom
 
     # overloaded _Shape base class abstract methods
-    def move(self, *, dxy: Point) -> "Rect":
+    def moved(self, *, dxy: Point) -> "Rect":
         left = self.left + dxy.x
         bottom = self.bottom + dxy.y
         right = self.right + dxy.x
@@ -585,7 +585,7 @@ class Rect(Polygon, _Rectangular):
 
         return Rect(left=left, bottom=bottom, right=right, top=top)
 
-    def rotate(self, *, rotation: Rotation) -> "Rect":
+    def rotated(self, *, rotation: Rotation) -> "Rect":
         if rotation in (Rotation.No, Rotation.R180, Rotation.MX, Rotation.MY):
             width = self.width
             height = self.height
@@ -598,7 +598,7 @@ class Rect(Polygon, _Rectangular):
             )
 
         return Rect.from_size(
-            center=self.center.rotate(rotation=rotation),
+            center=self.center.rotated(rotation=rotation),
             width=width, height=height,
         )
 
@@ -672,14 +672,14 @@ class MultiShape(_Shape, Collection[_Shape]):
         else:
             return Rect(left=left, bottom=bottom, right=right, top=top)
 
-    def move(self, *, dxy: Point) -> "MultiShape":
+    def moved(self, *, dxy: Point) -> "MultiShape":
         return MultiShape(
-            shapes=(polygon.move(dxy=dxy) for polygon in self.pointsshapes),
+            shapes=(polygon.moved(dxy=dxy) for polygon in self.pointsshapes),
         )
 
-    def rotate(self, *, rotation: Rotation) -> "MultiShape":
+    def rotated(self, *, rotation: Rotation) -> "MultiShape":
         return MultiShape(
-            shapes=(polygon.rotate(rotation=rotation) for polygon in self.pointsshapes)
+            shapes=(polygon.rotated(rotation=rotation) for polygon in self.pointsshapes)
         )
 
     # Collection mixin abstract methods
@@ -755,7 +755,7 @@ class RepeatedShape(_Shape):
     def m_dxy(self) -> Optional[Point]:
         return self._m_dxy
 
-    def move(self: "RepeatedShape", *, dxy: "Point") -> "RepeatedShape":
+    def moved(self: "RepeatedShape", *, dxy: "Point") -> "RepeatedShape":
         return RepeatedShape(
             shape=self.shape, offset0=(self.offset0 + dxy),
             n=self.n, n_dxy=self.n_dxy, m=self.m, m_dxy=self.m_dxy,
@@ -789,13 +789,13 @@ class RepeatedShape(_Shape):
             bottom=min(b1.bottom, b2.bottom), top=max(b1.top, b2.top),
         )
 
-    def rotate(self, *, rotation: Rotation) -> "RepeatedShape":
+    def rotated(self, *, rotation: Rotation) -> "RepeatedShape":
         return RepeatedShape(
-            shape=self.shape.rotate(rotation=rotation),
-            offset0=self.offset0.rotate(rotation=rotation),
-            n=self.n, n_dxy=self.n_dxy.rotate(rotation=rotation),
+            shape=self.shape.rotated(rotation=rotation),
+            offset0=self.offset0.rotated(rotation=rotation),
+            n=self.n, n_dxy=self.n_dxy.rotated(rotation=rotation),
             m=self.m, m_dxy=(
-                None if self.m_dxy is None else self.m_dxy.rotate(rotation=rotation)
+                None if self.m_dxy is None else self.m_dxy.rotated(rotation=rotation)
             )
         )
 
@@ -868,11 +868,11 @@ class MaskShape:
     def shape(self) -> _Shape:
         return self._shape
 
-    def move(self, *, dxy: Point) -> "MaskShape":
-        return MaskShape(mask=self.mask, shape=self.shape.move(dxy=dxy))
+    def moved(self, *, dxy: Point) -> "MaskShape":
+        return MaskShape(mask=self.mask, shape=self.shape.moved(dxy=dxy))
 
-    def rotate(self, *, rotation: Rotation) -> "MaskShape":
-        return MaskShape(mask=self.mask, shape=self.shape.rotate(rotation=rotation))
+    def rotated(self, *, rotation: Rotation) -> "MaskShape":
+        return MaskShape(mask=self.mask, shape=self.shape.rotated(rotation=rotation))
 
     @property
     def area(self) -> float:

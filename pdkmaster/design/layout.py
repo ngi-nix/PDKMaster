@@ -821,7 +821,7 @@ class _InstanceSubLayout(_SubLayout):
             else self.inst.cell.layout
         )
         assert l.boundary is not None
-        return l.boundary.rotate(
+        return l.boundary.rotated(
             rotation=geo.Rotation.from_name(self.rotation),
         ).move(
             dxy=geo.Point(x=self.x, y=self.y),
@@ -1211,8 +1211,8 @@ class _Layout:
         else:
             bound = self.boundary
             if rotation != "no":
-                bound = bound.rotate(rotation=geo.Rotation.from_name(rotation))
-            bound = bound.move(dxy=geo.Point(x=dx, y=dy))
+                bound = bound.rotated(rotation=geo.Rotation.from_name(rotation))
+            bound = bound.moved(dxy=geo.Point(x=dx, y=dy))
         l.boundary = bound
 
         return l
