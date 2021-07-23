@@ -646,10 +646,25 @@ class Rect(Polygon, _Rectangular):
 
 
 class MultiShape(_Shape, Collection[_Shape]):
-    """A shape representing a group of non-overlapping shapes
+    """A shape representing a group of shapes
+
+    Arguments:
+        shapes: the sub shapes.
+            Subshapes may or may not overlap. The object will fail to create if only one unique
+            shape is provided including if the same shape is provided multiple times without
+            another shape.
+
+            MultiShape objects part of the provided shapes will be flattened and it's children will
+            be joined with the other shapes.
     """
     def __init__(self, *, shapes: Iterable[_Shape]):
-        self._shapes = shapes = frozenset(shapes)
+        def iterate_shapes(ss: Iterable[_Shape]) -> Generator[_Shape, None, None]:
+            for shape in ss:
+                if isinstance(shape, MultiShape):
+                    yield from iterate_shapes(shape.shapes)
+                else:
+                    yield shape
+        self._shapes = shapes = frozenset(iterate_shapes(shapes))
         if len(shapes) < 2:
             raise ValueError("MultiShape has to consist of more than one shape")
 

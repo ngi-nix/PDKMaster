@@ -363,16 +363,18 @@ class GeometryTest(unittest.TestCase):
 
         ms1 = _geo.MultiShape(shapes=(p, l, r))
         ms2 = _geo.MultiShape(shapes=(l, r, p))
-        ms3 = _geo.MultiShape(shapes=(p, l))
-        ms4 = _geo.MultiShape(shapes=(p, p2))
+        ms3 = _geo.MultiShape(shapes=(l, _geo.MultiShape(shapes=(r, p))))
+        ms4 = _geo.MultiShape(shapes=(p, l))
+        ms5 = _geo.MultiShape(shapes=(p, p2))
 
         self.assertNotEqual(ms1, "")
         self.assertEqual(ms1, ms2)
+        self.assertEqual(ms1, ms3)
         self.assertEqual(hash(ms1), hash(ms2))
         self.assertEqual(len(ms1), 3)
         self.assertTrue(l in ms2)
         self.assertAlmostEqual(ms1.area, 4.0, 6)
-        self.assertNotEqual(ms1, ms3)
+        self.assertNotEqual(ms1, ms4)
         self.assertEqual(set(ms1), {p, l, r})
         self.assertEqual(
             ms1.moved(dxy=p),
@@ -390,7 +392,7 @@ class GeometryTest(unittest.TestCase):
             ms1.bounds,
             _geo.Rect(left=-2.0, bottom=-3.0, right=2.0, top=1.0),
         )
-        self.assertEqual(ms4.bounds, _geo.Line(point1=p, point2=p2))
+        self.assertEqual(ms5.bounds, _geo.Line(point1=p, point2=p2))
 
     def test_repeatedshape(self):
         s = _geo.Rect.from_size(width=2.0, height=2.0)
