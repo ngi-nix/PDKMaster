@@ -13,7 +13,9 @@ on them.
 import abc, logging
 from itertools import product
 from pdkmaster.typing import IntFloat, SingleOrMulti
-from typing import Any, Iterable, Generator, Mapping, Tuple, Optional, Union, cast
+from typing import (
+    Any, Iterable, Generator, Mapping, Tuple, Optional, Union, Type, cast,
+)
 from matplotlib import pyplot as plt
 import descartes
 from shapely import geometry as sh_geo, ops as sh_ops, affinity as sh_aff
@@ -1961,6 +1963,7 @@ class LayoutFactory:
 
     def new_layout(self, *,
         sublayouts: Optional[Union[_SubLayout, SubLayouts]]=None,
+        cls: Type[_Layout]=_Layout
     ):
         if sublayouts is None:
             sublayouts = SubLayouts()
@@ -1968,6 +1971,7 @@ class LayoutFactory:
             sublayouts = SubLayouts(sublayouts)
 
         return _Layout(self, sublayouts)
+        return cls(self, sublayouts)
 
     def new_primitivelayout(self, prim, **prim_params) -> _Layout:
         prim_params = prim.cast_params(prim_params)
