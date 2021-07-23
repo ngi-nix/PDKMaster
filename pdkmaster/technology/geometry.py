@@ -16,6 +16,7 @@ from typing import (
 )
 
 from .. import _util
+from ..typing import SingleOrMulti
 from ..technology import mask as msk
 
 
@@ -23,7 +24,7 @@ __all__ = [
     "epsilon",
     "Rotation", "FloatPoint",
     "Point", "origin", "Line", "Polygon", "Rect", "MultiShape", "RepeatedShape",
-    "MaskShape",
+    "MaskShape", "MaskShapes",
 ]
 
 
@@ -1030,6 +1031,54 @@ class MaskShape:
     @property
     def bounds(self) -> _Rectangular:
         return self.shape.bounds
+
+
+class MaskShapes(_util.TypedListMapping[MaskShape, msk.DesignMask]):
+    """A TypedListMapping of MaskShape objects.
+
+    API Notes:
+        Contrary to other classes a MaskShapes object is mutable if not frozen.
+    """
+    _elem_type_ = MaskShape
+    _index_type_ = msk.DesignMask
+    _index_attribute_ = "mask"
+
+    def __init__(self, iterable: SingleOrMulti[MaskShape].T):
+        shapes = _util.v2t(iterable)
+
+        def join_shapes() -> Generator[MaskShape, None, None]:
+            masks = []
+            for shape in shapes:
+                mask = shape.mask
+                if mask not in masks:
+                    shapes2 = tuple(filter(lambda ms: ms.mask == mask, shapes))
+                    if len(shapes2) == 1:
+                        yield shapes2[0]
+                    else:
+                        yield MaskShape(
+                            mask=mask,
+                            shape=MultiShape(shapes=(ms.shape for ms in shapes2))
+                        )
+                    masks.append(mask)
+
+        super().__init__(join_shapes())
+
+    def __iadd__(self, shape: SingleOrMulti[MaskShape].T) -> "MaskShapes":
+        for s in _util.v2t(shape):
+            mask = s.mask
+            try:
+                ms = self[mask]
+            except KeyError:
+                super().__iadd__(s)
+            except: # pragma: no cover
+                raise
+            else:
+                ms2 = MaskShape(
+                    mask=mask, shape=MultiShape(shapes=(ms.shape, s.shape)),
+                )
+                self[mask] = ms2
+
+        return self
 
 
 # TODO: Complete MaskPath, allow 45 deg sections etc.

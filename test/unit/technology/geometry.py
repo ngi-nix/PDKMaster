@@ -532,3 +532,43 @@ class GeometryTest(unittest.TestCase):
         self.assertNotEqual(ms1, ms4)
         self.assertEqual(ms1.moved(dxy=p), ms5)
         self.assertEqual(ms4.rotated(rotation=rot), ms6)
+
+    def test_maskshapes(self):
+        m1 = _msk.DesignMask("mask1", fill_space="no")
+        m2 = _msk.DesignMask("mask2", fill_space="no")
+        p = _geo.Point(x=3.0, y=-2.0)
+        rot = _geo.Rotation.R90
+        r1 = _geo.Rect(left=-3.0, bottom=-1.0, right=-1.0, top=1.0)
+        r2 = _geo.Rect(left=1.0, bottom=-1.0, right=3.0, top=1.0)
+        ms1 = _geo.MaskShape(mask=m1, shape=r1)
+        ms2 = _geo.MaskShape(mask=m2, shape=r2)
+        ms3 = _geo.MaskShape(mask=m1, shape=r2)
+        ms4 = _geo.MaskShape(mask=m1, shape=_geo.MultiShape(shapes=(r1, r2)))
+        mss1 = _geo.MaskShapes(ms1)
+        mss2 = _geo.MaskShapes((ms1, ms2))
+        mss3 = _geo.MaskShapes((ms1, ms2))
+        mss3.move(dxy=p)
+        mss4 = _geo.MaskShapes(ms1)
+        mss4.rotate(rotation=rot)
+        mss5 = _geo.MaskShapes(ms1)
+        mss5 += ms3
+        mss6 = _geo.MaskShapes(ms4)
+        mss7 = _geo.MaskShapes((ms1, ms3))
+
+        self.assertEqual(_util.first(mss1), ms1)
+        self.assertEqual(_util.last(mss2), ms2)
+        self.assertEqual(mss5, mss6)
+        self.assertEqual(mss5, mss7)
+        self.assertEqual(mss2.moved(dxy=p), mss3)
+        self.assertEqual(mss1.rotated(rotation=rot), mss4)
+
+        mss1 += ms2
+
+        self.assertEqual(mss1, mss2)
+
+        mss2._freeze_()
+
+        with self.assertRaises(TypeError):
+            mss2.move(dxy=p)
+        with self.assertRaises(TypeError):
+            mss2.rotate(rotation=rot)
