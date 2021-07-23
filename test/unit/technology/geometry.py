@@ -88,12 +88,14 @@ class GeometryTest(unittest.TestCase):
 
         with self.assertRaisesRegex(
             TypeError,
-            f"unsupported operand type\(s\) for \+: '{ShapeTest}' and '{int}'"
+            f"unsupported operand type\(s\) for \+: "
+            f"'{t.__class__.__name__}' and '{int.__name__}'"
         ):
             t + 1
         with self.assertRaisesRegex(
             TypeError,
-            f"unsupported operand type\(s\) for \-: '{ShapeTest}' and '{int}'"
+            f"unsupported operand type\(s\) for \-: "
+            f"'{t.__class__.__name__}' and '{int.__name__}'"
         ):
             t - 1
 
@@ -173,6 +175,24 @@ class GeometryTest(unittest.TestCase):
             self.assertEqual(p2, p)
 
         self.assertEqual(p - p, _geo.Point(x=0.0, y=0.0))
+        with self.assertRaisesRegex(
+            TypeError,
+            "unsupported operand type\(s\) for \+: "
+            f"'{p.__class__.__name__}' and 'str'",
+        ):
+            p + "a"
+        with self.assertRaisesRegex(
+            TypeError,
+            "unsupported operand type\(s\) for \-: "
+            f"'float' and '{p.__class__.__name__}'",
+        ):
+            3.14 - p
+        with self.assertRaisesRegex(
+            TypeError,
+            "unsupported operand type\(s\) for \-: "
+            f"'{p.__class__.__name__}' and 'float'",
+        ):
+            p - 3.14
 
         self.assertEqual(-2*p, _geo.Point(x=2.0, y=4.0))
         with self.assertRaisesRegex(
@@ -244,6 +264,7 @@ class GeometryTest(unittest.TestCase):
             l.moved(dxy=dxy),
             _geo.Line(point1=p1.moved(dxy=dxy), point2=p2.moved(dxy=dxy)),
         )
+        self.assertEqual(-dxy + l, l - dxy)
 
         self.assertEqual(str(l), f"{p1}-{p2}")
         self.assertEqual(repr(l), f"Line(point1={p1!r},point2={p2!r})")
@@ -286,7 +307,7 @@ class GeometryTest(unittest.TestCase):
         with self.assertRaisesRegex(
             TypeError, (
                 "unsupported operand type\(s\) for \+: "
-                f"'{_geo.Polygon}' and '{_geo.Polygon}'"
+                f"'{poly1.__class__.__name__}' and '{poly2.__class__.__name__}'"
             )
         ):
             poly3 = poly1 + poly2

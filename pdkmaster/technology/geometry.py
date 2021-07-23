@@ -12,7 +12,7 @@ import abc, enum
 from itertools import product
 from typing import (
     Iterable, Iterator, Generator, Collection, Tuple, List,
-    Optional, Union, TypeVar,
+    Optional, Union, TypeVar, overload,
 )
 
 from .. import _util
@@ -108,32 +108,6 @@ class _Shape(abc.ABC):
         immutable and a new object is created by the moved() method.
         """
         raise NotImplementedError
-
-    def __add__(self: "_shape_childclass", dxy: "Point") -> "_shape_childclass":
-        """Operation `_Shape` + `Point`
-
-        Returns
-            Shape shifted by the point as vector
-        """
-        if not isinstance(dxy, Point):
-            raise TypeError(
-                "unsupported operand type(s) for +: "
-                f"'{type(self)}' and '{type(dxy)}'"
-            )
-        return self.moved(dxy=dxy)
-
-    def __sub__(self, mdxy: "Point") -> "_Shape":
-        """Operation `_Shape` + `Point`
-
-        Returns
-            Shape shifted by the negative of the point as vector
-        """
-        if not isinstance(mdxy, Point):
-            raise TypeError(
-                "unsupported operand type(s) for -: "
-                f"'{type(self)}' and '{type(mdxy)}'"
-            )
-        return self.moved(dxy=-mdxy)
 
     def repeat(self, *,
         offset0: "Point",
@@ -346,6 +320,66 @@ class Point(_PointsShape, _Rectangular):
 
     def __hash__(self) -> int:
         return hash((self.x, self.y))
+
+    @overload
+    def __add__(self, shape: _shape_childclass) -> _shape_childclass:
+        ... # pragma: no cover
+    @overload
+    def __add__(self, shape: "MaskShape") -> "MaskShape":
+        ... # pragma: no cover
+    @overload
+    def __add__(self, shape: "MaskShapes") -> "MaskShapes":
+        ... # pragma: no cover
+    def __add__(self, shape) -> Union[_Shape, "MaskShape", "MaskShapes"]:
+        """The + operation with a Point.
+
+        The + operation on a (mask)shape will move that shape with the given
+        point as vector.
+
+        Returns
+            Shape shifted by the point as vector
+        """
+        if isinstance(shape, (_Shape, MaskShape, MaskShapes)):
+            return shape.moved(dxy=self)
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for +: "
+                f"'{self.__class__.__name__}' and '{shape.__class__.__name__}'"
+            )
+    __radd__ = __add__
+
+    @overload
+    def __rsub__(self, shape: _Shape) -> _Shape:
+        ... # pragma: no cover
+    @overload
+    def __rsub__(self, shape: "MaskShape") -> "MaskShape":
+        ... # pragma: no cover
+    @overload
+    def __rsub__(self, shape: "MaskShapes") -> "MaskShapes":
+        ... # pragma: no cover
+    def __rsub__(self, shape) -> Union[_Shape, "MaskShape", "MaskShapes"]:
+        """Operation shape - `Point`
+
+        Returns
+            Shape shifted by the negative of the point as vector
+        """
+        if isinstance(shape, (_Shape, MaskShape, MaskShapes)):
+            return shape.moved(dxy=-self)
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for -: "
+                f"'{shape.__class__.__name__}' and '{self.__class__.__name__}'"
+            )
+
+    # Point - Point is not handled by __rsub__
+    def __sub__(self, point: "Point") -> "Point":
+        if isinstance(point, Point):
+            return self.moved(dxy=-point)
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for -: "
+                f"'{self.__class__.__name__}' and '{point.__class__.__name__}'"
+            )
 
     def __mul__(self, m: float) -> "Point":
         if not isinstance(m, (int, float)):

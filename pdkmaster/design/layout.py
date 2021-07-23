@@ -497,8 +497,13 @@ class _SubLayout(abc.ABC):
 
     @abc.abstractmethod
     def move(self, dx, dy, rotation="no"):
-        for pg in self.polygons:
-            pg.move(dx, dy, rotation)
+        if isinstance(self.polygons, geo.MaskShape):
+            assert rotation == "no", "Rotation of geo.MaskShape not implemented"
+            self.polygons = self.polygons + geo.Point(x=dx, y=dy)
+        else:
+            assert isinstance(self.polygons, MaskPolygons)
+            for pg in self.polygons:
+                pg.move(dx, dy, rotation)
 
     @abc.abstractmethod
     def moved(self, dx, dy, rotation="no"):
@@ -877,9 +882,7 @@ class _InstanceSubLayout(_SubLayout):
         assert l.boundary is not None
         return l.boundary.rotated(
             rotation=geo.Rotation.from_name(self.rotation),
-        ).move(
-            dxy=geo.Point(x=self.x, y=self.y),
-        )
+        ) + geo.Point(x=self.x, y=self.y)
 
     @property
     def polygons(self):
@@ -1302,7 +1305,7 @@ class _Layout:
             bound = self.boundary
             if rotation != "no":
                 bound = bound.rotated(rotation=geo.Rotation.from_name(rotation))
-            bound = bound.moved(dxy=geo.Point(x=dx, y=dy))
+            bound = bound + geo.Point(x=dx, y=dy)
         l.boundary = bound
 
         return l
