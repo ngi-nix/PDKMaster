@@ -713,7 +713,7 @@ class _LibraryGenerator:
 
         return s
 
-    def _s_cell(self, lib, cell):
+    def _s_cell(self, lib: lbr.Library, cell: lbr._Cell):
         try:
             s = dedent(f"""
                 cell = new_cells['{cell.name}']

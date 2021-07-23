@@ -4,7 +4,7 @@ from typing import Tuple, Generic, Optional, TypeVar, cast
 
 from ..typing import SingleOrMulti, OptSingleOrMulti
 from .. import _util
-from ..technology import primitive as prm, technology_ as tch
+from ..technology import geometry as geo, primitive as prm, technology_ as tch
 from . import layout as lay, circuit as ckt
 
 
@@ -56,7 +56,9 @@ class _Cell(Generic[LibraryType]):
 
         self.layouts += _CellLayout(name, layout)
 
-    def new_circuitlayouter(self, name=None, *, boundary=None):
+    def new_circuitlayouter(self, *,
+        name: Optional[str]=None, boundary: Optional[geo._Rectangular]=None,
+    ) -> "lay._CircuitLayouter":
         if name is None:
             name = self.name
         if not isinstance(name, str):
@@ -66,7 +68,9 @@ class _Cell(Generic[LibraryType]):
         except KeyError:
             raise ValueError(f"circuit with name '{name}' not present")
 
-        layouter = self.lib.layoutfab.new_circuitlayouter(circuit, boundary=boundary)
+        layouter = self.lib.layoutfab.new_circuitlayouter(
+            circuit=circuit, boundary=boundary,
+        )
         self.layouts += _CellLayout(name, layouter.layout)
         return layouter
 

@@ -153,12 +153,12 @@ class _Circuit:
     def new_instance(self,
         name: str, object_: prm._Primitive, **params,
     ) -> _PrimitiveInstance:
-        raise RuntimeError
+        ... # pragma: no cover
     @overload
     def new_instance(self,
         name: str, object_: lbry._Cell, **params,
     ) -> _CellInstance:
-        raise RuntimeError
+        ... # pragma: no cover
     def new_instance(self, name, object_, **params):
         if not isinstance(name, str):
             raise TypeError("name has to be a string")

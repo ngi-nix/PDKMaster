@@ -139,7 +139,7 @@ class _Shape(abc.ABC):
         )
 
     @abc.abstractmethod
-    def rotate(self, *, rotation: Rotation) -> "_Shape":
+    def rotate(self: "_shape_childclass", *, rotation: Rotation) -> "_shape_childclass":
         raise NotImplementedError
 
     @property
