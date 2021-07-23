@@ -29,7 +29,9 @@ from . import circuit as ckt
 
 __all__ = [
     "MaskPolygon", "MaskPolygons",
-    "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout", "SubLayouts",
+    "NetSubLayout", "MultiNetSubLayout", "NetlessSubLayout",
+    "MaskShapesSubLayout",
+    "SubLayouts",
     "LayoutFactory", "Plotter",
 ]
 
@@ -770,6 +772,58 @@ class MultiNetSubLayout(_SubLayout):
             return False
 
 
+class MaskShapesSubLayout(_SubLayout):
+    """Object representing the sublayout of a net consisting of geometry._Shape
+    objects.
+
+    Arguments:
+        net: The net of the SubLayout
+            `None` value represents no net for the shapes.
+        shapes: The maskshapes on the net.
+    """
+    def __init__(self, *, net: Optional[net_.Net], shapes: geo.MaskShapes):
+        self._net = net
+        self._shapes = shapes
+
+    @property
+    def net(self) -> Optional[net_.Net]:
+        return self._net
+    @property
+    def shapes(self) -> geo.MaskShapes:
+        return self._shapes
+
+    def add_shape(self, *, shape: geo.MaskShape):
+        self._shapes += shape
+
+    def overlaps_with(self, sublayout: "_SubLayout", *, hierarchical: bool) -> bool:
+        raise NotImplementedError()
+
+    def move(self, dx: float, dy: float, rotation: str):
+        if rotation == "no":
+            shapes = self.shapes
+        else:
+            shapes = geo.Rotation.from_name(rotation)*self.shapes
+        self._shapes = (shapes + geo.Point(x=dx, y=dy))
+
+    def moved(self, dx: float, dy: float, rotation: str) -> "MaskShapesSubLayout":
+        r = geo.Rotation.from_name(rotation)
+        return MaskShapesSubLayout(
+            net=self.net, shapes=(r*self.shapes + geo.Point(x=dx, y=dy)),
+        )
+
+    def dup(self) -> "MaskShapesSubLayout":
+        return MaskShapesSubLayout(net=self.net, shapes=self.shapes)
+
+    def __hash__(self):
+        return hash((self.net, self.shapes))
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, MaskShapesSubLayout):
+            return (self.net == other.net) and (self.shapes == other.shapes)
+        else:
+            return False
+
+
 class _InstanceSubLayout(_SubLayout):
     def __init__(self, inst, *, x, y, layoutname, rotation):
         assert (
@@ -1013,6 +1067,14 @@ class SubLayouts(_util.TypedList[_SubLayout]):
                         return True
                 else:
                     return False
+            elif isinstance(other_sublayout, MaskShapesSubLayout):
+                for sublayout in self.__iter_type__(MaskShapesSubLayout):
+                    if sublayout.net == other_sublayout.net:
+                        for shape in other_sublayout.shapes:
+                            sublayout.add_shape(shape=shape)
+                        return True
+                else:
+                    return False
             elif not isinstance(other_sublayout, _InstanceSubLayout):
                 raise AssertionError("Internal error")
         other = tuple(filter(lambda sl: not add2other(sl), other))
@@ -1042,7 +1104,10 @@ class _Layout:
     @property
     def polygons(self) -> Generator[Union[MaskPolygon, geo.MaskShape], None, None]:
         for sublayout in self.sublayouts:
-            yield from sublayout.polygons
+            if isinstance(sublayout, MaskShapesSubLayout):
+                yield from sublayout.shapes
+            else:
+                yield from sublayout.polygons
 
     @property
     def top_polygons(self):
@@ -1077,6 +1142,9 @@ class _Layout:
                                 net=port.net,
                                 depth=(None if depth is None else (depth - 1)),
                             )
+            elif isinstance(sl, MaskShapesSubLayout):
+                if net == sl.net:
+                    yield sl
             else:
                 raise AssertionError("Internal error")
 
@@ -1086,7 +1154,10 @@ class _Layout:
         if not isinstance(net, net_.Net):
             raise TypeError("net has to be of type 'Net'")
         for sl in self._net_sublayouts(net=net, depth=depth):
-            yield from sl.polygons
+            if isinstance(sl, MaskShapesSubLayout):
+                yield from sl.shapes
+            else:
+                yield from sl.polygons
 
     def filter_polygons(self, *,
         net: Optional[net_.Net]=None, mask: Optional[msk._Mask]=None,
@@ -1097,13 +1168,26 @@ class _Layout:
         else:
             sls = self._net_sublayouts(net=net, depth=depth)
         for sl in sls:
-            for poly in sl.polygons:
-                if (mask is not None) and (poly.mask != mask):
-                    continue
-                if split:
-                    yield from poly.polygons
+            if isinstance(sl, MaskShapesSubLayout):
+                if mask is None:
+                    shapes = sl.shapes
                 else:
-                    yield poly
+                    shapes = filter(lambda sh: sh.mask == mask, sl.shapes)
+                if not split:
+                    yield from shapes
+                else:
+                    for shape in shapes:
+                        for shape2 in shape.shape.pointsshapes:
+                            yield geo.MaskShape(mask=shape.mask, shape=shape2)
+            else:
+                assert isinstance(sl.polygons, MaskPolygons)
+                for poly in sl.polygons:
+                    if (mask is not None) and (poly.mask != mask):
+                        continue
+                    if split:
+                        yield from poly.polygons
+                    else:
+                        yield poly
 
     def dup(self) -> "_Layout":
         l = _Layout(
@@ -1178,21 +1262,27 @@ class _Layout:
         )
 
     def add_shape(self, *,
-        net: net_.Net, wire: prm._Conductor, shape: geo._Shape,
+        wire: prm._DesignMaskPrimitive, net: Optional[net_.Net]=None, shape: geo._Shape,
         xy: geo.Point=geo.origin, **wire_params,
     ) -> "_Layout":
         """Add a geometry shape to a _Layout
-
-        Currently only Rect is supported until geometry _Shape objects are fully
-        supported in _Layout class.
         """
+        maskshape = geo.MaskShape(mask=cast(msk.DesignMask, wire.mask), shape=shape)
+        for sl in self.sublayouts.__iter_type__(MaskShapesSubLayout):
+            if sl.net == net:
+                sl.add_shape(shape=maskshape)
+                break
+        else:
+            self.sublayouts += MaskShapesSubLayout(
+                net=net, shapes=geo.MaskShapes(maskshape),
+            )
         if not isinstance(shape, geo.Rect):
             raise NotImplementedError(
                 "Adding a shape to a '_Layout' that is not a Rect",
             )
         c = shape.center
         return self.add_primitive(
-            portnets={"conn": net}, prim=wire,
+            prim=wire, portnets={"conn": net},
             x=(c.x + xy.x), y=(c.y + xy.y), width=shape.width, height=shape.height,
             **wire_params,
         )
@@ -1915,7 +2005,7 @@ class _CircuitLayouter:
         )
 
     def add_shape(self, *,
-        net: net_.Net, wire: prm._Conductor, shape: geo._Shape,
+        wire: prm._DesignMaskPrimitive, net: Optional[net_.Net], shape: geo._Shape,
         xy: geo.Point=geo.origin, **wire_params,
     ) -> _Layout:
         """Add a geometry shape to a _Layout
@@ -1923,13 +2013,13 @@ class _CircuitLayouter:
         Currently only Rect is supported until geometry _Shape objects are fully
         supported in _Layout class.
         """
-        if net not in self.circuit.nets:
+        if (net is not None) and (net not in self.circuit.nets):
             raise ValueError(
                 f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
             )
 
         return self.layout.add_shape(
-            net=net, wire=wire, shape=shape, xy=xy, **wire_params,
+            wire=wire, net=net, shape=shape, xy=xy, **wire_params,
         )
 
     def add_wireless(self, *, prim, x, y, rotation="no", **prim_params):

@@ -7,7 +7,8 @@ import shapely.geometry as sh_geo
 
 from ... import _util
 from ...technology import (
-    mask as msk, primitive as prm, dispatcher as dsp, technology_ as tch,
+    mask as msk, primitive as prm, geometry as geo, dispatcher as dsp,
+    technology_ as tch,
 )
 from ...design import layout as lay, library as lbr
 
@@ -725,9 +726,10 @@ class _LibraryGenerator:
                 bnd = layout.boundary
                 assert bnd is not None, f"Cell boundary needed for {cell.name}"
 
-                pls = tuple(layout.sublayouts.__iter_type__(
-                    (lay.NetSubLayout, lay.MultiNetSubLayout, lay.NetlessSubLayout),
-                ))
+                pls = tuple(layout.sublayouts.__iter_type__((
+                    lay.NetSubLayout, lay.MultiNetSubLayout, lay.NetlessSubLayout,
+                    lay.MaskShapesSubLayout,
+                )))
                 def get_netname(sl):
                     if isinstance(sl, lay.NetSubLayout):
                         return sl.net.name
@@ -735,6 +737,8 @@ class _LibraryGenerator:
                         lay.MultiNetSubLayout, lay.NetlessSubLayout,
                     )):
                         return "*"
+                    elif isinstance(sl, lay.MaskShapesSubLayout):
+                        return "*" if sl.net is None else sl.net.name
                     else:
                         raise AssertionError("Internal error: unhandled sublayout type")
 
@@ -758,14 +762,18 @@ class _LibraryGenerator:
                             s += f"    nets['{net}'].setGlobal(True)\n"
 
                 for sl in pls:
-                    s += indent(
-                        f"net = nets['{get_netname(sl)}']\n" +
-                        "".join(
-                            self._s_polygon(mp.mask, mp.polygon)
-                            for mp in sl.polygons
-                        ),
-                        prefix="    ",
-                    )
+                    if isinstance(sl, lay.MaskShapesSubLayout):
+                        s += indent(
+                            f"net = nets['{get_netname(sl)}']\n" +
+                            "".join(self._s_shape(ms) for ms in sl.shapes),
+                            prefix="    ",
+                        )
+                    else:
+                        s += indent(
+                            f"net = nets['{get_netname(sl)}']\n" +
+                            "".join(self._s_polygon(mp.mask, mp.polygon) for mp in sl.polygons),
+                            prefix="    ",
+                        )
 
                 for sl in layout.sublayouts.__iter_type__(lay._InstanceSubLayout):
                     # Currently usage of af.getCell() may not work as intended when
@@ -887,6 +895,50 @@ class _LibraryGenerator:
                 raise NotImplementedError(
                     "shapely polygon with multiple interiors"
                 )
+
+            return s
+        else:
+            raise RuntimeError("Internal error")
+
+    def _s_shape(self, shape: geo.MaskShape) -> str:
+        mask = shape.mask
+
+        for ps in shape.shape.pointsshapes:
+            coords = tuple(ps.points)
+
+            if mask in self.pinmasks:
+                metalmask = self.pinmasks[mask]
+                if len(coords) != 5:
+                    raise NotImplementedError(
+                        f"Non-rectangular pin with coords '{coords}'"
+                    )
+                xs = tuple(coord.x for coord in coords)
+                ys = tuple(coord.y for coord in coords)
+                left = min(xs)
+                right = max(xs)
+                bottom = round(min(ys), 6)
+                top = round(max(ys), 6)
+                x = round(0.5*(left + right), 6)
+                width = round(right - left, 6)
+                s = dedent(f"""
+                    Vertical.create(
+                        net, tech.getLayer('{mask.name}'),
+                        u({x}), u({width}), u({bottom}), u({top}),
+                    )
+                    pin = Vertical.create(
+                        net, tech.getLayer('{metalmask.name}'),
+                        u({x}), u({width}), u({bottom}), u({top}),
+                    )
+                    net.setExternal(True)
+                    NetExternalComponents.setExternal(pin)
+                """[1:])
+            else:
+                s = dedent(f"""
+                    createRL(
+                        tech, net, '{mask.name}',
+                        ({",".join(self._s_point((point.x, point.y)) for point in coords)}),
+                    )
+                """[1:])
 
             return s
         else:
