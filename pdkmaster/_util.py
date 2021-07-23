@@ -420,9 +420,14 @@ class TypedListMapping(
                 "Assigning to slice of TypedListMapping"
             )
         elif isinstance(key, self._index_type_):
-            raise TypeError(
-                "Assigning value by index not allowed for TypedListMapping"
-            )
+            assert isinstance(value, self._elem_type_)
+            for i, elem in enumerate(self._list_):
+                if getattr(elem, self._index_attribute_) == key:
+                    self._list_[i] = value
+                    self._map_[key] = cast(_elem_typevar_, value)
+                    break
+            else:
+                self += value
 
     def __delitem__(self,
         key: Union[int, slice, _index_typevar_],
