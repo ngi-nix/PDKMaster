@@ -815,11 +815,12 @@ class _InstanceSubLayout(_SubLayout):
         return self._layout
 
     @property
-    def boundary(self) -> geo.Rect:
+    def boundary(self) -> geo._Rectangular:
         l = (
             self.inst.cell.layouts[self.layoutname] if hasattr(self, "layoutname")
             else self.inst.cell.layout
         )
+        assert l.boundary is not None
         return l.boundary.rotate(
             rotation=geo.Rotation.from_name(self.rotation),
         ).move(
@@ -1033,17 +1034,15 @@ class SubLayouts(_util.TypedList[_SubLayout]):
 
 
 class _Layout:
-    def __init__(self, fab, sublayouts, boundary):
+    def __init__(self, fab, sublayouts):
         assert (
             isinstance(fab, LayoutFactory)
             and isinstance(sublayouts, SubLayouts)
-            and ((boundary is None) or isinstance(boundary, geo.Rect))
         ), "Internal error"
         self.fab = fab
         self.sublayouts = sublayouts
-        # We also create boundary attribute here if it is None so users can
-        # update the boundary by doing 'layout.boundary = Rect(...)'
-        self.boundary = boundary
+
+        self.boundary: Optional[geo._Rectangular] = None
 
     @property
     def polygons(self):
@@ -1113,11 +1112,12 @@ class _Layout:
                     yield poly
 
     def dup(self) -> "_Layout":
-        return _Layout(
-            self.fab,
-            SubLayouts(sl.dup() for sl in self.sublayouts),
-            self.boundary,
+        l = _Layout(
+            fab=self.fab,
+            sublayouts=SubLayouts(sl.dup() for sl in self.sublayouts),
         )
+        l.boundary = self.boundary
+        return l
 
     def bounds(self, *, mask=None, net=None, depth=None) -> geo.Rect:
         if mask is not None:
@@ -1216,6 +1216,10 @@ class _Layout:
             mp.move(dx, dy, rotation)
 
     def moved(self, dx, dy, rotation="no"):
+        l = _Layout(
+            self.fab, SubLayouts(sl.moved(dx, dy, rotation) for sl in self.sublayouts),
+        )
+
         if self.boundary is None:
             bound = None
         else:
@@ -1223,10 +1227,9 @@ class _Layout:
             if rotation != "no":
                 bound = bound.rotate(rotation=geo.Rotation.from_name(rotation))
             bound = bound.move(dxy=geo.Point(x=dx, y=dy))
-        return _Layout(
-            self.fab, SubLayouts(sl.moved(dx, dy, rotation) for sl in self.sublayouts),
-            bound,
-        )
+        l.boundary = bound
+
+        return l
 
     def freeze(self):
         self.sublayouts._freeze_()
@@ -1751,7 +1754,8 @@ class _CircuitLayouter:
             raise TypeError("circuit has to be of type '_Circuit'")
         self.circuit = circuit
 
-        self.layout = fab.new_layout(boundary=boundary)
+        self.layout = l = fab.new_layout()
+        l.boundary = boundary
 
     @property
     def tech(self):
@@ -1809,13 +1813,15 @@ class _CircuitLayouter:
                     )
                 layout = inst.cell.layouts[layoutname]
 
-            return _Layout(
+            l = _Layout(
                 self.fab,
                 SubLayouts(_InstanceSubLayout(
                     inst, x=0.0, y=0.0, layoutname=layoutname, rotation=rotation,
                 )),
-                boundary=layout.boundary
             )
+            l.boundary = layout.boundary
+
+            return l
         else:
             raise AssertionError("Internal error")
 
@@ -1893,7 +1899,10 @@ class _CircuitLayouter:
                 )
                 self.layout += sl
 
-                return _Layout(self.fab, SubLayouts(sl), boundary=sl.boundary)
+                l = _Layout(self.fab, SubLayouts(sl))
+                l.boundary = sl.boundary
+
+                return l
             else:
                 raise RuntimeError("Internal error: unsupported instance type")
         elif isinstance(object_, _Layout):
@@ -1964,7 +1973,7 @@ class LayoutFactory:
         self.tech = tech
         self.gen_primlayout = _PrimitiveLayouter(self)
 
-    def new_layout(self, sublayouts=None, *, boundary=None):
+    def new_layout(self, sublayouts=None):
         if sublayouts is None:
             sublayouts = SubLayouts()
         if isinstance(sublayouts, _SubLayout):
@@ -1973,10 +1982,8 @@ class LayoutFactory:
             raise TypeError(
                 "sublayouts has to be of type '_SubLayout' or 'SubLayouts'"
             )
-        if not ((boundary is None) or isinstance(boundary, geo.Rect)):
-            raise TypeError("boundary has to be 'None' or of type 'Rect'")
 
-        return _Layout(self, sublayouts, boundary)
+        return _Layout(self, sublayouts)
 
     def new_primitivelayout(self, prim, **prim_params) -> _Layout:
         prim_params = prim.cast_params(prim_params)
