@@ -888,6 +888,10 @@ class MaskShape:
     def __repr__(self) -> str:
         return f"MaskShape=(mask={self.mask!r},shape={self.shape!r})"
 
+    @property
+    def bounds(self) -> _Rectangular:
+        return self.shape.bounds
+
 
 # TODO: Complete MaskPath, allow 45 deg sections etc.
 # class MaskPath(MaskPolygon):

@@ -481,6 +481,7 @@ class GeometryTest(unittest.TestCase):
 
         self.assertEqual(ms1.mask, m1)
         self.assertEqual(ms1.shape, r1)
+        self.assertEqual(ms1.bounds, r1)
         self.assertNotEqual(ms1, [])
         self.assertIsInstance(repr(ms1), str) # coverage of __repr__()
         self.assertAlmostEqual(ms1.area, r1.area, 6)
