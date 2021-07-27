@@ -339,7 +339,8 @@ class Point(_PointsShape, _Rectangular):
     def __mul__(self, m: float) -> "Point":
         if not isinstance(m, (int, float)):
             raise TypeError(
-                f"unsupported operand type(s) for *: {type(self)} and {type(m)}"
+                f"unsupported operand type(s) for *: "
+                f"'{self.__class__.__name__}' and '{m.__class__.__name__}'"
             )
         return Point(x=m*self.x, y=m*self.y)
     __rmul__ = __mul__

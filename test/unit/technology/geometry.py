@@ -177,7 +177,8 @@ class GeometryTest(unittest.TestCase):
         self.assertEqual(-2*p, _geo.Point(x=2.0, y=4.0))
         with self.assertRaisesRegex(
             TypeError,
-            f"unsupported operand type\(s\) for \*: {_geo.Point} and {_geo.Point}",
+            f"unsupported operand type\(s\) for \*: "
+            f"'{p.__class__.__name__}' and '{p.__class__.__name__}'",
         ):
             p*p
 

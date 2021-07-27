@@ -799,6 +799,8 @@ class _InstanceSubLayout(_SubLayout):
                     f"Cell '{cell.name}' has no layout named '{layoutname}'"
                 )
             self.layoutname = layoutname
+        # layout is a property and will only be looked up the first time it is accessed.
+        # This is to support cell with delayed layout generation.
         self._layout = None
 
     @property
@@ -1147,8 +1149,8 @@ class _Layout:
             raise ValueError("Can't add sublayouts to a frozen 'Layout' object")
         if not isinstance(other, (_Layout, _SubLayout, SubLayouts)):
             raise TypeError(
-                "Can only add 'Layout', '_SubLayout' or 'SubLayouts' object to"
-                " a 'Layout' object"
+                "Can only add '_Layout', '_SubLayout' or 'SubLayouts' object to"
+                " a '_Layout' object"
             )
 
         self.sublayouts += (
