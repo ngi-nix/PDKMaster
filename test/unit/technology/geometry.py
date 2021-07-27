@@ -23,7 +23,38 @@ class GeometryTest(unittest.TestCase):
             ("mirrory&90", _geo.Rotation.MY90),
         ):
             self.assertEqual(_geo.Rotation.from_name(name), rot)
-    
+
+        rot = _geo.Rotation.MX
+        with self.assertRaisesRegex(
+            TypeError, (
+                "unsupported operand type\(s\) for \*\: "
+                f"'{rot.__class__.__name__}' and 'int'"
+            )
+        ):
+            rot * 2
+
+        r0 = _geo.Rotation.R0
+
+        p = _geo.Point(x=1.0, y=-2.0)
+        rot = _geo.Rotation.MY
+        self.assertEqual(p*r0, p)
+        self.assertEqual(rot*p, p.rotated(rotation=rot))
+
+        m = _msk.DesignMask("mask", fill_space="no")
+        r = _geo.Rect.from_size(width=1.0, height=3.0)
+        ms = _geo.MaskShape(mask=m, shape=r)
+        mss = _geo.MaskShapes(ms)
+        rot = _geo.Rotation.R270
+
+        r_r = rot*r
+        r_ms = ms*rot
+        r_mss = rot*mss
+        self.assertEqual(r0*r, r)
+        self.assertEqual(r0*ms, ms)
+        self.assertEqual(mss*r0, mss)
+        self.assertEqual(r_r, r_ms.shape)
+        self.assertEqual(r_ms, r_mss[0])
+
     def test_abstract(self):
         with self.assertRaisesRegex(
             TypeError, "^Can't instantiate abstract class _Shape",
@@ -226,6 +257,8 @@ class GeometryTest(unittest.TestCase):
         p2 = p.rotated(rotation=_geo.Rotation.MY90)
         self.assertEqual(p, _geo.Point(x=-1.0, y=-2.0))
         self.assertEqual(p2, _geo.Point(x=-2.0, y=-1.0))
+        rot = _geo.Rotation.MY90
+        self.assertEqual(p*rot, rot*p)
 
         self.assertEqual(str(p), f"({str(p.x)},{str(p.y)})")
         self.assertEqual(repr(p), f"Point(x={p.x},y={p.y})")

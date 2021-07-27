@@ -38,6 +38,9 @@ def _eq(v1: float, v2: float):
     return (abs(v1 - v2) < epsilon)
 
 
+_shape_childclass = TypeVar("_shape_childclass", bound="_Shape")
+
+
 class Rotation(enum.Enum):
     """Enum type to represent supported `_Shape` rotations
     """
@@ -77,8 +80,29 @@ class Rotation(enum.Enum):
         assert rot in lookup
         return lookup[rot]
 
+    @overload
+    def __mul__(self, shape: _shape_childclass) -> _shape_childclass:
+        ... # pragma: no cover
+    @overload
+    def __mul__(self, shape: "MaskShape") -> "MaskShape":
+        ... # pragma: no cover
+    @overload
+    def __mul__(self, shape: "MaskShapes") -> "MaskShapes":
+        ... # pragma: no cover
+    def __mul__(self, shape) -> Union["_Shape", "MaskShape", "MaskShapes"]:
+        if isinstance(shape, (_Shape, MaskShape, MaskShapes)):
+            if self == Rotation.R0:
+                return shape
+            else:
+                return shape.rotated(rotation=self)
+        else:
+            raise TypeError(
+                "unsupported operand type(s) for *: "
+                f"'{self.__class__.__name__}' and '{shape.__class__.__name__}'"
+            )
+    __rmul__ = __mul__
 
-_shape_childclass = TypeVar("_shape_childclass", bound="_Shape")
+
 class _Shape(abc.ABC):
     """The base class for representing shapes
 
@@ -381,13 +405,16 @@ class Point(_PointsShape, _Rectangular):
                 f"'{self.__class__.__name__}' and '{point.__class__.__name__}'"
             )
 
-    def __mul__(self, m: float) -> "Point":
-        if not isinstance(m, (int, float)):
+    def __mul__(self, m: Union[float, Rotation]) -> "Point":
+        if isinstance(m, (int, float)):
+            return Point(x=m*self.x, y=m*self.y)
+        elif isinstance(m, Rotation):
+            return self.rotated(rotation=m)
+        else:
             raise TypeError(
                 f"unsupported operand type(s) for *: "
                 f"'{self.__class__.__name__}' and '{m.__class__.__name__}'"
             )
-        return Point(x=m*self.x, y=m*self.y)
     __rmul__ = __mul__
 
     def __str__(self) -> str:

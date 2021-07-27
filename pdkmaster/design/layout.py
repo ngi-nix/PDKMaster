@@ -498,8 +498,11 @@ class _SubLayout(abc.ABC):
     @abc.abstractmethod
     def move(self, dx, dy, rotation="no"):
         if isinstance(self.polygons, geo.MaskShape):
-            assert rotation == "no", "Rotation of geo.MaskShape not implemented"
-            self.polygons = self.polygons + geo.Point(x=dx, y=dy)
+            if rotation == "no":
+                polygons = self.polygons
+            else:
+                polygons = geo.Rotation.from_name(rotation)*self.polygons
+            self.polygons = polygons + geo.Point(x=dx, y=dy)
         else:
             assert isinstance(self.polygons, MaskPolygons)
             for pg in self.polygons:
