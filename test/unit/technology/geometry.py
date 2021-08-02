@@ -559,6 +559,42 @@ class GeometryTest(unittest.TestCase):
 
         self.assertIsInstance(repr(rp1), str) # __repr__ coverage
 
+    def test_arrayshape(self):
+        via = _geo.Rect.from_size(width=1.0, height=1.0)
+        orig = _geo.Point(x=-1.0, y=-1.0)
+        dx = 2.0
+        dxy_x = _geo.Point(x=dx, y=0.0)
+        dy = 3.0
+        dxy_y = _geo.Point(x=0.0, y=dy)
+
+        with self.assertRaises(ValueError):
+            _geo.ArrayShape(shape=via, offset0=orig, rows=-1, columns=4)
+        with self.assertRaises(ValueError):
+            _geo.ArrayShape(shape=via, offset0=orig, rows=1, columns=1)
+        with self.assertRaises(ValueError):
+            _geo.ArrayShape(shape=via, offset0=orig, rows=2, columns=1)
+        with self.assertRaises(ValueError):
+            _geo.ArrayShape(shape=via, offset0=orig, rows=1, columns=2)
+
+        self.assertEqual(
+            _geo.ArrayShape(shape=via, offset0=orig, rows=3, columns=1, pitch_x=dx, pitch_y=dy),
+            _geo.RepeatedShape(shape=via, offset0=orig, n=3, n_dxy=dxy_y),
+        )
+        self.assertEqual(
+            _geo.ArrayShape(shape=via, offset0=orig, rows=1, columns=2, pitch_x=dx, pitch_y=dy),
+            _geo.RepeatedShape(shape=via, offset0=orig, n=2, n_dxy=dxy_x),
+        )
+        self.assertEqual(
+            _geo.ArrayShape(shape=via, offset0=orig, rows=3, columns=2, pitch_x=dx, pitch_y=dy),
+            _geo.RepeatedShape(shape=via, offset0=orig, n=3, n_dxy=dxy_y, m=2, m_dxy=dxy_x),
+        )
+
+        ar = _geo.ArrayShape(shape=via, offset0=orig, rows=3, columns=4, pitch_x=dx, pitch_y=dy)
+        self.assertEqual(ar.rows, 3)
+        self.assertEqual(ar.columns, 4)
+        self.assertEqual(ar.pitch_x, dx)
+        self.assertEqual(ar.pitch_y, dy)
+
     def test_maskshape(self):
         p = _geo.Point(x=0.0, y=1.0)
         l = _geo.Line(point1=_geo.origin, point2=p)

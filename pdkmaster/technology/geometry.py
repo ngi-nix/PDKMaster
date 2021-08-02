@@ -12,7 +12,7 @@ import abc, enum
 from itertools import product
 from typing import (
     Iterable, Iterator, Generator, Collection, Tuple, List,
-    Optional, Union, TypeVar, overload,
+    Optional, Union, TypeVar, cast, overload
 )
 
 from .. import _util
@@ -23,7 +23,8 @@ from ..technology import mask as msk
 __all__ = [
     "epsilon",
     "Rotation", "FloatPoint",
-    "Point", "origin", "Line", "Polygon", "Rect", "MultiShape", "RepeatedShape",
+    "Point", "origin", "Line", "Polygon", "Rect", "MultiShape",
+    "RepeatedShape", "ArrayShape",
     "MaskShape", "MaskShapes",
 ]
 
@@ -1054,6 +1055,74 @@ class RepeatedShape(_Shape):
         return f"RepeatedShape({s_args})"
 
 
+class ArrayShape(RepeatedShape):
+    """Object representing a manhattan repeared shape.
+
+    This is a RepeatedShape subclass with repeat vectors either a horizontal and/or a
+    vertical one.
+
+    Arguments:
+        shape: The object to repeat
+        offset0: The placement of the first shape
+        rows, columns: The number of rows and columns
+            Both have to be equal or higher than 1 and either rows or columns has to
+            be higher than 1.
+        pitch_y, pitch_x: The displacement for resp. the rows and the columns.
+    """
+    def __init__(self, *,
+        shape: _Shape, offset0: Point,
+        rows: int, columns: int,
+        pitch_y: Optional[float]=None, pitch_x: Optional[float]=None,
+    ):
+        if (rows <= 0) or (columns <= 0):
+            raise ValueError(
+                f"rows ({rows}) and columns ({columns}) need to be integers greater than zero"
+            )
+        if (rows == 1) and (columns == 1):
+            raise ValueError(
+                "either rows or columns or both have to be greater than 1"
+            )
+        if (rows > 1) and (pitch_y is None):
+            raise ValueError(
+                "pitch_y not given for rows > 1"
+            )
+        if (columns > 1) and (pitch_x is None):
+            raise ValueError(
+                "pitch_x not given for columns > 1"
+            )
+        self._rows = rows
+        self._columns = columns
+        self._pitch_x = pitch_x
+        self._pitch_y = pitch_y
+
+        if rows == 1:
+            n = columns
+            n_dxy = Point(x=cast(float, pitch_x), y=0.0)
+            m = 1
+            m_dxy = None
+        else:
+            n = rows
+            n_dxy = Point(x=0.0, y=cast(float, pitch_y))
+            m = columns
+            m_dxy = None if pitch_x is None else Point(x=pitch_x, y=0.0)
+        super().__init__(
+            shape=shape, offset0=offset0, n=n, n_dxy=n_dxy, m=m, m_dxy=m_dxy,
+        )
+
+    @property
+    def rows(self) -> int:
+        return self._rows
+    @property
+    def columns(self) -> int:
+        return self._columns
+    @property
+    def pitch_x(self) -> Optional[float]:
+        return self._pitch_x
+    @property
+    def pitch_y(self) -> Optional[float]:
+        return self._pitch_y
+
+
 class MaskShape:
     def __init__(self, *, mask: msk.DesignMask, shape: _Shape):
         self._mask = mask
@@ -1133,10 +1202,11 @@ class MaskShapes(_util.TypedListMapping[MaskShape, msk.DesignMask]):
             except: # pragma: no cover
                 raise
             else:
-                ms2 = MaskShape(
-                    mask=mask, shape=MultiShape(shapes=(ms.shape, s.shape)),
-                )
-                self[mask] = ms2
+                if ms.shape != s.shape:
+                    ms2 = MaskShape(
+                        mask=mask, shape=MultiShape(shapes=(ms.shape, s.shape)),
+                    )
+                    self[mask] = ms2
 
         return self
 
