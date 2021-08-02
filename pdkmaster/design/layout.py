@@ -1131,7 +1131,7 @@ class _Layout:
             polygons = self.polygons
         else:
             polygons = self.net_polygons(net, depth=depth)
-        mps = self.polygons if mask is None else filter(
+        mps = polygons if mask is None else filter(
             lambda mp: mp.mask == mask, polygons,
         )
         boundslist = tuple(mp.bounds for mp in mps)
