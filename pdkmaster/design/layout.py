@@ -1994,8 +1994,7 @@ class _CircuitLayouter:
 
     def add_shape(self, *,
         wire: prm._DesignMaskPrimitive, net: Optional[net_.Net], shape: geo._Shape,
-        xy: geo.Point=geo.origin, **wire_params,
-    ) -> _Layout:
+    ):
         """Add a geometry shape to a _Layout
 
         Currently only Rect is supported until geometry _Shape objects are fully
@@ -2006,9 +2005,7 @@ class _CircuitLayouter:
                 f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
             )
 
-        return self.layout.add_shape(
-            wire=wire, net=net, shape=shape, xy=xy, **wire_params,
-        )
+        self.layout.add_shape(wire=wire, net=net, shape=shape)
 
     def add_wireless(self, *, prim, x, y, rotation="no", **prim_params):
         if not isinstance(prim, prm._Primitive):
