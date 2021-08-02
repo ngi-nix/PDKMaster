@@ -515,6 +515,11 @@ class _SubLayout(abc.ABC):
     def moved(self, dx, dy, rotation="no"):
         raise AssertionError("Internal error")
 
+    @property
+    @abc.abstractmethod
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        pass
+
 
 class NetSubLayout(_SubLayout):
     def __init__(self, net: net_.Net, polygons: Union[
@@ -580,6 +585,12 @@ class NetSubLayout(_SubLayout):
         else:
             return False
 
+    @property
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        yield f"NetSubLayout net={self.net}"
+        for mp in self.polygons:
+            yield "  " + str(mp)
+
 
 class NetlessSubLayout(_SubLayout):
     def __init__(self, polygons):
@@ -624,6 +635,12 @@ class NetlessSubLayout(_SubLayout):
                 return True
         else:
             return False
+
+    @property
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        yield f"NetlessSubLayout"
+        for mp in self.polygons:
+            yield "  " + str(mp)
 
 
 class MultiNetSubLayout(_SubLayout):
@@ -782,6 +799,13 @@ class MultiNetSubLayout(_SubLayout):
         else:
             return False
 
+    @property
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        yield f"MultiNetSubLayout"
+        for sl in self.sublayouts:
+            for s in sl._hier_strs_:
+                yield "  " + s
+
 
 class MaskShapesSubLayout(_SubLayout):
     """Object representing the sublayout of a net consisting of geometry._Shape
@@ -826,6 +850,12 @@ class MaskShapesSubLayout(_SubLayout):
         return MaskShapesSubLayout(
             net=self.net, shapes=geo.MaskShapes(self.shapes),
         )
+
+    @property
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        yield f"MaskShapesSubLayout net={self.net}"
+        for ms in self.shapes:
+            yield "  " + str(ms)
 
     def __hash__(self):
         return hash((self.net, self.shapes))
@@ -1020,6 +1050,12 @@ class _InstanceSubLayout(_SubLayout):
             layoutname=(self.layoutname if hasattr(self, "layoutname") else None),
             rotation=rot2
         )
+
+    @property
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        yield f"_InstanceSubLayout inst={self.inst}, x={self.x}, y={self.y}, rot={self.rotation}"
+        for s in self.layout._hier_strs_:
+            yield "  " + s
 
 
 class SubLayouts(_util.TypedList[_SubLayout]):
@@ -1339,6 +1375,15 @@ class _Layout:
 
     def freeze(self):
         self.sublayouts._freeze_()
+
+    @property
+    def _hier_str_(self) -> str:
+        return "\n  ".join(("layout:", *(s for s in self._hier_strs_)))
+
+    @property
+    def _hier_strs_(self) -> Generator[str, None, None]:
+        for sl in self.sublayouts:
+            yield from sl._hier_strs_
 
 
 class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
