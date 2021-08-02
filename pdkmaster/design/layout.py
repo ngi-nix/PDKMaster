@@ -1272,13 +1272,9 @@ class _Layout:
             portnets={"conn": net}, prim=wire, x=x, y=y, **wire_params,
         )
 
-    def add_shape(self, *,
-        wire: prm._DesignMaskPrimitive, net: Optional[net_.Net]=None, shape: geo._Shape,
-        xy: geo.Point=geo.origin, **wire_params,
-    ) -> "_Layout":
-        """Add a geometry shape to a _Layout
+    def add_maskshape(self, *, net: Optional[net_.Net]=None, maskshape: geo.MaskShape):
+        """Add a geometry MaskShape to a _Layout
         """
-        maskshape = geo.MaskShape(mask=cast(msk.DesignMask, wire.mask), shape=shape)
         for sl in self.sublayouts.__iter_type__(MaskShapesSubLayout):
             if sl.net == net:
                 sl.add_shape(shape=maskshape)
@@ -1287,15 +1283,15 @@ class _Layout:
             self.sublayouts += MaskShapesSubLayout(
                 net=net, shapes=geo.MaskShapes(maskshape),
             )
-        if not isinstance(shape, geo.Rect):
-            raise NotImplementedError(
-                "Adding a shape to a '_Layout' that is not a Rect",
-            )
-        c = shape.center
-        return self.add_primitive(
-            prim=wire, portnets={"conn": net},
-            x=(c.x + xy.x), y=(c.y + xy.y), width=shape.width, height=shape.height,
-            **wire_params,
+
+    def add_shape(self, *,
+        wire: prm._DesignMaskPrimitive, net: Optional[net_.Net]=None, shape: geo._Shape,
+    ):
+        """Add a geometry _Shape to a _Layout
+        """
+        self.add_maskshape(
+            net=net,
+            maskshape=geo.MaskShape(mask=cast(msk.DesignMask, wire.mask), shape=shape),
         )
 
     def move(self, dx, dy, rotation="no"):
