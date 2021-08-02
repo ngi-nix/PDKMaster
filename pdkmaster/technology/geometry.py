@@ -189,6 +189,13 @@ class _Rectangular(_Shape):
     def top(self) -> float:
         raise NotImplementedError
 
+    # Computed properties
+    @property
+    def width(self) -> float:
+        return self.right - self.left
+    @property
+    def height(self) -> float:
+        return self.top - self.bottom
     @property
     def center(self) -> "Point":
         return Point(
@@ -639,14 +646,6 @@ class Rect(Polygon, _Rectangular):
     @property
     def bounds(self) -> "Rect":
         return self
-
-    # Computed properties
-    @property
-    def width(self) -> float:
-        return self.right - self.left
-    @property
-    def height(self) -> float:
-        return self.top - self.bottom
 
     # overloaded _Shape base class abstract methods
     def moved(self, *, dxy: Point) -> "Rect":
