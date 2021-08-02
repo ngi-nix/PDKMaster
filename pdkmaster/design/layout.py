@@ -1044,7 +1044,7 @@ class SubLayouts(_util.TypedList[_SubLayout]):
         # First try to add the sublayout to the multinet polygons
         multinets = tuple(self.__iter_type__(MultiNetSubLayout))
         def add2multinet(other_sublayout):
-            if isinstance(other_sublayout, _InstanceSubLayout):
+            if isinstance(other_sublayout, (MaskShapesSubLayout, _InstanceSubLayout)):
                 return False
             for multinet in multinets:
                 if multinet.overlaps_with(other_sublayout, hierarchical=False):
@@ -1247,7 +1247,7 @@ class _Layout:
         return self
 
     def add_primitive(self, *,
-        prim: prm._Primitive, x: float, y: float, rotation: str="no",
+        prim: prm._Primitive, x: float=0.0, y: float=0.0, rotation: str="no",
         **prim_params,
     ) -> "_Layout":
         if not (prim in self.fab.tech.primitives):
@@ -1266,11 +1266,34 @@ class _Layout:
         return primlayout
 
     def add_wire(self, *,
-        net: net_.Net, wire: prm._Conductor, x: float, y: float, **wire_params,
+        net: net_.Net, wire: prm._Conductor, shape: Optional[geo._Shape]=None,
+        **wire_params,
     ) -> "_Layout":
-        return self.add_primitive(
-            portnets={"conn": net}, prim=wire, x=x, y=y, **wire_params,
-        )
+        if (shape is None) or isinstance(shape, geo.Rect):
+            if shape is not None:
+                # TODO: Add support in _PrimitiveLayouter for shape argument,
+                # e.g. non-rectangular shapes
+                c = shape.center
+                wire_params.update({
+                    "x": c.x, "y": c.y,
+                    "width": shape.width, "height": shape.height,
+                })
+            return self.add_primitive(
+                portnets={"conn": net}, prim=wire, **wire_params,
+            )
+        else:
+            pin = wire_params.pop("pin", None)
+            if len(wire_params) != 0:
+                raise TypeError(
+                    f"params {wire_params.keys()} not supported for shape not of type 'Rect'",
+                )
+            l = self.fab.new_layout()
+            self.add_shape(net=net, wire=wire, shape=shape)
+            l.add_shape(net=net, wire=wire, shape=shape)
+            if pin is not None:
+                self.add_shape(net=net, wire=pin, shape=shape)
+                l.add_shape(net=net, wire=pin, shape=shape)
+            return l
 
     def add_maskshape(self, *, net: Optional[net_.Net]=None, maskshape: geo.MaskShape):
         """Add a geometry MaskShape to a _Layout
@@ -1960,13 +1983,13 @@ class _CircuitLayouter:
         else:
             raise AssertionError("Internal error")
 
-    def add_wire(self, *, net, wire, x, y, **wire_params) -> _Layout:
+    def add_wire(self, *, net, wire, **wire_params) -> _Layout:
         if net not in self.circuit.nets:
             raise ValueError(
                 f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
             )
         return self.layout.add_wire(
-            net=net, wire=wire, x=x, y=y, **wire_params,
+            net=net, wire=wire, **wire_params,
         )
 
     def add_shape(self, *,
