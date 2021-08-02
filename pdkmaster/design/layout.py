@@ -14,7 +14,7 @@ import abc, logging
 from itertools import product
 from pdkmaster.typing import IntFloat, SingleOrMulti
 from typing import (
-    Any, Iterable, Generator, Mapping, Tuple, Optional, Union, Type, cast,
+    Any, Iterable, Generator, Sequence, Mapping, Tuple, Optional, Union, Type, cast,
 )
 from matplotlib import pyplot as plt
 import descartes
@@ -44,7 +44,10 @@ class NetOverlapError(Exception):
     pass
 
 
-def _rect(left, bottom, right, top, *, enclosure=None):
+def _rect(
+    left: float, bottom: float, right: float, top: float, *,
+    enclosure: Optional[Union[float, Sequence[float], prp.Enclosure]]=None,
+) -> geo.Rect:
     if enclosure is not None:
         if isinstance(enclosure, prp.Enclosure):
             enclosure = enclosure.spec
@@ -59,27 +62,23 @@ def _rect(left, bottom, right, top, *, enclosure=None):
             right += enclosure[0]
             top += enclosure[1]
 
-    return sh_geo.Polygon((
-        (left, bottom), (right, bottom), (right, top), (left, top),
-    ))
+    return geo.Rect(
+        left=left, bottom=bottom, right=right, top=top,
+    )
 
 
-def _via_array(left, bottom, width, pitch, rows, columns):
-    def subrect(rc):
-        row = rc[0]
-        column = rc[1]
-        left2 = left + column*pitch
-        bottom2 = bottom + row*pitch
-        right2 = left2 + width
-        top2 = bottom2 + width
+def _via_array(
+    left: float, bottom: float, width: float, pitch: float, rows: int, columns: int,
+):
+    via = geo.Rect.from_size(width=width, height=width)
+    xy0 = geo.Point(x=(left + 0.5*width), y=(bottom + 0.5*width))
 
-        return sh_geo.Polygon((
-            (left2, bottom2), (right2, bottom2), (right2, top2), (left2, top2),
-        ))
-
-    return sh_geo.MultiPolygon(tuple(
-        map(subrect, product(range(rows), range(columns)))
-    ))
+    if (rows == 1) and (columns == 1):
+        return via + xy0
+    else:
+        return geo.ArrayShape(
+            shape=via, offset0=xy0, rows=rows, columns=columns, pitch_x=pitch, pitch_y=pitch,
+        )
 
 
 def _manhattan_polygon(polygon, *, outer=True):
@@ -166,9 +165,13 @@ class MaskPolygon:
         self.mask = mask
 
         if isinstance(polygon, geo.Rect):
-            polygon = _rect(
-                polygon.left, polygon.bottom, polygon.right, polygon.top
-            )
+            polygon = sh_geo.Polygon((
+                (polygon.left, polygon.bottom),
+                (polygon.right, polygon.bottom),
+                (polygon.right, polygon.top),
+                (polygon.left, polygon.top),
+                (polygon.left, polygon.bottom),
+            ))
         if not isinstance(polygon, self._geometry_types):
             raise TypeError(
                 f"polygon has to be of type {self._geometry_types_str}"
@@ -820,7 +823,9 @@ class MaskShapesSubLayout(_SubLayout):
         )
 
     def dup(self) -> "MaskShapesSubLayout":
-        return MaskShapesSubLayout(net=self.net, shapes=self.shapes)
+        return MaskShapesSubLayout(
+            net=self.net, shapes=geo.MaskShapes(self.shapes),
+        )
 
     def __hash__(self):
         return hash((self.net, self.shapes))
@@ -1353,9 +1358,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         height = widthspace_params["height"]
         r = geo.Rect.from_size(width=width, height=height)
 
-        return self.fab.new_layout(
-            sublayouts=NetlessSubLayout(MaskPolygon(prim.mask, r)),
-        )
+        l = self.fab.new_layout()
+        assert isinstance(prim, prm._DesignMaskPrimitive)
+        l.add_shape(wire=prim, shape=r)
+        return l
 
     def _WidthSpaceConductor(self,
         prim: prm._WidthSpaceConductor, **conductor_params,
@@ -1374,12 +1380,11 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         else:
             net = portnets["conn"]
 
-        layout = self.fab.new_layout(
-            sublayouts=NetSubLayout(net, MaskPolygon(prim.mask, r)),
-        )
+        layout = self.fab.new_layout()
+        layout.add_shape(wire=prim, net=net, shape=r)
         pin = conductor_params.get("pin", None)
         if pin is not None:
-            layout += NetSubLayout(net, MaskPolygon(pin.mask, r))
+            layout.add_shape(wire=pin, net=net, shape=r)
 
         return layout
 
@@ -1398,11 +1403,9 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         oxide_enclosure = waferwire_params.pop("oxide_enclosure", None)
 
         layout = self._WidthSpaceConductor(prim, **waferwire_params)
-        layout += NetlessSubLayout(MaskPolygon(
-                implant.mask, _rect(
-                    -0.5*width, -0.5*height, 0.5*width, 0.5*height,
-                    enclosure=implant_enclosure,
-                ),
+        layout.add_shape(wire=implant, shape=_rect(
+            -0.5*width, -0.5*height, 0.5*width, 0.5*height,
+            enclosure=implant_enclosure,
         ))
         if well is not None:
             try:
@@ -1411,20 +1414,14 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 raise TypeError(
                     f"No well_net given for WaferWire '{prim.name}' in well '{well.name}'"
                 )
-            layout += NetSubLayout(
-                well_net, MaskPolygon(
-                    well.mask, _rect(
-                        -0.5*width, -0.5*height, 0.5*width, 0.5*height,
-                        enclosure=well_enclosure,
-                    ),
-                ),
-            )
+            layout.add_shape(wire=well, net=well_net, shape=_rect(
+                -0.5*width, -0.5*height, 0.5*width, 0.5*height,
+                enclosure=well_enclosure,
+            ))
         if oxide is not None:
-            layout += NetlessSubLayout(MaskPolygon(
-                oxide.mask, _rect(
-                    -0.5*width, -0.5*height, 0.5*width, 0.5*height,
-                    enclosure=oxide_enclosure,
-                ),
+            layout.add_shape(wire=oxide, shape=_rect(
+                -0.5*width, -0.5*height, 0.5*width, 0.5*height,
+                enclosure=oxide_enclosure,
             ))
         return layout
 
@@ -1507,32 +1504,20 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         bottom_right = 0.5*bottom_width
         bottom_top = 0.5*bottom_height
 
-        top_left = -0.5*top_width
-        top_bottom = -0.5*top_height
-        top_right = 0.5*top_width
-        top_top = 0.5*top_height
-
         via_bottom = -0.5*via_height
         via_left = -0.5*via_width
 
-        layout = self.fab.new_layout(
-            sublayouts=NetSubLayout(
-                net, MaskPolygons((
-                    MaskPolygon(
-                        bottom.mask,
-                        _rect(bottom_left, bottom_bottom, bottom_right, bottom_top),
-                    ),
-                    MaskPolygon(
-                        prim.mask,
-                        _via_array(via_left, via_bottom, width, pitch, rows, columns),
-                    ),
-                    MaskPolygon(
-                        top.mask,
-                        _rect(top_left, top_bottom, top_right, top_top),
-                    ),
-                )),
-            ),
-        )
+        layout = cast(_Layout, self.fab.new_layout())
+
+        layout.add_shape(wire=bottom, net=net, shape=geo.Rect.from_size(
+            width=bottom_width, height=bottom_height,
+        ))
+        layout.add_shape(wire=prim, net=net, shape=_via_array(
+            via_left, via_bottom, width, pitch, rows, columns,
+        ))
+        layout.add_shape(wire=top, net=net, shape=geo.Rect.from_size(
+            width=top_width, height=top_height,
+        ))
         try:
             impl = via_params["bottom_implant"]
         except KeyError:
@@ -1541,14 +1526,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             if impl is not None:
                 enc = via_params["bottom_implant_enclosure"]
                 assert enc is not None, "Internal error"
-                layout += NetlessSubLayout(
-                    MaskPolygon(
-                        impl.mask, _rect(
-                            bottom_left, bottom_bottom, bottom_right, bottom_top,
-                            enclosure=enc,
-                        ),
-                    ),
-                )
+                layout.add_shape(wire=impl, shape=_rect(
+                    bottom_left, bottom_bottom, bottom_right, bottom_top,
+                    enclosure=enc,
+                ))
         try:
             well = via_params["bottom_well"]
         except KeyError:
@@ -1573,14 +1554,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                         f"No well_net specified for WaferWire '{bottom.name}' in"
                         f" well '{well.name}'"
                     )
-                layout += NetSubLayout(
-                    well_net, MaskPolygon(
-                        well.mask, _rect(
-                            bottom_left, bottom_bottom, bottom_right, bottom_top,
-                            enclosure=enc,
-                        ),
-                    )
-                )
+                layout.add_shape(wire=well, net=well_net, shape=_rect(
+                    bottom_left, bottom_bottom, bottom_right, bottom_top,
+                    enclosure=enc,
+                ))
 
         return layout
 
@@ -1634,26 +1611,28 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             layout += self(ind, width=(res_width + 2*ext), height=res_height)
 
         # Draw wire layer
-        layout += MultiNetSubLayout((
-            NetSubLayout(port1, MaskPolygon(
-                wire.mask, geo.Rect.from_floats(values=(
+        mp = geo.MultiPartShape(
+            fullshape=geo.Rect.from_size(
+                width=res_width, height=(res_height + 2*wire_ext),
+            ),
+            parts = (
+                geo.Rect.from_floats(values=(
                     -0.5*res_width, -0.5*res_height - wire_ext,
                     0.5*res_width, -0.5*res_height,
                 )),
-            )),
-            NetlessSubLayout(MaskPolygon(
-                wire.mask, geo.Rect.from_floats(values=(
+                geo.Rect.from_floats(values=(
                     -0.5*res_width, -0.5*res_height,
                     0.5*res_width, 0.5*res_height,
                 )),
-            )),
-            NetSubLayout(port2, MaskPolygon(
-                wire.mask, geo.Rect.from_floats(values=(
+                geo.Rect.from_floats(values=(
                     -0.5*res_width, 0.5*res_height,
                     0.5*res_width, 0.5*res_height + wire_ext,
                 )),
-            )),
-        ))
+            )
+        )
+        layout.add_shape(wire=wire, net=port1, shape=mp.parts[0])
+        layout.add_shape(wire=wire, shape=mp.parts[1])
+        layout.add_shape(wire=wire, net=port2, shape=mp.parts[2])
 
         # Draw contacts
         layout.add_wire(net=port1, wire=cont, y=cont_y1, **cont_args)
@@ -1669,9 +1648,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 enc = wire.min_implant_enclosure[idx].max()
             impl_width = res_width + 2*enc
             impl_height = res_height + 2*wire_ext + 2*enc
-            layout.add_primitive(
-                prim=impl, x=0.0, y=0.0, width=impl_width, height=impl_height,
-            )
+            layout.add_shape(wire=impl, shape=geo.Rect.from_size(width=impl_width, height=impl_height))
 
         return layout
 
@@ -1704,7 +1681,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             })
 
         layout = self.fab.new_layout()
-        layout.add_wire(wire=prim.wire, x=0.0, y=0.0, **wirenet_args, **diode_params)
+        layout.add_wire(wire=prim.wire, **wirenet_args, **diode_params)
         wireact_bounds = layout.bounds(mask=prim.wire.mask)
         act_width = wireact_bounds.right - wireact_bounds.left
         act_height = wireact_bounds.top - wireact_bounds.bottom
@@ -1735,39 +1712,38 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         layout = self.fab.new_layout()
 
         active = prim.gate.active
-        active_left = gate_left - sdw
+        active_width = l + 2*sdw
+        active_left = -0.5*active_width
+        active_right = 0.5*active_width
         active_bottom = gate_bottom
-        active_right = gate_right + sdw
         active_top = gate_top
-        layout += MultiNetSubLayout((
-            NetSubLayout(
-                portnets["sourcedrain1"],
-                MaskPolygon(
-                    active.mask,
-                    _rect(active_left, active_bottom, gate_left, active_top),
+
+        mps = geo.MultiPartShape(
+            fullshape=geo.Rect.from_size(width=active_width, height=w),
+            parts=(
+                geo.Rect(
+                    left=active_left, bottom=active_bottom,
+                    right=gate_left, top=active_top,
                 ),
-            ),
-            NetlessSubLayout(
-                MaskPolygon(
-                    active.mask,
-                    _rect(gate_left, active_bottom, gate_right, active_top),
+                geo.Rect(
+                    left=gate_left, bottom =active_bottom,
+                    right=gate_right, top=active_top,
                 ),
-            ),
-            NetSubLayout(
-                portnets["sourcedrain2"],
-                MaskPolygon(
-                    active.mask,
-                    _rect(gate_right, active_bottom, active_right, active_top),
+                geo.Rect(
+                    left=gate_right, bottom =active_bottom,
+                    right=active_right, top=active_top,
                 ),
-            ),
-        ))
+            )
+        )
+        layout.add_shape(wire=active, net=portnets["sourcedrain1"], shape=mps.parts[0])
+        layout.add_shape(wire=active, shape=mps.parts[1])
+        layout.add_shape(wire=active, net=portnets["sourcedrain2"], shape=mps.parts[2])
+
         for impl in prim.implant:
             if impl in active.implant:
-                layout += NetlessSubLayout(MaskPolygon(
-                    impl.mask, _rect(
-                        active_left, active_bottom, active_right, active_top,
-                        enclosure=impl_enc
-                    ),
+                layout.add_shape(wire=impl, shape=_rect(
+                    active_left, active_bottom, active_right, active_top,
+                    enclosure=impl_enc
                 ))
 
         poly = prim.gate.poly
@@ -1776,23 +1752,15 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         poly_bottom = gate_bottom - ext
         poly_right = gate_right
         poly_top = gate_top + ext
-        layout += NetSubLayout(
-            portnets["gate"],
-            MaskPolygon(
-                poly.mask,
-                _rect(poly_left, poly_bottom, poly_right, poly_top),
-            ),
-        )
+        layout.add_shape(wire=poly, net=portnets["gate"], shape=geo.Rect(
+            left=poly_left, bottom=poly_bottom, right=poly_right, top=poly_top,
+        ))
 
         if prim.well is not None:
             enc = active.min_well_enclosure[active.well.index(prim.well)]
-            layout += NetSubLayout(
-                portnets["bulk"],
-                MaskPolygon(
-                    prim.well.mask,
-                    _rect(active_left, active_bottom, active_right, active_top, enclosure=enc)
-                ),
-            )
+            layout.add_shape(wire=prim.well, net=portnets["bulk"], shape=_rect(
+                active_left, active_bottom, active_right, active_top, enclosure=enc,
+            ))
 
         if prim.gate.oxide is not None:
             # TODO: Check is there is an enclosure rule from oxide around active
@@ -1800,9 +1768,8 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             enc = getattr(
                 prim.gate, "min_gateoxide_enclosure", prp.Enclosure(self.tech.grid),
             )
-            layout += NetlessSubLayout(MaskPolygon(
-                prim.gate.oxide.mask,
-                _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
+            layout.add_shape(wire=prim.gate.oxide, shape=_rect(
+                gate_left, gate_bottom, gate_right, gate_top, enclosure=enc,
             ))
 
         if prim.gate.inside is not None:
@@ -1814,19 +1781,15 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                     if prim.gate.min_gateinside_enclosure is not None
                     else prp.Enclosure(self.tech.grid)
                 )
-                layout += NetlessSubLayout(MaskPolygon(
-                    inside.mask,
-                    _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
+                layout.add_shape(wire=inside, shape=_rect(
+                    gate_left, gate_bottom, gate_right, gate_top, enclosure=enc,
                 ))
 
-        polygons = MaskPolygons()
         for i, impl in enumerate(prim.implant):
             enc = gate_encs[i]
-            polygons += MaskPolygon(
-                impl.mask,
-                _rect(gate_left, gate_bottom, gate_right, gate_top, enclosure=enc)
-            )
-        layout += NetlessSubLayout(polygons)
+            layout.add_shape(wire=impl, shape=_rect(
+                gate_left, gate_bottom, gate_right, gate_top, enclosure=enc,
+            ))
 
         return layout
 
