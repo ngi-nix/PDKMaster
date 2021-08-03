@@ -291,6 +291,21 @@ class TypedList(
         self.clear()
         self.extend(newlist)
 
+    def __hash__(self) -> int:
+        if not self._frozen_:
+            raise TypeError(
+                f"'{self.__class__.__name__}' objects need to be frozen to be hashable",
+            )
+        else:
+            return hash(tuple(self))
+
+    def __eq__(self, o: object) -> bool:
+        return (
+            isinstance(o, TypedList)
+            and (len(self) == len(o))
+            and all(self[i] == o[i] for i in range(len(self)))
+        )
+
 
 class TypedListMapping(
     MutableSequence[_elem_typevar_], MutableMapping[_index_typevar_, _elem_typevar_],
