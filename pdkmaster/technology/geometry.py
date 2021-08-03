@@ -1080,6 +1080,26 @@ class MaskShapes(_util.TypedListMapping[MaskShape, msk.DesignMask]):
 
         return self
 
+    def move(self, *, dxy: Point) -> None:
+        if self._frozen_:
+            raise TypeError(f"moving frozen '{self.__class__.__name__}' object not allowed")
+        for i in range(len(self)):
+            self[i] = self[i].moved(dxy=dxy)
+
+    def moved(self, *, dxy: Point) -> "MaskShapes":
+        """Moved MaskShapes object will not be frozen"""
+        return MaskShapes(ms.moved(dxy=dxy) for ms in self)
+
+    def rotate(self, *, rotation: Rotation) -> None:
+        if self._frozen_:
+            raise TypeError(f"rotating frozen '{self.__class__.__name__}' object not allowed")
+        for i in range(len(self)):
+            self[i] = self[i].rotated(rotation=rotation)
+
+    def rotated(self, *, rotation: Rotation) -> "MaskShapes":
+        """Rotated MaskShapes object will not be frozen"""
+        return MaskShapes(ms.rotated(rotation=rotation) for ms in self)
+
 
 # TODO: Complete MaskPath, allow 45 deg sections etc.
 # class MaskPath(MaskPolygon):
