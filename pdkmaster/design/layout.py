@@ -2052,19 +2052,22 @@ class _CircuitLayouter:
             net=net, wire=wire, **wire_params,
         )
 
-    def add_wireless(self, *, prim, x, y, rotation="no", **prim_params):
-        if not isinstance(prim, prm._Primitive):
-            raise TypeError(
-                f"prim has to of type '_Primitive', not '{type(prim)}'"
-            )
+    def add_portless(self, *,
+        prim: prm._DesignMaskPrimitive, shape: Optional[geo._Shape]=None, **prim_params,
+    ):
         if len(prim.ports) > 0:
             raise ValueError(
                 f"prim '{prim.name}' should not have any port"
             )
 
-        return self.layout.add_primitive(
-            prim=prim, x=x, y=y, rotation=rotation, **prim_params,
-        )
+        if shape is None:
+            return self.layout.add_primitive(prim=prim, **prim_params)
+        else:
+            if len(prim_params) != 0:
+                raise ValueError(
+                    f"Parameters '{tuple(prim_params.keys())}' not supported for shape not 'None'",
+                )
+            self.add_shape(wire=prim, net=None, shape=shape)
 
     def connect(self, *, masks=None):
         for polygon in self.layout.polygons:
