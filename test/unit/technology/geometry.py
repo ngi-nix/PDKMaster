@@ -393,6 +393,14 @@ class GeometryTest(unittest.TestCase):
             _geo.Rect(left=-2.0, bottom=-3.0, right=2.0, top=1.0),
         )
         self.assertEqual(ms5.bounds, _geo.Line(point1=p, point2=p2))
+        self.assertEqual(
+            str(ms1),
+            "(Rect(left=-2.0,bottom=-3.0,right=2.0,top=-2.0),(1.0,-1.0),(0.0,0.0)-(1.0,1.0))",
+        )
+        self.assertEqual(
+            repr(ms1),
+            "MultiShape(shapes=(Rect(left=-2.0,bottom=-3.0,right=2.0,top=-2.0),Point(x=1.0,y=-1.0),Line(point1=Point(x=0.0,y=0.0),point2=Point(x=1.0,y=1.0))))",
+        )
 
     def test_repeatedshape(self):
         s = _geo.Rect.from_size(width=2.0, height=2.0)

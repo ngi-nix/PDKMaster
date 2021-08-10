@@ -730,6 +730,16 @@ class MultiShape(_Shape, Collection[_Shape]):
     def __hash__(self) -> int:
         return hash(self.shapes)
 
+    def __str__(self) -> str:
+        return "(" + ",".join(str(shape) for shape in self.shapes) + ")"
+
+    def __repr__(self) -> str:
+        return (
+            "MultiShape(shapes=("
+            + ",".join(repr(shape) for shape in self.shapes)
+            + "))"
+        )
+
 
 class RepeatedShape(_Shape):
     """A repetition of a shape allowing easy generation of array of objects.
