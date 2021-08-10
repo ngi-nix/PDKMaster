@@ -1800,7 +1800,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             )
         )
         layout.add_shape(prim=active, net=portnets["sourcedrain1"], shape=mps.parts[0])
-        layout.add_shape(prim=active, shape=mps.parts[1])
+        layout.add_shape(prim=active, net=portnets["bulk"], shape=mps.parts[1])
         layout.add_shape(prim=active, net=portnets["sourcedrain2"], shape=mps.parts[2])
 
         for impl in prim.implant:
