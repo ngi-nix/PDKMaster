@@ -902,6 +902,7 @@ class _LibraryGenerator:
 
     def _s_shape(self, shape: geo.MaskShape) -> str:
         mask = shape.mask
+        s = ""
 
         for ps in shape.shape.pointsshapes:
             coords = tuple(ps.points)
@@ -920,7 +921,7 @@ class _LibraryGenerator:
                 top = round(max(ys), 6)
                 x = round(0.5*(left + right), 6)
                 width = round(right - left, 6)
-                s = dedent(f"""
+                s += dedent(f"""
                     Vertical.create(
                         net, tech.getLayer('{mask.name}'),
                         u({x}), u({width}), u({bottom}), u({top}),
@@ -933,16 +934,14 @@ class _LibraryGenerator:
                     NetExternalComponents.setExternal(pin)
                 """[1:])
             else:
-                s = dedent(f"""
+                s += dedent(f"""
                     createRL(
                         tech, net, '{mask.name}',
                         ({",".join(self._s_point((point.x, point.y)) for point in coords)}),
                     )
                 """[1:])
 
-            return s
-        else:
-            raise RuntimeError("Internal error")
+        return s
 
     def _s_point(self, point):
         assert (
