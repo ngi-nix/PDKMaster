@@ -1324,11 +1324,11 @@ class _Layout:
                     f"params {wire_params.keys()} not supported for shape not of type 'Rect'",
                 )
             l = self.fab.new_layout()
-            self.add_shape(net=net, wire=wire, shape=shape)
-            l.add_shape(net=net, wire=wire, shape=shape)
+            self.add_shape(net=net, prim=wire, shape=shape)
+            l.add_shape(net=net, prim=wire, shape=shape)
             if pin is not None:
-                self.add_shape(net=net, wire=pin, shape=shape)
-                l.add_shape(net=net, wire=pin, shape=shape)
+                self.add_shape(net=net, prim=pin, shape=shape)
+                l.add_shape(net=net, prim=pin, shape=shape)
             return l
 
     def add_maskshape(self, *, net: Optional[net_.Net]=None, maskshape: geo.MaskShape):
@@ -1344,13 +1344,13 @@ class _Layout:
             )
 
     def add_shape(self, *,
-        wire: prm._DesignMaskPrimitive, net: Optional[net_.Net]=None, shape: geo._Shape,
+        prim: prm._DesignMaskPrimitive, net: Optional[net_.Net]=None, shape: geo._Shape,
     ):
         """Add a geometry _Shape to a _Layout
         """
         self.add_maskshape(
             net=net,
-            maskshape=geo.MaskShape(mask=cast(msk.DesignMask, wire.mask), shape=shape),
+            maskshape=geo.MaskShape(mask=cast(msk.DesignMask, prim.mask), shape=shape),
         )
 
     def move(self, dx, dy, rotation="no"):
@@ -1424,7 +1424,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         l = self.fab.new_layout()
         assert isinstance(prim, prm._DesignMaskPrimitive)
-        l.add_shape(wire=prim, shape=r)
+        l.add_shape(prim=prim, shape=r)
         return l
 
     def _WidthSpaceConductor(self,
@@ -1445,10 +1445,10 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             net = portnets["conn"]
 
         layout = self.fab.new_layout()
-        layout.add_shape(wire=prim, net=net, shape=r)
+        layout.add_shape(prim=prim, net=net, shape=r)
         pin = conductor_params.get("pin", None)
         if pin is not None:
-            layout.add_shape(wire=pin, net=net, shape=r)
+            layout.add_shape(prim=pin, net=net, shape=r)
 
         return layout
 
@@ -1467,7 +1467,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         oxide_enclosure = waferwire_params.pop("oxide_enclosure", None)
 
         layout = self._WidthSpaceConductor(prim, **waferwire_params)
-        layout.add_shape(wire=implant, shape=_rect(
+        layout.add_shape(prim=implant, shape=_rect(
             -0.5*width, -0.5*height, 0.5*width, 0.5*height,
             enclosure=implant_enclosure,
         ))
@@ -1478,12 +1478,12 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 raise TypeError(
                     f"No well_net given for WaferWire '{prim.name}' in well '{well.name}'"
                 )
-            layout.add_shape(wire=well, net=well_net, shape=_rect(
+            layout.add_shape(prim=well, net=well_net, shape=_rect(
                 -0.5*width, -0.5*height, 0.5*width, 0.5*height,
                 enclosure=well_enclosure,
             ))
         if oxide is not None:
-            layout.add_shape(wire=oxide, shape=_rect(
+            layout.add_shape(prim=oxide, shape=_rect(
                 -0.5*width, -0.5*height, 0.5*width, 0.5*height,
                 enclosure=oxide_enclosure,
             ))
@@ -1573,13 +1573,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
 
         layout = cast(_Layout, self.fab.new_layout())
 
-        layout.add_shape(wire=bottom, net=net, shape=geo.Rect.from_size(
+        layout.add_shape(prim=bottom, net=net, shape=geo.Rect.from_size(
             width=bottom_width, height=bottom_height,
         ))
-        layout.add_shape(wire=prim, net=net, shape=_via_array(
+        layout.add_shape(prim=prim, net=net, shape=_via_array(
             via_left, via_bottom, width, pitch, rows, columns,
         ))
-        layout.add_shape(wire=top, net=net, shape=geo.Rect.from_size(
+        layout.add_shape(prim=top, net=net, shape=geo.Rect.from_size(
             width=top_width, height=top_height,
         ))
         try:
@@ -1590,7 +1590,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             if impl is not None:
                 enc = via_params["bottom_implant_enclosure"]
                 assert enc is not None, "Internal error"
-                layout.add_shape(wire=impl, shape=_rect(
+                layout.add_shape(prim=impl, shape=_rect(
                     bottom_left, bottom_bottom, bottom_right, bottom_top,
                     enclosure=enc,
                 ))
@@ -1618,7 +1618,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                         f"No well_net specified for WaferWire '{bottom.name}' in"
                         f" well '{well.name}'"
                     )
-                layout.add_shape(wire=well, net=well_net, shape=_rect(
+                layout.add_shape(prim=well, net=well_net, shape=_rect(
                     bottom_left, bottom_bottom, bottom_right, bottom_top,
                     enclosure=enc,
                 ))
@@ -1694,9 +1694,9 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 )),
             )
         )
-        layout.add_shape(wire=wire, net=port1, shape=mp.parts[0])
-        layout.add_shape(wire=wire, shape=mp.parts[1])
-        layout.add_shape(wire=wire, net=port2, shape=mp.parts[2])
+        layout.add_shape(prim=wire, net=port1, shape=mp.parts[0])
+        layout.add_shape(prim=wire, shape=mp.parts[1])
+        layout.add_shape(prim=wire, net=port2, shape=mp.parts[2])
 
         # Draw contacts
         layout.add_wire(net=port1, wire=cont, y=cont_y1, **cont_args)
@@ -1712,7 +1712,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 enc = wire.min_implant_enclosure[idx].max()
             impl_width = res_width + 2*enc
             impl_height = res_height + 2*wire_ext + 2*enc
-            layout.add_shape(wire=impl, shape=geo.Rect.from_size(width=impl_width, height=impl_height))
+            layout.add_shape(prim=impl, shape=geo.Rect.from_size(width=impl_width, height=impl_height))
 
         return layout
 
@@ -1799,13 +1799,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                 ),
             )
         )
-        layout.add_shape(wire=active, net=portnets["sourcedrain1"], shape=mps.parts[0])
-        layout.add_shape(wire=active, shape=mps.parts[1])
-        layout.add_shape(wire=active, net=portnets["sourcedrain2"], shape=mps.parts[2])
+        layout.add_shape(prim=active, net=portnets["sourcedrain1"], shape=mps.parts[0])
+        layout.add_shape(prim=active, shape=mps.parts[1])
+        layout.add_shape(prim=active, net=portnets["sourcedrain2"], shape=mps.parts[2])
 
         for impl in prim.implant:
             if impl in active.implant:
-                layout.add_shape(wire=impl, shape=_rect(
+                layout.add_shape(prim=impl, shape=_rect(
                     active_left, active_bottom, active_right, active_top,
                     enclosure=impl_enc
                 ))
@@ -1816,13 +1816,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
         poly_bottom = gate_bottom - ext
         poly_right = gate_right
         poly_top = gate_top + ext
-        layout.add_shape(wire=poly, net=portnets["gate"], shape=geo.Rect(
+        layout.add_shape(prim=poly, net=portnets["gate"], shape=geo.Rect(
             left=poly_left, bottom=poly_bottom, right=poly_right, top=poly_top,
         ))
 
         if prim.well is not None:
             enc = active.min_well_enclosure[active.well.index(prim.well)]
-            layout.add_shape(wire=prim.well, net=portnets["bulk"], shape=_rect(
+            layout.add_shape(prim=prim.well, net=portnets["bulk"], shape=_rect(
                 active_left, active_bottom, active_right, active_top, enclosure=enc,
             ))
 
@@ -1832,7 +1832,7 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
             enc = getattr(
                 prim.gate, "min_gateoxide_enclosure", prp.Enclosure(self.tech.grid),
             )
-            layout.add_shape(wire=prim.gate.oxide, shape=_rect(
+            layout.add_shape(prim=prim.gate.oxide, shape=_rect(
                 gate_left, gate_bottom, gate_right, gate_top, enclosure=enc,
             ))
 
@@ -1845,13 +1845,13 @@ class _PrimitiveLayouter(dsp.PrimitiveDispatcher):
                     if prim.gate.min_gateinside_enclosure is not None
                     else prp.Enclosure(self.tech.grid)
                 )
-                layout.add_shape(wire=inside, shape=_rect(
+                layout.add_shape(prim=inside, shape=_rect(
                     gate_left, gate_bottom, gate_right, gate_top, enclosure=enc,
                 ))
 
         for i, impl in enumerate(prim.implant):
             enc = gate_encs[i]
-            layout.add_shape(wire=impl, shape=_rect(
+            layout.add_shape(prim=impl, shape=_rect(
                 gate_left, gate_bottom, gate_right, gate_top, enclosure=enc,
             ))
 
@@ -2029,7 +2029,7 @@ class _CircuitLayouter:
             raise AssertionError("Internal error")
 
     def add_shape(self, *,
-        wire: prm._DesignMaskPrimitive, net: Optional[net_.Net], shape: geo._Shape,
+        prim: prm._DesignMaskPrimitive, net: Optional[net_.Net], shape: geo._Shape,
     ):
         """Add a geometry shape to a _Layout
 
@@ -2041,7 +2041,7 @@ class _CircuitLayouter:
                 f"net '{net.name}' is not a net of circuit '{self.circuit.name}'"
             )
 
-        self.layout.add_shape(wire=wire, net=net, shape=shape)
+        self.layout.add_shape(prim=prim, net=net, shape=shape)
 
     def add_wire(self, *, net, wire, **wire_params) -> _Layout:
         if net not in self.circuit.nets:
@@ -2067,7 +2067,7 @@ class _CircuitLayouter:
                 raise ValueError(
                     f"Parameters '{tuple(prim_params.keys())}' not supported for shape not 'None'",
                 )
-            self.add_shape(wire=prim, net=None, shape=shape)
+            self.add_shape(prim=prim, net=None, shape=shape)
 
     def connect(self, *, masks=None):
         for polygon in self.layout.polygons:
