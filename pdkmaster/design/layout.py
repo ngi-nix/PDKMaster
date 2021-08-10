@@ -1128,7 +1128,7 @@ class SubLayouts(_util.TypedList[_SubLayout]):
 
         if other:
             # Append remaining sublayouts
-            self.extend(other)
+            self.extend(sl.dup() for sl in other)
         return self
 
     def __add__(self, other: SingleOrMulti[_SubLayout].T) -> "SubLayouts":
