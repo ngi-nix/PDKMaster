@@ -100,7 +100,11 @@ class _Shape(abc.ABC):
 
     @abc.abstractmethod
     def moved(self: "_shape_childclass", *, dxy: "Point") -> "_shape_childclass":
-        """Move a _Shape object by a given vector"""
+        """Move a _Shape object by a given vector
+
+        This method is called moved() to represent the fact the _Shape objects are
+        immutable and a new object is created by the moved() method.
+        """
         raise NotImplementedError
 
     def __add__(self: "_shape_childclass", dxy: "Point") -> "_shape_childclass":
@@ -140,6 +144,11 @@ class _Shape(abc.ABC):
 
     @abc.abstractmethod
     def rotated(self: "_shape_childclass", *, rotation: Rotation) -> "_shape_childclass":
+        """Rotate a _Shape object by a given vector
+
+        This method is called rotated() to represent the fact the _Shape objects are
+        immutable and a new object is created by the rotated() method.
+        """
         raise NotImplementedError
 
     @property
